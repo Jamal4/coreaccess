@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jamal4.github.io/coreaccess-website/sitemap.xml
