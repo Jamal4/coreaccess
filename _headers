@@ -1,0 +1,16 @@
+# Cloudflare Workers static assets: response headers (parsed by Cloudflare, not served).
+# HSTS + X-Content-Type-Options are added by Cloudflare (SSL/TLS > Edge Certificates) - don't duplicate here.
+# The page's own Content-Security-Policy is a <meta> tag with script/style hashes (see build_site.py);
+# frame-ancestors only works as a header, so it is set here.
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+
+/img/*
+  Cache-Control: public, max-age=604800
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
