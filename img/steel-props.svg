@@ -23,7 +23,7 @@
 <rect x="-10" y="150" width="20" height="24" fill="url(#gv)"/>
 <path d="M-52 88 H-40 V144 H40 V88 H52 V156 H-52 Z" fill="url(#gv)" stroke="#7F888F"/>
 <text y="1300" text-anchor="middle" font-size="34" font-weight="700" fill="#2B3036">U-head prop</text>
-<text y="1338" text-anchor="middle" font-size="22" fill="#5F676E">For formwork beams &amp; bearers</text>
+<text y="1338" text-anchor="middle" font-size="22" fill="#5F676E">For shoring beams &amp; bearers</text>
 </g>
 
 <!-- 2 Heavy-duty galvanised prop -->
