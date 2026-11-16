@@ -7,16 +7,21 @@
 //   - Only the admin sets / resets passwords; users cannot change them. Block = all sessions end at once.
 //   - 5 wrong passwords -> that email is locked 15 min. Sessions 8 h, or 30 days with "keep me signed in".
 //   - Stored in Script Properties only (never in the sheet):
-//       OL:<email>  login {email,name,role,status,salt,hash,epoch,created,last}
+//       OL:<email>  login {email,name,role,status,alg,iters,salt,hash,epoch,created,last}
 //       OS:<token>  session {email,epoch,exp}
-//       OF:<email>  failed tries {n,until}
+//   - Failed tries OF:<email> {n,until} live in CacheService (expire on their own, so unknown
+//     addresses cannot fill the property store).
+//   - Password hash = PBKDF2-HMAC-SHA256 (alg + iters stored per login; old 'v1' hashes upgrade on sign-in).
+// Fixes after CodeRabbit review (PR #7, 16 Nov): KDF, cache fail counters, max password length on save,
+//   onOpen fallback.
 //   - Every later web-app server call starts with officeGate_(token, roles).
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF').
 // ============================================================================
 
 var OFFICE_ROLES_ = ['Admin', 'Accounts', 'Viewer', 'Yard', 'Field'];
-var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, minPw: 8 };
+var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200 };
+var OFFICE_KDF_ = 'pbkdf2-sha256';
 var OFFICE_ENV_ = null; // self-tests put an in-memory env here
 
 function officeEnv_() {
@@ -32,13 +37,66 @@ function officeEnv_() {
     sha: function (s) {
       return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8));
     },
+    bytes: function (s) { return Utilities.newBlob(String(s)).getBytes(); },
+    hmac: oHmacJs_, // plain JS: Utilities.computeHmacSha256Signature costs ~1 ms a call, too slow for a KDF
+    b64: function (b) { return Utilities.base64Encode(b.map(function (x) { return x << 24 >> 24; })); },
+    cget: function (k) { var v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; },
+    cput: function (k, o, sec) { CacheService.getScriptCache().put(k, JSON.stringify(o), Math.max(1, Math.min(21600, Math.ceil(sec)))); },
+    cdel: function (k) { CacheService.getScriptCache().remove(k); },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(10000); try { return fn(); } finally { l.releaseLock(); } }
   };
 }
 function oEnv_() { return OFFICE_ENV_ || officeEnv_(); }
 function oEmail_(e) { return String(e == null ? '' : e).trim().toLowerCase(); }
 function oEmailOk_(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.length <= 120; }
-function oHash_(env, salt, pw) { var h = salt + '|' + pw; for (var i = 0; i < OFFICE_CFG_.iters; i++) h = env.sha(salt + h); return h; }
+function oHash_(env, salt, pw) { var h = salt + '|' + pw; for (var i = 0; i < OFFICE_CFG_.iters; i++) h = env.sha(salt + h); return h; } // old v1, verify only
+// SHA-256 + HMAC in plain JS (FIPS 180-4 / RFC 2104). In: byte arrays (signed or not). Out: 32 bytes 0..255.
+var OSHA_ = (function () {
+  var K = [], H = [], n = 2, f = function (x) { return (x - Math.floor(x)) * 4294967296 | 0; };
+  while (K.length < 64) { for (var d = 2; d * d <= n && n % d; d++); if (d * d > n) { if (H.length < 8) H.push(f(Math.sqrt(n))); K.push(f(Math.cbrt(n))); } n++; }
+  return { K: K, H: H };
+})();
+function oSha256_(m) {
+  var K = OSHA_.K, h = OSHA_.H.slice(), l = m.length, b = [], w = new Array(64), i, j;
+  for (i = 0; i < l; i++) b.push(m[i] & 255);
+  b.push(128); while (b.length % 64 !== 56) b.push(0);
+  b.push(0, 0, 0, (l >>> 29) & 255, (l >>> 21) & 255, (l >>> 13) & 255, (l >>> 5) & 255, (l << 3) & 255);
+  for (j = 0; j < b.length; j += 64) {
+    for (i = 0; i < 16; i++) w[i] = b[j + 4 * i] << 24 | b[j + 4 * i + 1] << 16 | b[j + 4 * i + 2] << 8 | b[j + 4 * i + 3];
+    for (i = 16; i < 64; i++) {
+      var x = w[i - 15], y = w[i - 2];
+      w[i] = (((x >>> 7 | x << 25) ^ (x >>> 18 | x << 14) ^ (x >>> 3)) + w[i - 16] + ((y >>> 17 | y << 15) ^ (y >>> 19 | y << 13) ^ (y >>> 10)) + w[i - 7]) | 0;
+    }
+    var a = h[0], c = h[1], e = h[2], g = h[3], p = h[4], q = h[5], r = h[6], s = h[7];
+    for (i = 0; i < 64; i++) {
+      var t1 = (s + ((p >>> 6 | p << 26) ^ (p >>> 11 | p << 21) ^ (p >>> 25 | p << 7)) + ((p & q) ^ (~p & r)) + K[i] + w[i]) | 0;
+      var t2 = (((a >>> 2 | a << 30) ^ (a >>> 13 | a << 19) ^ (a >>> 22 | a << 10)) + ((a & c) ^ (a & e) ^ (c & e))) | 0;
+      s = r; r = q; q = p; p = (g + t1) | 0; g = e; e = c; c = a; a = (t1 + t2) | 0;
+    }
+    h[0] = (h[0] + a) | 0; h[1] = (h[1] + c) | 0; h[2] = (h[2] + e) | 0; h[3] = (h[3] + g) | 0;
+    h[4] = (h[4] + p) | 0; h[5] = (h[5] + q) | 0; h[6] = (h[6] + r) | 0; h[7] = (h[7] + s) | 0;
+  }
+  var out = []; for (i = 0; i < 8; i++) out.push(h[i] >>> 24 & 255, h[i] >>> 16 & 255, h[i] >>> 8 & 255, h[i] & 255);
+  return out;
+}
+function oHmacJs_(v, k) {
+  if (k.length > 64) k = oSha256_(k);
+  var ip = [], op = [], i;
+  for (i = 0; i < 64; i++) { var x = (k[i] || 0) & 255; ip.push(x ^ 54); op.push(x ^ 92); }
+  return oSha256_(op.concat(oSha256_(ip.concat(v))));
+}
+// PBKDF2-HMAC-SHA256, one 32-byte block (RFC 8018).
+function oPbkdf2_(env, pw, salt, iters) {
+  var P = env.bytes(pw), u = env.hmac(env.bytes(salt).concat([0, 0, 0, 1]), P), t = u.slice();
+  for (var i = 1; i < iters; i++) { u = env.hmac(u, P); for (var j = 0; j < t.length; j++) t[j] ^= u[j]; }
+  return env.b64(t);
+}
+function oSetPw_(env, L, pw) { L.alg = OFFICE_KDF_; L.iters = OFFICE_CFG_.kdfIters; L.salt = env.rand().slice(0, 32); L.hash = oPbkdf2_(env, pw, L.salt, L.iters); }
+function oPwOk_(env, L, pw) {
+  if (!L || !L.hash) return false;
+  if (L.alg === OFFICE_KDF_) return oSame_(oPbkdf2_(env, pw, L.salt, L.iters), L.hash);
+  return oSame_(oHash_(env, L.salt, pw), L.hash);
+}
 function oSame_(a, b) {
   a = String(a); b = String(b);
   if (a.length !== b.length) return false;
@@ -61,20 +119,21 @@ function doGet(e) {
 function officeLogin(email, pw, keep) {
   var env = oEnv_();
   email = oEmail_(email); pw = String(pw == null ? '' : pw);
-  if (!oEmailOk_(email) || !pw || pw.length > 200) oFail_('BAD|' + OFFICE_CFG_.maxFails);
+  if (!oEmailOk_(email) || !pw || pw.length > OFFICE_CFG_.maxPw) oFail_('BAD|' + OFFICE_CFG_.maxFails);
   return env.lock(function () {
-    var now = env.now(), fk = 'OF:' + email, f = env.get(fk) || { n: 0, until: 0 };
+    var now = env.now(), fk = 'OF:' + email, win = OFFICE_CFG_.lockMin * 60, f = env.cget(fk) || { n: 0, until: 0 };
     if (f.until > now) oFail_('LOCKED|' + Math.ceil((f.until - now) / 60000));
     if (f.until && f.until <= now) f = { n: 0, until: 0 };
     var L = env.get('OL:' + email);
-    var ok = !!(L && L.hash && oSame_(oHash_(env, L.salt, pw), L.hash));
+    var ok = L ? oPwOk_(env, L, pw) : (oPbkdf2_(env, pw, 'x', OFFICE_CFG_.kdfIters), false); // same work for unknown emails
     if (!ok) {
       f.n++;
-      if (f.n >= OFFICE_CFG_.maxFails) { env.put(fk, { n: 0, until: now + OFFICE_CFG_.lockMin * 60000 }); oFail_('LOCKED|' + OFFICE_CFG_.lockMin); }
-      env.put(fk, f); oFail_('BAD|' + (OFFICE_CFG_.maxFails - f.n));
+      if (f.n >= OFFICE_CFG_.maxFails) { env.cput(fk, { n: 0, until: now + win * 1000 }, win); oFail_('LOCKED|' + OFFICE_CFG_.lockMin); }
+      env.cput(fk, f, win); oFail_('BAD|' + (OFFICE_CFG_.maxFails - f.n));
     }
-    env.del(fk);
-    if (L.status !== 'Active') oFail_('BLOCKED'); // only told after a correct password
+    env.cdel(fk);
+    if (L.alg !== OFFICE_KDF_ || L.iters !== OFFICE_CFG_.kdfIters) oSetPw_(env, L, pw); // upgrade old hash, same password
+    if (L.status !== 'Active') { env.put('OL:' + email, L); oFail_('BLOCKED'); } // only told after a correct password
     oSweep_(env, now);
     var token = env.rand();
     env.put('OS:' + token, { email: email, epoch: L.epoch || 0, exp: now + (keep ? OFFICE_CFG_.keepD * 864e5 : OFFICE_CFG_.shortH * 36e5) });
@@ -129,8 +188,9 @@ function oSaveLogin_(env, o) {
     if (o.password != null && o.password !== '') {
       var pw = String(o.password);
       if (pw.length < OFFICE_CFG_.minPw) throw new Error('Password must be at least ' + OFFICE_CFG_.minPw + ' characters.');
-      L.salt = env.rand().slice(0, 32); L.hash = oHash_(env, L.salt, pw); L.epoch++;
-      env.del('OF:' + email);
+      if (pw.length > OFFICE_CFG_.maxPw) throw new Error('Password must be at most ' + OFFICE_CFG_.maxPw + ' characters.');
+      oSetPw_(env, L, pw); L.epoch++;
+      env.cdel('OF:' + email);
     }
     if (isNew && !L.hash) throw new Error('A password is needed for a new login.');
     if (o.status != null && o.status !== L.status) {
@@ -156,6 +216,8 @@ function oMakePassword_(env) {
 if (typeof onOpen === 'function') {
   var OF_onOpen0_ = onOpen;
   onOpen = function (e) { OF_onOpen0_(e); officeMenu_(); };
+} else {
+  onOpen = function (e) { officeMenu_(); }; // no earlier onOpen: still add the menu
 }
 function officeMenu_() {
   SpreadsheetApp.getUi().createMenu('Web app')
@@ -206,13 +268,19 @@ function menuOfficeLink() {
   SpreadsheetApp.getUi().alert('Web app link', url || 'Not deployed yet: Deploy › New deployment › Web app (execute as me, access Anyone).', SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
+// Editor › run officeKdfBench: time of one password check at the current work factor (aim ≈ 0.5–1 s).
+function officeKdfBench() {
+  var t = Date.now(); oPbkdf2_(officeEnv_(), 'bench-password', 'bench-salt', OFFICE_CFG_.kdfIters);
+  var ms = Date.now() - t; Logger.log('PBKDF2 ' + OFFICE_CFG_.kdfIters + ' iterations: ' + ms + ' ms'); return ms;
+}
+
 // ----------------------------------------------------------------- self-test (in memory; real logins untouched)
 if (typeof selfTestAllParts_ === 'function') {
   var OF_parts0_ = selfTestAllParts_;
   selfTestAllParts_ = function () { return OF_parts0_().concat([['OF', selfTestOffice()]]); };
 }
 function oMemEnv_() {
-  var store = {}, t = { now: 1.8e12 }, seq = 0;
+  var store = {}, cache = {}, t = { now: 1.8e12 }, seq = 0;
   return {
     store: store, clock: t,
     get: function (k) { return store[k] ? JSON.parse(store[k]) : null; },
@@ -222,6 +290,14 @@ function oMemEnv_() {
     now: function () { return t.now; },
     rand: function () { seq++; var s = ''; while (s.length < 64) s += ((seq * 2654435761 + s.length * 40503) >>> 0).toString(16); return s.slice(0, 64); },
     sha: function (s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return 'h' + h.toString(36); },
+    bytes: function (s) { s = String(s); var b = []; for (var i = 0; i < s.length; i++) b.push((s.charCodeAt(i) & 255) << 24 >> 24); return b; },
+    hmac: function (v, k) { var h = 5381, out = []; var a = k.concat([7]).concat(v); for (var i = 0; i < a.length; i++) h = ((h * 33) ^ (a[i] & 255)) >>> 0;
+      for (var j = 0; j < 32; j++) { h = (h * 1103515245 + 12345) >>> 0; out.push((h >>> 16 & 255) << 24 >> 24); } return out; },
+    b64: function (b) { return 'b' + b.map(function (x) { return (x & 255).toString(16); }).join(''); },
+    cache: cache,
+    cget: function (k) { var c = cache[k]; return c && c.exp > t.now ? JSON.parse(c.v) : null; },
+    cput: function (k, o, sec) { cache[k] = { v: JSON.stringify(o), exp: t.now + sec * 1000 }; },
+    cdel: function (k) { delete cache[k]; },
     lock: function (fn) { return fn(); }
   };
 }
@@ -229,7 +305,7 @@ function selfTestOffice() {
   var pass = 0, fail = 0, log = [];
   var eq = function (n, got, want) { if (got === want) pass++; else { fail++; log.push('FAIL ' + n + ': got ' + JSON.stringify(got) + ', want ' + JSON.stringify(want)); } };
   var err = function (fn) { try { fn(); return 'no error'; } catch (e) { return e.message; } };
-  var keep = OFFICE_ENV_, env = oMemEnv_(); OFFICE_ENV_ = env;
+  var keep = OFFICE_ENV_, keepIt = OFFICE_CFG_.kdfIters, env = oMemEnv_(); OFFICE_ENV_ = env; OFFICE_CFG_.kdfIters = 3;
   try {
     var H = 36e5, D = 864e5, M = 60000;
     eq('O1 add login', oSaveLogin_(env, { email: ' Jamal@Test.com ', name: 'Jamal Uddin', role: 'admin', password: 'GoodPass1' }).role, 'Admin');
@@ -245,7 +321,7 @@ function selfTestOffice() {
     eq('O9 me', officeMe(r.token).email, 'jamal@test.com');
     eq('O10 wrong password', err(function () { officeLogin('jamal@test.com', 'nope', false); }), 'BAD|4');
     eq('O11 unknown email looks the same', err(function () { officeLogin('ghost@test.com', 'whatever1', false); }), 'BAD|4');
-    eq('O12 good sign-in clears the count', !!officeLogin('jamal@test.com', 'GoodPass1', false).token && !env.get('OF:jamal@test.com'), true);
+    eq('O12 good sign-in clears the count', !!officeLogin('jamal@test.com', 'GoodPass1', false).token && !env.cget('OF:jamal@test.com'), true);
     for (var i = 0; i < 4; i++) err(function () { officeLogin('site1@test.com', 'bad', false); });
     eq('O13 5th wrong locks 15 min', err(function () { officeLogin('site1@test.com', 'bad', false); }), 'LOCKED|15');
     eq('O14 right password while locked', err(function () { officeLogin('site1@test.com', 'SitePass1', false); }), 'LOCKED|15');
@@ -289,8 +365,32 @@ function selfTestOffice() {
     eq('O38 empty password refused', err(function () { officeLogin('jamal@test.com', '', false); }), 'BAD|5');
     eq('O39 bad status refused', /Active or Blocked/.test(err(function () { oSaveLogin_(env, { email: 'jamal@test.com', status: 'Gone' }); })), true);
     eq('O40 name kept when blank', oSaveLogin_(env, { email: 'jamal@test.com', name: '', role: '' }).name, 'Jamal Uddin');
+    // --- CodeRabbit fixes (PR #7)
+    var J = env.get('OL:jamal@test.com');
+    eq('O41 hash is PBKDF2 with its params stored', J.alg === 'pbkdf2-sha256' && J.iters === 3 && J.hash === oPbkdf2_(env, 'GoodPass1', J.salt, 3), true);
+    var old = { email: 'old@test.com', name: 'Old', role: 'Viewer', status: 'Active', salt: 's1', epoch: 0, created: 0, last: 0 };
+    old.hash = oHash_(env, 's1', 'OldPass12'); env.put('OL:old@test.com', old);
+    eq('O42 old v1 hash still signs in', officeLogin('old@test.com', 'OldPass12', false).user.email, 'old@test.com');
+    eq('O43 ... and is upgraded to PBKDF2', env.get('OL:old@test.com').alg === 'pbkdf2-sha256' && officeLogin('old@test.com', 'OldPass12', false).user.role === 'Viewer', true);
+    for (var u = 0; u < 30; u++) err(function () { officeLogin('nobody' + u + '@test.com', 'whatever1', false); });
+    eq('O44 unknown addresses leave nothing in the property store', env.keys().filter(function (x) { return x.indexOf('OF:') === 0; }).length, 0);
+    for (var w = 0; w < 3; w++) err(function () { officeLogin('twin@test.com', 'bad', false); });
+    env.clock.now += 16 * M;
+    eq('O45 wrong-try count expires after 15 min', err(function () { officeLogin('twin@test.com', 'bad', false); }), 'BAD|4');
+    eq('O46 password over 200 chars refused on save', /at most 200/.test(err(function () { oSaveLogin_(env, { email: 'twin@test.com', password: new Array(202).join('a') }); })), true);
+    eq('O47 password of 200 chars saves and signs in', (oSaveLogin_(env, { email: 'twin@test.com', password: new Array(201).join('b') }), officeLogin('twin@test.com', new Array(201).join('b'), false).user.name), 'Twin');
+    eq('O48 unknown email does the same hashing work', (function () { var n = 0, h0 = env.hmac; env.hmac = function (v, k) { n++; return h0(v, k); };
+      try { err(function () { officeLogin('ghost2@test.com', 'whatever1', false); }); var a = n; n = 0; err(function () { officeLogin('jamal@test.com', 'whatever1', false); }); return a === n && a === 3; } finally { env.hmac = h0; } })(), true);
+    if (typeof Utilities !== 'undefined') {
+      var R = officeEnv_();
+      eq('O49 PBKDF2 RFC vector c=1', oPbkdf2_(R, 'password', 'salt', 1), 'Eg+2z/z4syxD5yJSVsT4N6hlSMkszDVICAWYfLcL4Xs=');
+      eq('O50 PBKDF2 RFC vector c=4096', oPbkdf2_(R, 'password', 'salt', 4096), 'xeR41ZKIyEGqUw22hFxMjZYok6ABzk4RpJY4c6qYE0o=');
+      var kk = R.bytes(new Array(81).join('k') + 'é'), vv = R.bytes('message ' + new Array(70).join('v'));
+      eq('O51 JS HMAC = Utilities HMAC (long key, 2 blocks)', R.b64(oHmacJs_(vv, kk)), Utilities.base64Encode(Utilities.computeHmacSha256Signature(vv, kk)));
+      eq('O52 SHA-256 of "abc"', R.b64(oSha256_(R.bytes('abc'))), 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=');
+    }
   } catch (e) { fail++; log.push('FAIL OF crashed: ' + e.message); }
-  finally { OFFICE_ENV_ = keep; }
+  finally { OFFICE_ENV_ = keep; OFFICE_CFG_.kdfIters = keepIt; }
   log.unshift('OF ' + pass + ' passed, ' + fail + ' failed');
   return { pass: pass, fail: fail, log: log };
 }

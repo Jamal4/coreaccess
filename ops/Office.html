@@ -236,7 +236,7 @@ var Mock=(function(){
 /* ======================= session (this device) ======================= */
 var KEY='cae_office_tok';
 function tokGet(){try{return localStorage.getItem(KEY)||sessionStorage.getItem(KEY);}catch(e){return null;}}
-function tokSet(t,keep){try{(keep?localStorage:sessionStorage).setItem(KEY,t);}catch(e){}}
+function tokSet(t,keep){try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);(keep?localStorage:sessionStorage).setItem(KEY,t);}catch(e){}}
 function tokClear(){try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);}catch(e){}}
 var S={token:null,user:null};
 
@@ -248,14 +248,16 @@ function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,
 function greet(){var h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
 
 /* ======================= screen 1: login ======================= */
+var LSEQ=0,LBUSY=false; /* one sign-in request at a time; late replies from an old screen are ignored */
 function viewLogin(note){
   document.title='Core Access · Sign in';
+  LSEQ++;LBUSY=false;
   app.innerHTML=
   '<div class="login"><div style="width:100%">'+
    '<div class="lcard" id="lf">'+
     '<div class="brand"><div class="mark">CA</div><div><b>Core Access</b><small>Engineering Ltd. · Office &amp; Site</small></div></div>'+
     '<h1>Sign in</h1><p class="sub">Use the email and password the admin gave you.</p>'+
-    '<div id="lmsg">'+(note||'')+'</div>'+
+    '<div id="lmsg" role="alert" aria-live="assertive">'+(note||'')+'</div>'+
     '<label class="fld"><span>Email</span><div class="inwrap">'+ic('mail')+
       '<input class="inp" id="em" type="email" inputmode="email" autocomplete="username" placeholder="name@example.com" required></div></label>'+
     '<label class="fld"><span>Password</span><div class="inwrap">'+ic('lock')+
@@ -275,16 +277,19 @@ function viewLogin(note){
 }
 function showMsg(kind,text){document.getElementById('lmsg').innerHTML='<div class="msg '+kind+'">'+ic('alert')+'<div>'+text+'</div></div>';}
 function doLogin(){
+  if(LBUSY) return;
   var em=document.getElementById('em'),pw=document.getElementById('pw'),go=document.getElementById('go');
   em.classList.remove('bad');pw.classList.remove('bad');
   var e=em.value.trim(),p=pw.value;
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){em.classList.add('bad');showMsg('err','Enter a valid email address.');em.focus();return;}
   if(!p){pw.classList.add('bad');showMsg('err','Enter your password.');pw.focus();return;}
   go.disabled=true;go.innerHTML='<span class="spin"></span> Signing in…';
-  var keep=document.getElementById('keep').checked;
+  var keep=document.getElementById('keep').checked, my=++LSEQ; LBUSY=true;
   call('officeLogin',e,p,keep).then(function(r){
+    if(my!==LSEQ) return; LBUSY=false;
     S.token=r.token;S.user=r.user;tokSet(r.token,keep);viewHome();
   },function(m){
+    if(my!==LSEQ) return; LBUSY=false;
     go.disabled=false;go.textContent='Sign in';
     var k=String(m).replace(/^(Error|Exception):\s*/,'').split('|');
     if(k[0]==='LOCKED') showMsg('warn','Too many wrong tries. This email is locked for <b>'+esc(k[1])+' min</b>. Ask the admin if you need in now.');
@@ -391,7 +396,11 @@ function viewHome(f){
 (function start(){
   var t=tokGet();
   if(!t) return viewLogin();
-  call('officeMe',t).then(function(u){S.token=t;S.user=u;viewHome();},function(){tokClear();viewLogin();});
+  call('officeMe',t).then(function(u){S.token=t;S.user=u;viewHome();},function(m){
+    /* only a dead session clears the saved sign-in; a network / server hiccup keeps it for the next try */
+    if(String(m).replace(/^(Error|Exception):\s*/,'')==='NOSESSION'){tokClear();viewLogin();}
+    else viewLogin('<div class="msg warn">'+ic('alert')+'<div>Could not check your sign-in just now. <b>Reload</b> to try again, or sign in below.</div></div>');
+  });
 })();
 </script>
 </body>
