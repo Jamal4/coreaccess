@@ -9,18 +9,19 @@
 //   - Stored in Script Properties only (never in the sheet):
 //       OL:<email>  login {email,name,role,status,alg,iters,salt,hash,epoch,created,last}
 //       OS:<token>  session {email,epoch,exp}
-//   - Failed tries OF:<email> {n,until} live in CacheService (expire on their own, so unknown
-//     addresses cannot fill the property store).
+//   - Failed tries {n,until,at}: registered logins keep them in their own OL: record (durable, bounded by
+//     the number of logins); unknown addresses keep OF:<email> in CacheService (cannot fill the property store).
 //   - Password hash = PBKDF2-HMAC-SHA256 (alg + iters stored per login; old 'v1' hashes upgrade on sign-in).
 // Fixes after CodeRabbit review (PR #7, 16 Nov): KDF, cache fail counters, max password length on save,
-//   onOpen fallback.
+//   onOpen fallback.  Round 2: lock state durable for registered logins; each try is booked under a short
+//   lock and the slow password check runs outside it; max 5 sessions per login; sweep drops revoked sessions.
 //   - Every later web-app server call starts with officeGate_(token, roles).
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF').
 // ============================================================================
 
 var OFFICE_ROLES_ = ['Admin', 'Accounts', 'Viewer', 'Yard', 'Field'];
-var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200 };
+var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200, maxSess: 5 };
 var OFFICE_KDF_ = 'pbkdf2-sha256';
 var OFFICE_ENV_ = null; // self-tests put an in-memory env here
 
@@ -116,27 +117,43 @@ function doGet(e) {
 
 // ----------------------------------------------------------------- sign in / session
 // Errors reach the page as message codes: BAD|<tries left>, LOCKED|<minutes>, BLOCKED, NOSESSION, NOACCESS.
+function oFGet_(env, email, L) { var f = L ? L.fails : env.cget('OF:' + email); return f && f.n != null ? f : { n: 0, until: 0, at: 0 }; }
+function oFPut_(env, email, L, f) {
+  if (L) { if (f.n || f.until) L.fails = f; else delete L.fails; env.put('OL:' + email, L); }
+  else if (f.n || f.until) env.cput('OF:' + email, f, OFFICE_CFG_.lockMin * 60); else env.cdel('OF:' + email);
+}
 function officeLogin(email, pw, keep) {
-  var env = oEnv_();
+  var env = oEnv_(), C = OFFICE_CFG_, win = C.lockMin * 6e4;
   email = oEmail_(email); pw = String(pw == null ? '' : pw);
-  if (!oEmailOk_(email) || !pw || pw.length > OFFICE_CFG_.maxPw) oFail_('BAD|' + OFFICE_CFG_.maxFails);
+  if (!oEmailOk_(email) || !pw || pw.length > C.maxPw) oFail_('BAD|' + C.maxFails);
+  // 1) short lock: refuse while locked, else book this try first (parallel guesses still count: max 5 per window)
+  var snap = env.lock(function () {
+    var now = env.now(), L = env.get('OL:' + email), f = oFGet_(env, email, L);
+    if (f.until > now) oFail_('LOCKED|' + Math.ceil((f.until - now) / 6e4));
+    if (f.until || (f.at && now - f.at >= win)) f = { n: 0, until: 0, at: 0 };
+    f.n++; f.at = now; if (f.n >= C.maxFails) f.until = now + win;
+    oFPut_(env, email, L, f);
+    return L;
+  });
+  // 2) slow password check outside the lock (same work for unknown emails)
+  var ok = snap ? oPwOk_(env, snap, pw) : (oPbkdf2_(env, pw, 'x', C.kdfIters), false), up = null;
+  if (ok && (snap.alg !== OFFICE_KDF_ || snap.iters !== C.kdfIters)) { up = {}; oSetPw_(env, up, pw); } // upgrade old hash, same password
+  // 3) short lock: apply the result to the record as it is now
   return env.lock(function () {
-    var now = env.now(), fk = 'OF:' + email, win = OFFICE_CFG_.lockMin * 60, f = env.cget(fk) || { n: 0, until: 0 };
-    if (f.until > now) oFail_('LOCKED|' + Math.ceil((f.until - now) / 60000));
-    if (f.until && f.until <= now) f = { n: 0, until: 0 };
-    var L = env.get('OL:' + email);
-    var ok = L ? oPwOk_(env, L, pw) : (oPbkdf2_(env, pw, 'x', OFFICE_CFG_.kdfIters), false); // same work for unknown emails
+    var now = env.now(), L = env.get('OL:' + email);
+    if (ok && (!L || L.hash !== snap.hash || L.salt !== snap.salt)) ok = false; // password changed meanwhile
     if (!ok) {
-      f.n++;
-      if (f.n >= OFFICE_CFG_.maxFails) { env.cput(fk, { n: 0, until: now + win * 1000 }, win); oFail_('LOCKED|' + OFFICE_CFG_.lockMin); }
-      env.cput(fk, f, win); oFail_('BAD|' + (OFFICE_CFG_.maxFails - f.n));
+      var f = oFGet_(env, email, snap ? L : null); // the try is already counted
+      if (f.until > now) oFail_('LOCKED|' + Math.ceil((f.until - now) / 6e4));
+      oFail_('BAD|' + Math.max(0, C.maxFails - f.n));
     }
-    env.cdel(fk);
-    if (L.alg !== OFFICE_KDF_ || L.iters !== OFFICE_CFG_.kdfIters) oSetPw_(env, L, pw); // upgrade old hash, same password
+    delete L.fails; env.cdel('OF:' + email);
+    if (up) { L.alg = up.alg; L.iters = up.iters; L.salt = up.salt; L.hash = up.hash; }
     if (L.status !== 'Active') { env.put('OL:' + email, L); oFail_('BLOCKED'); } // only told after a correct password
     oSweep_(env, now);
+    oCapSessions_(env, email, C.maxSess - 1);
     var token = env.rand();
-    env.put('OS:' + token, { email: email, epoch: L.epoch || 0, exp: now + (keep ? OFFICE_CFG_.keepD * 864e5 : OFFICE_CFG_.shortH * 36e5) });
+    env.put('OS:' + token, { email: email, epoch: L.epoch || 0, at: now, exp: now + (keep ? C.keepD * 864e5 : C.shortH * 36e5) });
     L.last = now; env.put('OL:' + email, L);
     return { token: token, user: oPublic_(L) };
   });
@@ -161,11 +178,23 @@ function officeLogout(token) {
   if (/^[a-f0-9]{64}$/.test(token)) oEnv_().del('OS:' + token);
   return true;
 }
+// Drops expired sessions and revoked ones (login gone / blocked / epoch changed).
 function oSweep_(env, now) {
+  var seen = Object.create(null);
   env.keys().forEach(function (k) {
     if (k.indexOf('OS:') !== 0) return;
-    var s = env.get(k); if (!s || s.exp <= now) env.del(k);
+    var s = env.get(k), L = null;
+    if (s) { if (!(s.email in seen)) seen[s.email] = env.get('OL:' + s.email); L = seen[s.email]; }
+    if (!s || s.exp <= now || !L || L.status !== 'Active' || (L.epoch || 0) !== s.epoch) env.del(k);
   });
+}
+// Keeps at most `keep` sessions of one login (the newest).
+function oCapSessions_(env, email, keep) {
+  env.keys().filter(function (k) { return k.indexOf('OS:') === 0; })
+    .map(function (k) { return { k: k, s: env.get(k) }; })
+    .filter(function (x) { return x.s && x.s.email === email; })
+    .sort(function (x, y) { return (y.s.at || 0) - (x.s.at || 0); })
+    .slice(Math.max(0, keep)).forEach(function (x) { env.del(x.k); });
 }
 
 // ----------------------------------------------------------------- admin: logins (menu now, W2 screen later)
@@ -176,6 +205,7 @@ function oSaveLogin_(env, o) {
   return env.lock(function () {
     var L = env.get('OL:' + email), isNew = !L;
     L = L || { email: email, name: '', role: '', status: 'Active', salt: '', hash: '', epoch: 0, created: env.now(), last: 0 };
+    var ep0 = L.epoch;
     if (o.name != null && String(o.name).trim()) L.name = String(o.name).trim().slice(0, 80);
     if (o.role != null && String(o.role).trim()) {
       var r = OFFICE_ROLES_.filter(function (x) { return x.toLowerCase() === String(o.role).trim().toLowerCase(); })[0];
@@ -190,7 +220,7 @@ function oSaveLogin_(env, o) {
       if (pw.length < OFFICE_CFG_.minPw) throw new Error('Password must be at least ' + OFFICE_CFG_.minPw + ' characters.');
       if (pw.length > OFFICE_CFG_.maxPw) throw new Error('Password must be at most ' + OFFICE_CFG_.maxPw + ' characters.');
       oSetPw_(env, L, pw); L.epoch++;
-      env.cdel('OF:' + email);
+      delete L.fails; env.cdel('OF:' + email);
     }
     if (isNew && !L.hash) throw new Error('A password is needed for a new login.');
     if (o.status != null && o.status !== L.status) {
@@ -198,6 +228,7 @@ function oSaveLogin_(env, o) {
       L.status = o.status; L.epoch++;
     }
     env.put('OL:' + email, L);
+    if (L.epoch !== ep0) oSweep_(env, env.now()); // revoked sessions go at once
     return oPublic_(L);
   });
 }
@@ -381,6 +412,32 @@ function selfTestOffice() {
     eq('O47 password of 200 chars saves and signs in', (oSaveLogin_(env, { email: 'twin@test.com', password: new Array(201).join('b') }), officeLogin('twin@test.com', new Array(201).join('b'), false).user.name), 'Twin');
     eq('O48 unknown email does the same hashing work', (function () { var n = 0, h0 = env.hmac; env.hmac = function (v, k) { n++; return h0(v, k); };
       try { err(function () { officeLogin('ghost2@test.com', 'whatever1', false); }); var a = n; n = 0; err(function () { officeLogin('jamal@test.com', 'whatever1', false); }); return a === n && a === 3; } finally { env.hmac = h0; } })(), true);
+    // --- CodeRabbit round 2 (PR #7)
+    for (var x5 = 0; x5 < 5; x5++) err(function () { officeLogin('twin@test.com', 'bad', false); });
+    for (var ck in env.cache) delete env.cache[ck]; // cache evicted
+    eq('O53 lock of a registered login survives cache loss', err(function () { officeLogin('twin@test.com', new Array(201).join('b'), false); }), 'LOCKED|15');
+    eq('O54 ... kept in its own login record', !!(env.get('OL:twin@test.com').fails || {}).until && env.keys().filter(function (q) { return q.indexOf('OF:') === 0; }).length === 0, true);
+    oSaveLogin_(env, { email: 'twin@test.com', password: 'TwinPass12' });
+    eq('O55 password reset clears the lock', officeLogin('twin@test.com', 'TwinPass12', false).user.name, 'Twin');
+    env.clock.now += 16 * M; // jamal's wrong try from O48 expires
+    eq('O56 parallel guesses: at most 5 password checks', (function () { var n = 0, h0 = env.hmac, inner = false, res = [];
+      env.hmac = function (v, k) { n++; if (!inner) { inner = true; for (var p = 0; p < 6; p++) res.push(err(function () { officeLogin('jamal@test.com', 'guess' + p, false); })); } return h0(v, k); };
+      try { res.unshift(err(function () { officeLogin('jamal@test.com', 'guess', false); })); } finally { env.hmac = h0; }
+      return n / 3 + ':' + res.join(','); })(), '5:LOCKED|15,BAD|3,BAD|2,BAD|1,LOCKED|15,LOCKED|15,LOCKED|15');
+    env.clock.now += 16 * M;
+    eq('O57 password check runs outside the lock', (function () { var held = false, bad = 0, l0 = env.lock, h0 = env.hmac;
+      env.lock = function (fn) { held = true; try { return fn(); } finally { held = false; } };
+      env.hmac = function (v, k) { if (held) bad++; return h0(v, k); };
+      try { officeLogin('jamal@test.com', 'GoodPass1', false); err(function () { officeLogin('ghost3@test.com', 'whatever1', false); }); } finally { env.lock = l0; env.hmac = h0; }
+      return bad; })(), 0);
+    eq('O58 password changed during the check is refused', (function () { var h0 = env.hmac, done = false;
+      env.hmac = function (v, k) { if (!done) { done = true; oSaveLogin_(env, { email: 'old@test.com', password: 'Changed123' }); } return h0(v, k); };
+      try { return err(function () { officeLogin('old@test.com', 'OldPass12', false); }); } finally { env.hmac = h0; } })(), 'BAD|5');
+    var tk = [];
+    for (var y = 0; y < 7; y++) { env.clock.now += 1000; tk.push(officeLogin('old@test.com', 'Changed123', true).token); }
+    eq('O59 at most 5 sessions per login, newest kept', env.keys().filter(function (q) { var o = q.indexOf('OS:') === 0 && env.get(q); return o && o.email === 'old@test.com'; }).length + ':' + err(function () { officeMe(tk[1]); }) + ':' + officeMe(tk[6]).email, '5:NOSESSION:old@test.com');
+    oSaveLogin_(env, { email: 'old@test.com', role: 'Field' });
+    eq('O60 role change removes its sessions from the store', env.keys().filter(function (q) { var o = q.indexOf('OS:') === 0 && env.get(q); return o && o.email === 'old@test.com'; }).length, 0);
     if (typeof Utilities !== 'undefined') {
       var R = officeEnv_();
       eq('O49 PBKDF2 RFC vector c=1', oPbkdf2_(R, 'password', 'salt', 1), 'Eg+2z/z4syxD5yJSVsT4N6hlSMkszDVICAWYfLcL4Xs=');

@@ -375,8 +375,8 @@ function viewHome(f){
   var ds=DEPTS.filter(function(D){return mine.some(function(t){return t.d===D.d;});});
   var body='<div class="hello"><div><h2>'+greet()+', '+esc(S.user.name.split(' ')[0])+'</h2><p>What would you like to do?</p></div></div>';
   if(ds.length>1){
-    body+='<div class="chips"><button type="button" class="chip'+(f?'':' on')+'" data-f="">All</button>';
-    ds.forEach(function(D){body+='<button type="button" class="chip '+D.c+(f===D.d?' on':'')+'" data-f="'+D.d+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';});
+    body+='<div class="chips" role="group" aria-label="Filter by department"><button type="button" class="chip'+(f?'':' on')+'" data-f="" aria-pressed="'+!f+'">All</button>';
+    ds.forEach(function(D){body+='<button type="button" class="chip '+D.c+(f===D.d?' on':'')+'" data-f="'+D.d+'" aria-pressed="'+(f===D.d)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';});
     body+='</div>';
   }
   ds.forEach(function(D){
@@ -388,7 +388,7 @@ function viewHome(f){
     body+='</div></section>';
   });
   shell('Home',body);
-  [].forEach.call(document.querySelectorAll('.chip'),function(c){c.onclick=function(){viewHome(c.getAttribute('data-f'));};});
+  [].forEach.call(document.querySelectorAll('.chip'),function(c){c.onclick=function(){var v=c.getAttribute('data-f');viewHome(v);var n=document.querySelector('.chip[data-f="'+v+'"]');if(n)n.focus();};});
   [].forEach.call(document.querySelectorAll('.tile'),function(b){b.onclick=function(){toast(b.querySelector('b').textContent+' — comes in a later step.');};});
 }
 
