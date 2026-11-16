@@ -28,6 +28,11 @@
 //   object with methods; appSweep: the triggerUid of one of this project's triggers) or the owner; constructors
 //   are wrapped too (new still works); wrappers keep their names; at most 30 password checks a minute in total
 //   (BUSY) so a flood cannot eat the owner's executions.
+// CodeRabbit CLI review (16 Nov 22:55): the 30-a-minute total is one {m, n} record in Script Properties, read,
+//   checked and counted under the script lock (the cache could drop it early; two parallel calls could both pass).
+//   Known limit: a public function in a file AFTER this one is not wrapped, and a page that is already open could
+//   call it directly. Code only goes live with a new deployment version, so: never make a new deployment version
+//   unless selfTestLog shows 0 failed (O72 fails for any file after this one).
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF').
 // ============================================================================
@@ -140,13 +145,14 @@ function officeLogin(email, pw, keep) {
   var env = oEnv_(), C = OFFICE_CFG_, win = C.lockMin * 6e4;
   email = oEmail_(email); pw = typeof pw === 'string' ? pw : ''; keep = keep === true;
   if (!oEmailOk_(email) || !pw || pw.length > C.maxPw) oFail_('BAD|' + C.maxFails);
-  // 0) all addresses together: at most maxPerMin password checks a minute (a flood cannot eat the owner's executions)
-  var bk = 'OT:' + Math.floor(env.now() / 6e4), nb = (env.cget(bk) || 0) + 1;
-  if (nb > C.maxPerMin) oFail_('BUSY|1');
-  env.cput(bk, nb, 120);
-  // 1) short lock: refuse while locked, else book this try first (parallel guesses still count: max 5 per window)
+  // 1) short lock: 0) all addresses together at most maxPerMin password checks a minute (a flood cannot eat the owner's
+  //    executions; one {m, n} record in Script Properties, the cache may drop it early); then refuse while locked,
+  //    else book this try first (parallel guesses still count: max 5 per window)
   var snap = env.lock(function () {
-    var now = env.now(), L = env.get('OL:' + email), f = oFGet_(env, email, L);
+    var now = env.now(), m = Math.floor(now / 6e4), t = env.get('OT') || {};
+    if (t.m === m && t.n >= C.maxPerMin) oFail_('BUSY|1');
+    env.put('OT', { m: m, n: t.m === m ? (+t.n || 0) + 1 : 1 });
+    var L = env.get('OL:' + email), f = oFGet_(env, email, L);
     if (f.until > now) oFail_('LOCKED|' + Math.ceil((f.until - now) / 6e4));
     if (f.until || (f.at && now - f.at >= win)) f = { n: 0, until: 0, at: 0 };
     f.n++; f.at = now; if (f.n >= C.maxFails) f.until = now + win;
@@ -548,6 +554,13 @@ function selfTestOffice() {
     OFFICE_CFG_.maxPerMin = 3; env.clock.now = Math.ceil(env.clock.now / 6e4) * 6e4 + 1000;
     eq('O85 at most 3 (test limit) password checks a minute in total, then BUSY; next minute open again', [err(function () { officeLogin('a1@test.com', 'x1', false); }), err(function () { officeLogin('a2@test.com', 'x1', false); }), err(function () { officeLogin('a3@test.com', 'x1', false); }),
       err(function () { officeLogin('jamal@test.com', 'GoodPass1', false); }), (env.clock.now += 6e4, officeLogin('jamal@test.com', 'GoodPass1', false).user.name)].join(','), 'BAD|4,BAD|4,BAD|4,BUSY|1,Jamal Uddin');
+    eq('O86 the total counter is one Script Properties record (none in the cache)', JSON.stringify(env.get('OT')) + ':' + Object.keys(env.store).filter(function (q) { return q.indexOf('OT') === 0; }).length + ':' + (env.cget('OT:' + Math.floor(env.clock.now / 6e4)) == null), '{"m":' + Math.floor(env.clock.now / 6e4) + ',"n":1}:1:true');
+    eq('O87 counter read, BUSY check and +1 happen inside the lock', (function () { var held = false, bad = 0, l0 = env.lock, g0 = env.get, p0 = env.put;
+      env.lock = function (fn) { held = true; try { return fn(); } finally { held = false; } };
+      env.get = function (k) { if (k === 'OT' && !held) bad++; return g0(k); }; env.put = function (k, o) { if (k === 'OT' && !held) bad++; return p0(k, o); };
+      try { err(function () { officeLogin('a4@test.com', 'x1', false); }); err(function () { officeLogin('a5@test.com', 'x1', false); }); } finally { env.lock = l0; env.get = g0; env.put = p0; }
+      return bad + ':' + env.get('OT').n; })(), '0:3');
+    eq('O88 a broken counter record resets instead of blocking', (env.put('OT', 'junk'), officeLogin('jamal@test.com', 'GoodPass1', false).user.name + ':' + env.get('OT').n), 'Jamal Uddin:1');
     OFFICE_CFG_.maxPerMin = 1e9;
     var big = new Array(1 << 20).join('a') + '@x', t0 = Date.now();
     eq('O74 1 MB email refused at once', err(function () { officeLogin(big, 'GoodPass1', false); }) + ':' + (Date.now() - t0 < 1000), 'BAD|5:true');
