@@ -244,6 +244,7 @@ var S={token:null,user:null};
 var app=document.getElementById('app');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on');},2600);}
+function nu(u){u=u||{};return {name:String(u.name||'—'),role:String(u.role||''),email:String(u.email||''),depts:u.depts};} /* server user, tidied: a missing field never breaks the page */
 function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();}
 function greet(){var h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
 
@@ -287,7 +288,7 @@ function doLogin(){
   var keep=document.getElementById('keep').checked, my=++LSEQ; LBUSY=true;
   call('officeLogin',e,p,keep).then(function(r){
     if(my!==LSEQ) return; LBUSY=false;
-    S.token=r.token;S.user=r.user;tokSet(r.token,keep);viewHome();
+    S.token=r.token;S.user=nu(r.user);tokSet(r.token,keep);viewHome();
   },function(m){
     if(my!==LSEQ) return; LBUSY=false;
     go.disabled=false;go.textContent='Sign in';
@@ -396,7 +397,7 @@ function viewHome(f){
 (function start(){
   var t=tokGet();
   if(!t) return viewLogin();
-  call('officeMe',t).then(function(u){S.token=t;S.user=u;viewHome();},function(m){
+  call('officeMe',t).then(function(u){S.token=t;S.user=nu(u);viewHome();},function(m){
     /* only a dead session clears the saved sign-in; a network / server hiccup keeps it for the next try */
     if(String(m).replace(/^(Error|Exception):\s*/,'')==='NOSESSION'){tokClear();viewLogin();}
     else viewLogin('<div class="msg warn">'+ic('alert')+'<div>Could not check your sign-in just now. <b>Reload</b> to try again, or sign in below.</div></div>');
