@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f12">
+<title>Core Access · Office</title>
+<style>
+:root{
+  --bg:#0b0f12; --bg2:#0f1519; --card:#141b20; --card2:#1a232a; --line:#26323b; --line2:#33424d;
+  --text:#e7eef2; --muted:#8fa1ad; --dim:#5f707c;
+  --teal:#14b8a6; --teal2:#2dd4bf; --tealbg:rgba(20,184,166,.12);
+  --amber:#f59e0b; --amberbg:rgba(245,158,11,.12);
+  --red:#f43f5e; --redbg:rgba(244,63,94,.12);
+  --violet:#a78bfa; --violetbg:rgba(167,139,250,.12);
+  --sky:#38bdf8; --skybg:rgba(56,189,248,.12);
+  --orange:#fb923c; --orangebg:rgba(251,146,60,.12);
+  --green:#4ade80; --greenbg:rgba(74,222,128,.12);
+  --r:14px; --r2:10px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+body{font-size:15px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border-radius:var(--r2);
+  border:1px solid transparent;font-weight:600;letter-spacing:.2px;cursor:pointer;transition:transform .06s,background .15s,border-color .15s,box-shadow .15s}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,.inp:focus-visible,.tile:focus-visible,.iconbtn:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
+.btn-primary{background:linear-gradient(180deg,var(--teal2),var(--teal));color:#04201d;box-shadow:0 6px 18px rgba(20,184,166,.25)}
+.btn-primary:hover{box-shadow:0 8px 24px rgba(20,184,166,.38)}
+.btn-ghost{background:transparent;border-color:var(--line2);color:var(--text)}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal2)}
+.btn-danger{background:var(--redbg);border-color:rgba(244,63,94,.45);color:#fda4af}
+.btn[disabled]{opacity:.6;cursor:default}
+.btn-block{width:100%}
+.spin{width:18px;height:18px;border:2.5px solid rgba(4,32,29,.25);border-top-color:#04201d;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--muted)}
+.iconbtn:hover{color:var(--teal2);border-color:var(--teal)}
+
+/* ---------- form fields ---------- */
+.fld{display:block;margin-bottom:16px}
+.fld>span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.2px}
+.inwrap{position:relative;display:flex;align-items:center}
+.inwrap>svg.i{position:absolute;left:13px;color:var(--dim);pointer-events:none}
+.inp{width:100%;height:46px;padding:0 14px 0 42px;border-radius:var(--r2);border:1px solid var(--line2);background:var(--bg2);transition:border-color .15s,box-shadow .15s}
+.inp::placeholder{color:var(--dim)}
+.inp:hover{border-color:#41525e}
+.inp:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--tealbg)}
+.inp.bad{border-color:var(--red);box-shadow:0 0 0 3px var(--redbg)}
+.eye{position:absolute;right:6px;width:36px;height:36px;border:0;background:none;color:var(--dim);cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.eye:hover{color:var(--teal2)}
+.check{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;cursor:pointer;user-select:none;margin:4px 0 20px}
+.check input{appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line2);background:var(--bg2);display:grid;place-content:center;cursor:pointer;margin:0}
+.check input:checked{background:var(--teal);border-color:var(--teal)}
+.check input:checked::after{content:"";width:10px;height:6px;border:2.5px solid #04201d;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+
+/* ---------- alerts ---------- */
+.msg{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:var(--r2);font-size:14px;margin-bottom:16px;border:1px solid}
+.msg svg.i{width:18px;height:18px;margin-top:1px}
+.msg.err{background:var(--redbg);border-color:rgba(244,63,94,.4);color:#fecdd3}
+.msg.warn{background:var(--amberbg);border-color:rgba(245,158,11,.4);color:#fde68a}
+.msg.ok{background:var(--tealbg);border-color:rgba(20,184,166,.4);color:#99f6e4}
+
+/* ---------- login ---------- */
+.login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:28px 16px;
+  background:
+    radial-gradient(900px 500px at 85% -10%,rgba(20,184,166,.16),transparent 60%),
+    radial-gradient(700px 400px at -10% 110%,rgba(56,189,248,.08),transparent 60%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.025) 0 1px,transparent 1px 72px),
+    repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 72px),
+    var(--bg)}
+.lcard{width:100%;max-width:400px;background:linear-gradient(180deg,rgba(26,35,42,.92),rgba(20,27,32,.92));border:1px solid var(--line);border-radius:20px;padding:30px 26px 24px;box-shadow:var(--shadow);backdrop-filter:blur(6px)}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--teal2),#0e7490);display:grid;place-items:center;color:#04201d;font-weight:800;letter-spacing:.5px;box-shadow:0 6px 18px rgba(20,184,166,.3)}
+.brand b{display:block;font-size:18px;letter-spacing:.3px}
+.brand small{color:var(--muted);font-size:13px}
+.lcard h1{font-size:22px;margin:0 0 4px}
+.lcard p.sub{color:var(--muted);margin:0 0 22px;font-size:14px}
+.foot{margin-top:18px;text-align:center;color:var(--dim);font-size:13px}
+.demo{max-width:400px;margin:14px auto 0;padding:12px 14px;border:1px dashed var(--line2);border-radius:12px;color:var(--muted);font-size:13px}
+.demo b{color:var(--text)}
+.demo code{background:var(--card2);padding:1px 6px;border-radius:6px;color:var(--teal2);cursor:pointer}
+
+/* ---------- shell ---------- */
+.top{position:sticky;top:0;z-index:5;background:#05080a;border-bottom:1px solid #000}
+.topin{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:10px 16px}
+.top .mark{width:36px;height:36px;border-radius:10px;font-size:13px}
+.top .nm{font-weight:700;letter-spacing:.3px}
+.top .nm small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:0}
+.sp{flex:1}
+.who{display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.av{width:32px;height:32px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--teal2);border:1px solid var(--line2)}
+.who .n{font-size:14px;font-weight:600;line-height:1.1}
+.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.p-Admin{background:var(--tealbg);color:var(--teal2)}
+.p-Accounts{background:var(--violetbg);color:var(--violet)}
+.p-Yard,.p-Field{background:var(--amberbg);color:var(--amber)}
+.p-Viewer{background:var(--skybg);color:var(--sky)}
+.banner{background:linear-gradient(90deg,#0f766e,var(--teal));color:#effffd}
+.banner .topin{padding:7px 16px;font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase}
+.main{max-width:1100px;margin:0 auto;padding:22px 16px 60px}
+.hello{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.hello h2{margin:0;font-size:24px}
+.hello p{margin:2px 0 0;color:var(--muted)}
+.sec{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--dim);margin:22px 0 10px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.tile{position:relative;display:flex;flex-direction:column;gap:10px;text-align:left;padding:16px;border-radius:var(--r);background:var(--card);border:1px solid var(--line);cursor:pointer;transition:transform .12s,border-color .15s,background .15s;min-height:118px}
+.tile:hover{transform:translateY(-2px);border-color:var(--c,var(--teal));background:var(--card2)}
+.tile .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--cb,var(--tealbg));color:var(--c,var(--teal2))}
+.tile .ic svg.i{width:22px;height:22px}
+.tile b{font-size:16px}
+.tile small{color:var(--muted);font-size:13px;margin-top:-6px}
+.tile .soon{position:absolute;top:12px;right:12px;font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--dim);border:1px solid var(--line2);padding:1px 6px;border-radius:999px}
+.t-teal{--c:var(--teal2);--cb:var(--tealbg)} .t-amber{--c:var(--amber);--cb:var(--amberbg)}
+.t-violet{--c:var(--violet);--cb:var(--violetbg)} .t-sky{--c:var(--sky);--cb:var(--skybg)} .t-red{--c:#fb7185;--cb:var(--redbg)}
+.t-orange{--c:var(--orange);--cb:var(--orangebg)} .t-green{--c:var(--green);--cb:var(--greenbg)}
+.tile::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--c,var(--teal))}
+.dsec{margin-top:22px}
+.dhead{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.dcode{font-size:12px;font-weight:800;letter-spacing:1px;padding:3px 8px;border-radius:8px;background:var(--cb);color:var(--c)}
+.dhead b{font-size:15px}
+.dhead .lv{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line2);padding:1px 7px;border-radius:999px}
+.dhead small{margin-left:auto;color:var(--dim);font-size:12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line2);background:var(--card);color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.5px;cursor:pointer}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--c,var(--teal))}
+.chip.on{border-color:var(--c,var(--teal));color:var(--text);background:var(--cb,var(--tealbg))}
+.chip:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--card2);border:1px solid var(--line2);color:var(--text);padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);transition:.2s;z-index:20;font-size:14px;max-width:92vw}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:560px){
+  .tiles{grid-template-columns:1fr 1fr;gap:10px}
+  .tile{min-height:108px;padding:14px}
+  .tile small{display:none}
+  .who .n,.who .pill{display:none}
+  .hello h2{font-size:21px}
+  .top .nm small{display:none}
+  .dhead small{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ======================= icons ======================= */
+var I = {
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:'<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 4.2-.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>',
+  logout:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+  doc:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  building:'<path d="M4 21V5l8-3v19M12 9h8v12M7 8h2M7 12h2M7 16h2M15 13h2M15 17h2M2 21h20"/>',
+  brief:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3M3 13h18"/>',
+  truck:'<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  ret:'<path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  cash:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/>',
+  box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+  chart:'<path d="M3 21h18M6 17v-6M11 17V5M16 17v-9M21 17v-3"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-5-5"/>',
+  inbox:'<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
+  contract:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 17c1-2 2-2 3 0s2 2 3 0"/>',
+  award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-2 8 5-3 5 3-2-8"/>',
+  wrench:'<path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.5-.5-.5-2.5z"/>',
+  gauge:'<path d="M4 18a8 8 0 1 1 16 0"/><path d="m12 18 4-6"/>',
+  store:'<path d="M3 9l2-5h14l2 5M4 9v11h16V9M3 9h18M9 20v-6h6v6"/>',
+  cart:'<path d="M3 4h2l2.5 11h11L21 7H6.2"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',
+  key:'<circle cx="8" cy="14" r="4"/><path d="m11 11 9-9M17 5l2 2M15 7l2 2"/>',
+  feed:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+  idcard:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>',
+  folders:'<path d="M3 7h6l2 2h10v10H3z"/><path d="M3 7V5h6l2 2"/>',
+  shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+  ncr:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/>',
+  chat:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8"/>',
+  audit:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/><circle cx="11" cy="12" r="2.5"/><path d="m13 14 3 3"/>',
+  check:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 13l2 2 4-4"/>'
+};
+function ic(n){return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">'+I[n]+'</svg>';}
+
+/* ======================= server bridge ======================= */
+var LIVE = (typeof google!=='undefined' && google.script && google.script.run);
+function call(fn){
+  var args=[].slice.call(arguments,1);
+  if(!LIVE) return Mock[fn].apply(null,args);
+  return new Promise(function(res,rej){
+    var r=google.script.run.withSuccessHandler(res).withFailureHandler(function(e){rej(e&&e.message||String(e));});
+    r[fn].apply(r,args);
+  });
+}
+
+/* ---------- preview-only fake server (replaced by Apps Script on install) ---------- */
+var Mock=(function(){
+  var U={
+    'jamal@demo.com':{name:'Jamal Uddin',role:'Admin',pw:'demo123',status:'Active'},
+    'accounts@demo.com':{name:'Accounts Office',role:'Accounts',pw:'demo123',status:'Active'},
+    'yard@demo.com':{name:'Yard Store',role:'Yard',pw:'demo123',status:'Active'},
+    'site1@demo.com':{name:'Site Team 1',role:'Field',pw:'demo123',status:'Active'},
+    'viewer@demo.com':{name:'Office Viewer',role:'Viewer',pw:'demo123',status:'Active'},
+    'blocked@demo.com':{name:'Old Staff',role:'Field',pw:'demo123',status:'Blocked'}
+  }, fails={}, sess={};
+  function wait(v,ms){return new Promise(function(r){setTimeout(function(){r(v);},ms||550);});}
+  function err(m,ms){return new Promise(function(_,j){setTimeout(function(){j(m);},ms||550);});}
+  return {
+    officeLogin:function(email,pw){
+      email=String(email||'').trim().toLowerCase();
+      var f=fails[email]||{n:0,until:0};
+      if(f.until>Date.now()) return err('LOCKED|'+Math.ceil((f.until-Date.now())/60000));
+      var u=U[email];
+      if(u&&u.status==='Blocked'&&u.pw===pw) return err('BLOCKED');
+      if(!u||u.pw!==pw){f.n++; if(f.n>=5){f.until=Date.now()+15*60000;f.n=0;} fails[email]=f;
+        return err(f.until>Date.now()?'LOCKED|15':'BAD|'+(5-f.n));}
+      fails[email]={n:0,until:0};
+      var t='tok'+Math.random().toString(36).slice(2); sess[t]=email;
+      return wait({token:t,user:{name:u.name,role:u.role,email:email}});
+    },
+    officeMe:function(t){var e=sess[t];return e?wait({name:U[e].name,role:U[e].role,email:e},200):err('NOSESSION',200);},
+    officeLogout:function(t){delete sess[t];return wait(true,150);}
+  };
+})();
+
+/* ======================= session (this device) ======================= */
+var KEY='cae_office_tok';
+function tokGet(){try{return localStorage.getItem(KEY)||sessionStorage.getItem(KEY);}catch(e){return null;}}
+function tokSet(t,keep){try{(keep?localStorage:sessionStorage).setItem(KEY,t);}catch(e){}}
+function tokClear(){try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);}catch(e){}}
+var S={token:null,user:null};
+
+/* ======================= helpers ======================= */
+var app=document.getElementById('app');
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on');},2600);}
+function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();}
+function greet(){var h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
+
+/* ======================= screen 1: login ======================= */
+function viewLogin(note){
+  document.title='Core Access · Sign in';
+  app.innerHTML=
+  '<div class="login"><div style="width:100%">'+
+   '<div class="lcard" id="lf">'+
+    '<div class="brand"><div class="mark">CA</div><div><b>Core Access</b><small>Engineering Ltd. · Office &amp; Site</small></div></div>'+
+    '<h1>Sign in</h1><p class="sub">Use the email and password the admin gave you.</p>'+
+    '<div id="lmsg">'+(note||'')+'</div>'+
+    '<label class="fld"><span>Email</span><div class="inwrap">'+ic('mail')+
+      '<input class="inp" id="em" type="email" inputmode="email" autocomplete="username" placeholder="name@example.com" required></div></label>'+
+    '<label class="fld"><span>Password</span><div class="inwrap">'+ic('lock')+
+      '<input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="••••••••" required style="padding-right:46px">'+
+      '<button type="button" class="eye" id="eye" aria-label="Show password">'+ic('eye')+'</button></div></label>'+
+    '<label class="check"><input type="checkbox" id="keep" checked> Keep me signed in on this device</label>'+
+    '<button class="btn btn-primary btn-block" id="go" type="button">Sign in</button>'+
+    '<div class="foot">Forgot your password? Ask the admin to reset it.</div>'+
+   '</div>'+
+   (LIVE?'':'<div class="demo"><b>Preview only</b> — try <code data-e="jamal@demo.com">jamal@demo.com</code> (Admin), <code data-e="accounts@demo.com">accounts@</code>, <code data-e="yard@demo.com">yard@</code>, <code data-e="site1@demo.com">site1@</code>, <code data-e="viewer@demo.com">viewer@</code> or <code data-e="blocked@demo.com">blocked@</code> with password <b>demo123</b>. A wrong password 5 times locks the email for 15 min.</div>')+
+  '</div></div>';
+  var em=document.getElementById('em'),pw=document.getElementById('pw');
+  document.getElementById('eye').onclick=function(){var s=pw.type==='password';pw.type=s?'text':'password';this.innerHTML=ic(s?'eyeoff':'eye');this.setAttribute('aria-label',s?'Hide password':'Show password');pw.focus();};
+  [].forEach.call(document.querySelectorAll('.demo code'),function(c){c.onclick=function(){em.value=c.getAttribute('data-e');pw.value='demo123';pw.focus();};});
+  document.getElementById('go').onclick=doLogin;[em,pw].forEach(function(x){x.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doLogin();}};});
+  setTimeout(function(){em.focus();},50);
+}
+function showMsg(kind,text){document.getElementById('lmsg').innerHTML='<div class="msg '+kind+'">'+ic('alert')+'<div>'+text+'</div></div>';}
+function doLogin(){
+  var em=document.getElementById('em'),pw=document.getElementById('pw'),go=document.getElementById('go');
+  em.classList.remove('bad');pw.classList.remove('bad');
+  var e=em.value.trim(),p=pw.value;
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){em.classList.add('bad');showMsg('err','Enter a valid email address.');em.focus();return;}
+  if(!p){pw.classList.add('bad');showMsg('err','Enter your password.');pw.focus();return;}
+  go.disabled=true;go.innerHTML='<span class="spin"></span> Signing in…';
+  var keep=document.getElementById('keep').checked;
+  call('officeLogin',e,p,keep).then(function(r){
+    S.token=r.token;S.user=r.user;tokSet(r.token,keep);viewHome();
+  },function(m){
+    go.disabled=false;go.textContent='Sign in';
+    var k=String(m).replace(/^(Error|Exception):\s*/,'').split('|');
+    if(k[0]==='LOCKED') showMsg('warn','Too many wrong tries. This email is locked for <b>'+esc(k[1])+' min</b>. Ask the admin if you need in now.');
+    else if(k[0]==='BLOCKED') showMsg('err','Your access is <b>blocked</b>. Please contact the admin.');
+    else if(k[0]==='BAD'){pw.classList.add('bad');showMsg('err','Wrong email or password.'+(+k[1]<=2?' <b>'+esc(k[1])+'</b> '+(k[1]==='1'?'try':'tries')+' left before a 15 min lock.':''));pw.select();}
+    else showMsg('err','Could not sign in: '+esc(m));
+  });
+}
+
+/* ======================= shell + home ======================= */
+/* departments (ISO 9001 / 45001-ready) — one colour per department, used on its section, chip and tiles */
+var DEPTS=[
+  {d:'SC',n:'Sales & Contracts',c:'t-teal',iso:'8.2'},
+  {d:'PS',n:'Projects & Sites',c:'t-sky',iso:'8.1 · 8.5'},
+  {d:'YW',n:'Yard & Workshop',c:'t-amber',iso:'7.1.3 · 8.5.4'},
+  {d:'PR',n:'Procurement',c:'t-orange',iso:'8.4'},
+  {d:'AC',n:'Accounts',c:'t-violet',iso:''},
+  {d:'HR',n:'HR & Admin',c:'t-red',iso:'7.1.2 · 7.2'},
+  {d:'QH',n:'QHSE',c:'t-green',iso:'6.1 · 7.5 · 9.2 · 10.2 · 45001'}
+];
+/* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen (Field logins see only these) */
+var TILES=[
+  {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
+  {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, email, revise',ic:'doc',l:1},
+  {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2},
+  {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1},
+  {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1},
+  {d:'SC',k:'tenders',t:'Tenders',x:'Submission packs',ic:'award',l:1},
+  {d:'PS',k:'jobs',t:'Jobs',x:'Status, close + settlement',ic:'brief',l:1},
+  {d:'PS',k:'dos',t:'Delivery orders',x:'Prepare, dispatch, confirm',ic:'truck',l:1,s:1},
+  {d:'PS',k:'returns',t:'Returns',x:'Count good / damaged / lost',ic:'ret',l:1,s:1},
+  {d:'PS',k:'inspect',t:'Site inspections / handover',x:'Checklist, green tag',ic:'check',l:1,s:1},
+  {d:'PS',k:'joblook',t:'Job look-up',x:'Site, items out, references',ic:'search',l:1,s:1},
+  {d:'YW',k:'stock',t:'Stock',x:'Items and locations',ic:'box',l:1,s:1},
+  {d:'YW',k:'fab',t:'Fabrication / cutting / repair',x:'Yard work orders',ic:'wrench',l:2},
+  {d:'YW',k:'equip',t:'Equipment inspection',x:'Records, due dates',ic:'gauge',l:2},
+  {d:'PR',k:'suppliers',t:'Suppliers',x:'Approved list, evaluation',ic:'store',l:1},
+  {d:'PR',k:'pos',t:'Purchase orders / RFQ',x:'Ask prices, order, receive',ic:'cart',l:1},
+  {d:'PR',k:'hirein',t:'Hire-in',x:'Rent-in from other owners',ic:'key',l:1},
+  {d:'AC',k:'invoices',t:'Invoices',x:'Hire, sale, milestones',ic:'receipt',l:1},
+  {d:'AC',k:'payments',t:'Payments',x:'Receipts, advances, deposits',ic:'cash',l:1},
+  {d:'AC',k:'receivables',t:'Receivables & job P/L',x:'Who owes, job profit',ic:'chart',l:1},
+  {d:'AC',k:'feed',t:'Feed',x:'Raw money in / out',ic:'feed',l:2},
+  {d:'HR',k:'staff',t:'Staff & training',x:'Competence, certificates',ic:'idcard',l:1},
+  {d:'HR',k:'users',t:'Users & access',x:'Logins, departments, levels',ic:'users',l:4},
+  {d:'HR',k:'settings',t:'Settings',x:'Company, terms, taxes',ic:'gear',l:4},
+  {d:'QH',k:'docreg',t:'Document register',x:'Codes, revisions',ic:'folders',l:1},
+  {d:'QH',k:'safety',t:'Safety',x:'Risk, toolbox talks, incidents',ic:'shield',l:1},
+  {d:'QH',k:'ncr',t:'NCR / corrective action',x:'Cause, fix, verify',ic:'ncr',l:1},
+  {d:'QH',k:'complaints',t:'Complaints',x:'Log, answer, close',ic:'chat',l:1},
+  {d:'QH',k:'audit',t:'Internal audit & review',x:'Audit plan, management review',ic:'audit',l:1}
+];
+/* until W2: old role -> departments + level */
+var ROLEMAP={
+  Admin:{SC:4,PS:4,YW:4,PR:4,AC:4,HR:4,QH:4},
+  Accounts:{AC:2,PR:2,SC:1},
+  Viewer:{SC:1,PS:1,AC:1},
+  Yard:{YW:2,PS:1},
+  Field:{PS:2,YW:1}
+};
+var LVL={1:'View',2:'Staff',3:'Head',4:'Director'};
+function myAccess(u){return u.depts||ROLEMAP[u.role]||{};}
+function myTiles(u){
+  var a=myAccess(u), field=!u.depts&&u.role==='Field';
+  return TILES.filter(function(t){return (a[t.d]||0)>=t.l&&(!field||t.s);});
+}
+function shell(screen,body){
+  var u=S.user;
+  app.innerHTML=
+   '<header class="top"><div class="topin">'+
+     '<div class="mark">CA</div><div class="nm">Core Access<small>Office &amp; Site</small></div><div class="sp"></div>'+
+     '<div class="who" title="'+esc(u.email)+'"><div class="av">'+esc(initials(u.name))+'</div><div><div class="n">'+esc(u.name)+'</div><span class="pill p-'+esc(u.role)+'">'+esc(u.role)+'</span></div></div>'+
+     '<button class="iconbtn" id="out" title="Sign out" aria-label="Sign out">'+ic('logout')+'</button>'+
+   '</div></header>'+
+   '<div class="banner"><div class="topin">'+esc(screen)+'</div></div>'+
+   '<main class="main">'+body+'</main>';
+  document.getElementById('out').onclick=function(){var t=S.token;S={token:null,user:null};tokClear();call('officeLogout',t).catch(function(){});viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
+}
+function viewHome(f){
+  document.title='Core Access · Home';
+  f=f||'';
+  var a=myAccess(S.user), mine=myTiles(S.user);
+  var ds=DEPTS.filter(function(D){return mine.some(function(t){return t.d===D.d;});});
+  var body='<div class="hello"><div><h2>'+greet()+', '+esc(S.user.name.split(' ')[0])+'</h2><p>What would you like to do?</p></div></div>';
+  if(ds.length>1){
+    body+='<div class="chips"><button type="button" class="chip'+(f?'':' on')+'" data-f="">All</button>';
+    ds.forEach(function(D){body+='<button type="button" class="chip '+D.c+(f===D.d?' on':'')+'" data-f="'+D.d+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';});
+    body+='</div>';
+  }
+  ds.forEach(function(D){
+    if(f&&f!==D.d) return;
+    body+='<section class="dsec '+D.c+'"><div class="dhead"><span class="dcode">'+D.d+'</span><b>'+esc(D.n)+'</b><span class="lv">'+LVL[a[D.d]]+'</span>'+(D.iso?'<small>ISO '+esc(D.iso)+'</small>':'')+'</div><div class="tiles">';
+    mine.filter(function(t){return t.d===D.d;}).forEach(function(t){
+      body+='<button type="button" class="tile '+D.c+'" data-k="'+t.k+'"><span class="soon">SOON</span><span class="ic">'+ic(t.ic)+'</span><b>'+esc(t.t)+'</b><small>'+esc(t.x)+'</small></button>';
+    });
+    body+='</div></section>';
+  });
+  shell('Home',body);
+  [].forEach.call(document.querySelectorAll('.chip'),function(c){c.onclick=function(){viewHome(c.getAttribute('data-f'));};});
+  [].forEach.call(document.querySelectorAll('.tile'),function(b){b.onclick=function(){toast(b.querySelector('b').textContent+' — comes in a later step.');};});
+}
+
+/* ======================= start ======================= */
+(function start(){
+  var t=tokGet();
+  if(!t) return viewLogin();
+  call('officeMe',t).then(function(u){S.token=t;S.user=u;viewHome();},function(){tokClear();viewLogin();});
+})();
+</script>
+</body>
+</html>
