@@ -22,13 +22,18 @@
 //   OFFICE_WEB_API_ (they gate themselves with officeSession_), on OFFICE_OPEN_ (triggers), or the caller is the
 //   signed-in Google user the script runs as (sheet menus, panels, editor). Anonymous web callers get NOACCESS.
 //   Also: huge email input cut before the regex, keep = true only, "Name, Role" split on the last comma.
-//   This file must stay LAST: functions of a file after it would not be wrapped (self-test O72 catches it).
+//   This file must stay LAST: functions of a file after it would not be wrapped (self-test O72 catches it;
+//   the web API then refuses everything and the sheet shows a warning on open = fails closed).
+// Independent review (16 Nov 22:30): open handlers now need a real event (onOpen/onEdit: a Spreadsheet event
+//   object with methods; appSweep: the triggerUid of one of this project's triggers) or the owner; constructors
+//   are wrapped too (new still works); wrappers keep their names; at most 30 password checks a minute in total
+//   (BUSY) so a flood cannot eat the owner's executions.
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF').
 // ============================================================================
 
 var OFFICE_ROLES_ = ['Admin', 'Accounts', 'Viewer', 'Yard', 'Field'];
-var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200, maxSess: 5 };
+var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200, maxSess: 5, maxPerMin: 30 };
 var OFFICE_KDF_ = 'pbkdf2-sha256';
 var OFFICE_ENV_ = null; // self-tests put an in-memory env here
 
@@ -52,7 +57,8 @@ function officeEnv_() {
     cput: function (k, o, sec) { CacheService.getScriptCache().put(k, JSON.stringify(o), Math.max(1, Math.min(21600, Math.ceil(sec)))); },
     cdel: function (k) { CacheService.getScriptCache().remove(k); },
     lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(10000); try { return fn(); } finally { l.releaseLock(); } },
-    who: function () { return { active: Session.getActiveUser().getEmail() || '', effective: Session.getEffectiveUser().getEmail() || '' }; }
+    who: function () { return { active: Session.getActiveUser().getEmail() || '', effective: Session.getEffectiveUser().getEmail() || '' }; },
+    triggerIds: function () { return ScriptApp.getProjectTriggers().map(function (x) { return String(x.getUniqueId()); }); }
   };
 }
 function oEnv_() { return OFFICE_ENV_ || officeEnv_(); }
@@ -134,6 +140,10 @@ function officeLogin(email, pw, keep) {
   var env = oEnv_(), C = OFFICE_CFG_, win = C.lockMin * 6e4;
   email = oEmail_(email); pw = typeof pw === 'string' ? pw : ''; keep = keep === true;
   if (!oEmailOk_(email) || !pw || pw.length > C.maxPw) oFail_('BAD|' + C.maxFails);
+  // 0) all addresses together: at most maxPerMin password checks a minute (a flood cannot eat the owner's executions)
+  var bk = 'OT:' + Math.floor(env.now() / 6e4), nb = (env.cget(bk) || 0) + 1;
+  if (nb > C.maxPerMin) oFail_('BUSY|1');
+  env.cput(bk, nb, 120);
   // 1) short lock: refuse while locked, else book this try first (parallel guesses still count: max 5 per window)
   var snap = env.lock(function () {
     var now = env.now(), L = env.get('OL:' + email), f = oFGet_(env, email, L);
@@ -259,6 +269,8 @@ if (typeof onOpen === 'function') {
   onOpen = function (e) { officeMenu_(); }; // no earlier onOpen: still add the menu
 }
 function officeMenu_() {
+  var late = oUnguarded_(OFFICE_G_);
+  if (late.length) SpreadsheetApp.getActive().toast('Not protected: ' + late.slice(0, 8).join(', ') + '. Move CAE_Ops_Office.gs to the end of the file list. The web app refuses all sign-ins until then.', 'Web app guard', 60);
   SpreadsheetApp.getUi().createMenu('Web app')
     .addItem('Add / change a login', 'menuOfficeLogin')
     .addItem('Block / unblock a login', 'menuOfficeBlock')
@@ -315,7 +327,11 @@ function officeKdfBench() {
 
 // ----------------------------------------------------------------- project-wide gate (web app = execute as me, access Anyone)
 var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout']; // later screens add theirs (each starts with officeGate_)
-var OFFICE_OPEN_ = ['onOpen', 'onEdit', 'appSweep'];                         // simple + timed triggers (no user to check)
+var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
+  onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
+  onEdit: function (e) { return !!(e && e.range && typeof e.range.getSheet === 'function'); },
+  appSweep: function (e) { var u = e && e.triggerUid; return (typeof u === 'string' || typeof u === 'number') && String(u).length > 3 && oEnv_().triggerIds().indexOf(String(u)) >= 0; }
+};
 var OFFICE_DEPTH_ = 0;
 var OFFICE_G_ = (function () { return this; })();
 function oCallerOk_() { // the Google user at the keyboard is the user the script runs as (anonymous web callers: active = '')
@@ -323,17 +339,20 @@ function oCallerOk_() { // the Google user at the keyboard is the user the scrip
   var a = String(w && w.active || '').toLowerCase();
   return !!a && a === String(w.effective || '').toLowerCase();
 }
-function oNative_(f) { return /\{\s*\[native code\]\s*\}\s*$/.test(Function.prototype.toString.call(f)); }
-function oSkip_(k, f) { // private, already wrapped, built-in, or a constructor with prototype methods (SheetDb, MemDb)
-  return typeof f !== 'function' || /_$/.test(k) || !!f.officeRaw_ || oNative_(f) || (!!f.prototype && Object.getOwnPropertyNames(f.prototype).length > 1);
-}
+function oTry_(fn, x) { try { return fn(x); } catch (e) { return false; } }
+function oSkip_(k, f) { return typeof f !== 'function' || /_$/.test(k) || !!f.officeRaw_; } // private (not callable from a page) or already wrapped
 function oWrap_(name, f) {
-  var open = OFFICE_WEB_API_.indexOf(name) >= 0 || OFFICE_OPEN_.indexOf(name) >= 0;
+  var web = OFFICE_WEB_API_.indexOf(name) >= 0, trig = Object.prototype.hasOwnProperty.call(OFFICE_OPEN_, name) ? OFFICE_OPEN_[name] : null;
   var w = function () {
-    if (OFFICE_DEPTH_ === 0 && !open && !oCallerOk_()) throw new Error('NOACCESS');
+    if (OFFICE_DEPTH_ === 0) {
+      if (web) { if (oUnguarded_(OFFICE_G_).length) throw new Error('NOACCESS'); } // a file after this one: fail closed
+      else if (!(trig && oTry_(trig, arguments[0])) && !oCallerOk_()) throw new Error('NOACCESS');
+    }
     OFFICE_DEPTH_++;
-    try { return f.apply(this, arguments); } finally { OFFICE_DEPTH_--; }
+    try { return new.target ? Reflect.construct(f, arguments, new.target) : f.apply(this, arguments); } finally { OFFICE_DEPTH_--; }
   };
+  w.prototype = f.prototype; // new + instanceof keep working for constructors (SheetDb, MemDb)
+  try { Object.defineProperty(w, 'name', { value: name }); } catch (e) { /* keep going */ }
   w.officeRaw_ = f;
   return w;
 }
@@ -369,14 +388,15 @@ function oMemEnv_() {
     cput: function (k, o, sec) { cache[k] = { v: JSON.stringify(o), exp: t.now + sec * 1000 }; },
     cdel: function (k) { delete cache[k]; },
     lock: function (fn) { return fn(); },
-    who: function () { return t.who || { active: 'owner@test.com', effective: 'owner@test.com' }; }
+    who: function () { return t.who || { active: 'owner@test.com', effective: 'owner@test.com' }; },
+    triggerIds: function () { return t.trig || ['7654321']; }
   };
 }
 function selfTestOffice() {
   var pass = 0, fail = 0, log = [];
   var eq = function (n, got, want) { if (got === want) pass++; else { fail++; log.push('FAIL ' + n + ': got ' + JSON.stringify(got) + ', want ' + JSON.stringify(want)); } };
   var err = function (fn) { try { fn(); return 'no error'; } catch (e) { return e.message; } };
-  var keep = OFFICE_ENV_, keepIt = OFFICE_CFG_.kdfIters, env = oMemEnv_(); OFFICE_ENV_ = env; OFFICE_CFG_.kdfIters = 3;
+  var keep = OFFICE_ENV_, keepIt = OFFICE_CFG_.kdfIters, keepPm = OFFICE_CFG_.maxPerMin, env = oMemEnv_(); OFFICE_ENV_ = env; OFFICE_CFG_.kdfIters = 3; OFFICE_CFG_.maxPerMin = 1e9;
   try {
     var H = 36e5, D = 864e5, M = 60000;
     eq('O1 add login', oSaveLogin_(env, { email: ' Jamal@Test.com ', name: 'Jamal Uddin', role: 'admin', password: 'GoodPass1' }).role, 'Admin');
@@ -493,7 +513,7 @@ function selfTestOffice() {
       eq('O61 anonymous web caller cannot run a sheet function', err(function () { G.uiInit(); }) + ':' + err(function () { G.uiDo({ action: 'chequeDishonoured' }); }) + ':' + ran, 'NOACCESS:NOACCESS:0');
       eq('O62 web API stays open (its own session check answers)', err(function () { G.officeMe('junk'); }), 'NOSESSION');
       eq('O63 calls made inside a web API call are not blocked', G.officeLogin() + ':' + ran, 'all customers:1');
-      eq('O64 timed trigger handler stays open', G.appSweep(), 'swept');
+      eq('O64 trigger handler: anonymous / forged triggerUid refused, real trigger event runs', [err(function () { G.appSweep(); }), err(function () { G.appSweep({ triggerUid: '1234567' }); }), G.appSweep({ triggerUid: '7654321', authMode: 'FULL' })].join(','), 'NOACCESS,NOACCESS,swept');
       eq('O65 depth back to 0 after an error', (err(function () { env.clock.who = null; G.boom(); }), OFFICE_DEPTH_), 0);
       env.clock.who = { active: 'other@gmail.com', effective: 'owner@test.com' };
       eq('O66 another Google account is refused too', err(function () { G.uiInit(); }), 'NOACCESS');
@@ -506,13 +526,29 @@ function selfTestOffice() {
       env.who = function () { throw new Error('no Session'); };
       eq('O70 Session error = refused', err(function () { G.uiInit(); }), 'NOACCESS');
       env.who = who0; env.clock.who = null;
+      env.clock.who = anon;
+      eq('O71 constructor wrapped: plain anonymous call refused', err(function () { G.Db(); }), 'NOACCESS');
+      env.clock.who = null;
       var c = new G.Db();
-      eq('O71 private + constructor left alone, rest wrapped once', nW + ':' + !G.helper_.officeRaw_ + ':' + c.rows() + ':' + oGuardAll_(G), '7:true:1:0');
+      eq('O80 ... new still works (prototype, instanceof); private left alone; wrapped once', nW + ':' + !G.helper_.officeRaw_ + ':' + c.rows() + ':' + (c instanceof G.Db) + ':' + c.k + ':' + oGuardAll_(G), '8:true:1:true:1:0');
+      eq('O81 wrappers keep their names', G.appSweep.name + ',' + G.uiInit.name, 'appSweep,uiInit');
+      var G2 = { onOpen: function (e) { ran++; return 'menu'; }, onEdit: function (e) { ran++; return 'edit'; } }; oGuardAll_(G2); env.clock.who = anon;
+      var fakeSs = { getId: function () { return 'x'; } }, fakeRange = { getSheet: function () { return {}; } };
+      eq('O82 onOpen / onEdit from a web page (JSON event) refused; real event objects run', [err(function () { G2.onOpen({ source: { getId: 'x' } }); }), err(function () { G2.onEdit({ range: 'A1', value: 'x' }); }), G2.onOpen({ source: fakeSs }), G2.onEdit({ range: fakeRange })].join(','), 'NOACCESS,NOACCESS,menu,edit');
+      env.clock.who = null;
     } finally { OFFICE_DEPTH_ = d0; env.clock.who = null; }
     eq('O72 every public function of this project is guarded (this file is last)', oUnguarded_(OFFICE_G_).join(',') || 'all', 'all');
     eq('O73 each web API (except doGet / login / logout) checks the session first', OFFICE_WEB_API_.filter(function (k) {
       var f = OFFICE_G_[k]; f = f && (f.officeRaw_ || f); return ['doGet', 'officeLogin', 'officeLogout'].indexOf(k) < 0 && !/officeSession_\(|officeGate_\(/.test(String(f)); }).join(',') || 'ok', 'ok');
     eq('O79 the guard really took (names resolve to the wrappers)', [doGet, officeMe, officeLogin, selfTestOffice, typeof uiInit === 'function' ? uiInit : doGet, typeof uiDo === 'function' ? uiDo : doGet].every(function (f) { return !!f.officeRaw_; }), true);
+    (function () { var d1 = OFFICE_DEPTH_; OFFICE_DEPTH_ = 0; OFFICE_G_.zzLateFile = function () { return 1; };
+      try { eq('O83 a public function after this file: web API fails closed', err(function () { officeMe('x'); }), 'NOACCESS'); }
+      finally { delete OFFICE_G_.zzLateFile; OFFICE_DEPTH_ = d1; }
+      eq('O84 ... and opens again once it is gone', (OFFICE_DEPTH_ = 0, err(function () { officeMe('x'); })) + (OFFICE_DEPTH_ = d1, ''), 'NOSESSION'); })();
+    OFFICE_CFG_.maxPerMin = 3; env.clock.now = Math.ceil(env.clock.now / 6e4) * 6e4 + 1000;
+    eq('O85 at most 3 (test limit) password checks a minute in total, then BUSY; next minute open again', [err(function () { officeLogin('a1@test.com', 'x1', false); }), err(function () { officeLogin('a2@test.com', 'x1', false); }), err(function () { officeLogin('a3@test.com', 'x1', false); }),
+      err(function () { officeLogin('jamal@test.com', 'GoodPass1', false); }), (env.clock.now += 6e4, officeLogin('jamal@test.com', 'GoodPass1', false).user.name)].join(','), 'BAD|4,BAD|4,BAD|4,BUSY|1,Jamal Uddin');
+    OFFICE_CFG_.maxPerMin = 1e9;
     var big = new Array(1 << 20).join('a') + '@x', t0 = Date.now();
     eq('O74 1 MB email refused at once', err(function () { officeLogin(big, 'GoodPass1', false); }) + ':' + (Date.now() - t0 < 1000), 'BAD|5:true');
     eq('O75 near-miss email (no dot) refused quickly', (t0 = Date.now(), err(function () { officeLogin('a@' + new Array(118).join('b'), 'GoodPass1', false); })) + ':' + (Date.now() - t0 < 1000), 'BAD|5:true');
@@ -529,7 +565,7 @@ function selfTestOffice() {
       eq('O52 SHA-256 of "abc"', R.b64(oSha256_(R.bytes('abc'))), 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=');
     }
   } catch (e) { fail++; log.push('FAIL OF crashed: ' + e.message); }
-  finally { OFFICE_ENV_ = keep; OFFICE_CFG_.kdfIters = keepIt; }
+  finally { OFFICE_ENV_ = keep; OFFICE_CFG_.kdfIters = keepIt; OFFICE_CFG_.maxPerMin = keepPm; }
   log.unshift('OF ' + pass + ' passed, ' + fail + ' failed');
   return { pass: pass, fail: fail, log: log };
 }

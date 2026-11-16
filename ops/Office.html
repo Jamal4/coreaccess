@@ -235,9 +235,13 @@ var Mock=(function(){
 
 /* ======================= session (this device) ======================= */
 var KEY='cae_office_tok';
-function tokGet(){try{return localStorage.getItem(KEY)||sessionStorage.getItem(KEY);}catch(e){return null;}}
-function tokSet(t,keep){try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);(keep?localStorage:sessionStorage).setItem(KEY,t);}catch(e){}}
-function tokClear(){try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);}catch(e){}}
+/* this tab's own (session) sign-in comes first: another tab's "keep" sign-in never switches this tab's account */
+function tokGet(){try{return sessionStorage.getItem(KEY)||localStorage.getItem(KEY);}catch(e){return null;}}
+function tokOld(t){var o=[];try{[sessionStorage.getItem(KEY),localStorage.getItem(KEY)].forEach(function(x){if(x&&x!==t&&o.indexOf(x)<0)o.push(x);});}catch(e){}return o;}
+/* a replaced or cleared token is also ended on the server, so no 30-day session is left behind */
+function tokEnd(list){list.forEach(function(x){call('officeLogout',x).catch(function(){});});}
+function tokSet(t,keep){var old=tokOld(t);try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);(keep?localStorage:sessionStorage).setItem(KEY,t);}catch(e){}tokEnd(old);}
+function tokClear(){var old=tokOld(null);try{localStorage.removeItem(KEY);sessionStorage.removeItem(KEY);}catch(e){}return old;}
 var S={token:null,user:null};
 
 /* ======================= helpers ======================= */
@@ -264,7 +268,7 @@ function viewLogin(note){
     '<label class="fld"><span>Password</span><div class="inwrap">'+ic('lock')+
       '<input class="inp" id="pw" type="password" autocomplete="current-password" placeholder="••••••••" required style="padding-right:46px">'+
       '<button type="button" class="eye" id="eye" aria-label="Show password">'+ic('eye')+'</button></div></label>'+
-    '<label class="check"><input type="checkbox" id="keep" checked> Keep me signed in on this device</label>'+
+    '<label class="check"><input type="checkbox" id="keep"> Keep me signed in on this device</label>'+
     '<button class="btn btn-primary btn-block" id="go" type="button">Sign in</button>'+
     '<div class="foot">Forgot your password? Ask the admin to reset it.</div>'+
    '</div>'+
@@ -294,6 +298,7 @@ function doLogin(){
     go.disabled=false;go.textContent='Sign in';
     var k=String(m).replace(/^(Error|Exception):\s*/,'').split('|');
     if(k[0]==='LOCKED') showMsg('warn','Too many wrong tries. This email is locked for <b>'+esc(k[1])+' min</b>. Ask the admin if you need in now.');
+    else if(k[0]==='BUSY') showMsg('warn','Too many sign-in attempts right now. Please wait a minute and try again.');
     else if(k[0]==='BLOCKED') showMsg('err','Your access is <b>blocked</b>. Please contact the admin.');
     else if(k[0]==='BAD'){pw.classList.add('bad');showMsg('err','Wrong email or password.'+(+k[1]<=2?' <b>'+esc(k[1])+'</b> '+(k[1]==='1'?'try':'tries')+' left before a 15 min lock.':''));pw.select();}
     else showMsg('err','Could not sign in: '+esc(m));
@@ -367,7 +372,7 @@ function shell(screen,body){
    '</div></header>'+
    '<div class="banner"><div class="topin">'+esc(screen)+'</div></div>'+
    '<main class="main">'+body+'</main>';
-  document.getElementById('out').onclick=function(){var t=S.token;S={token:null,user:null};tokClear();call('officeLogout',t).catch(function(){});viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
+  document.getElementById('out').onclick=function(){var t=S.token,all;S={token:null,user:null};all=tokClear();if(t&&all.indexOf(t)<0)all.push(t);tokEnd(all);viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
 }
 function viewHome(f){
   document.title='Core Access · Home';
