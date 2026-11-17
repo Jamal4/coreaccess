@@ -30,14 +30,16 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 18px;border-radius:var(--r2);
   border:1px solid transparent;font-weight:600;letter-spacing:.2px;cursor:pointer;transition:transform .06s,background .15s,border-color .15s,box-shadow .15s}
 .btn:active{transform:translateY(1px)}
-.btn:focus-visible,.inp:focus-visible,.tile:focus-visible,.iconbtn:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
+.btn:focus-visible,.inp:focus-visible,.tile:focus-visible,.iconbtn:focus-visible,.seg button:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
 .btn-primary{background:linear-gradient(180deg,var(--teal2),var(--teal));color:#04201d;box-shadow:0 6px 18px rgba(20,184,166,.25)}
 .btn-primary:hover{box-shadow:0 8px 24px rgba(20,184,166,.38)}
 .btn-ghost{background:transparent;border-color:var(--line2);color:var(--text)}
 .btn-ghost:hover{border-color:var(--teal);color:var(--teal2)}
 .btn-danger{background:var(--redbg);border-color:rgba(244,63,94,.45);color:#fda4af}
-.btn[disabled]{opacity:.6;cursor:default}
+.btn[disabled]{opacity:.5;cursor:default}
 .btn-block{width:100%}
+.btn-sm{height:34px;padding:0 11px;font-size:13px;border-radius:9px;gap:6px}
+.btn-sm svg.i{width:16px;height:16px}
 .spin{width:18px;height:18px;border:2.5px solid rgba(4,32,29,.25);border-top-color:#04201d;border-radius:50%;animation:sp .7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .iconbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--muted)}
@@ -46,9 +48,14 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 /* ---------- form fields ---------- */
 .fld{display:block;margin-bottom:16px}
 .fld>span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.2px}
+.fld>small{display:block;color:var(--dim);font-size:12px;margin-top:5px}
 .inwrap{position:relative;display:flex;align-items:center}
 .inwrap>svg.i{position:absolute;left:13px;color:var(--dim);pointer-events:none}
 .inp{width:100%;height:46px;padding:0 14px 0 42px;border-radius:var(--r2);border:1px solid var(--line2);background:var(--bg2);transition:border-color .15s,box-shadow .15s}
+.inp.np{padding-left:14px}
+textarea.inp{height:auto;min-height:84px;padding:10px 14px;resize:vertical;line-height:1.4}
+.inp.sm{height:40px}
+.inp[readonly]{color:var(--muted);background:var(--card)}
 .inp::placeholder{color:var(--dim)}
 .inp:hover{border-color:#41525e}
 .inp:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--tealbg)}
@@ -56,7 +63,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .eye{position:absolute;right:6px;width:36px;height:36px;border:0;background:none;color:var(--dim);cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .eye:hover{color:var(--teal2)}
 .check{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;cursor:pointer;user-select:none;margin:4px 0 20px}
-.check input{appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line2);background:var(--bg2);display:grid;place-content:center;cursor:pointer;margin:0}
+.check input{appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line2);background:var(--bg2);display:grid;place-content:center;cursor:pointer;margin:0;flex:none}
 .check input:checked{background:var(--teal);border-color:var(--teal)}
 .check input:checked::after{content:"";width:10px;height:6px;border:2.5px solid #04201d;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 
@@ -95,13 +102,17 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .top .nm small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:0}
 .sp{flex:1}
 .who{display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
-.av{width:32px;height:32px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--teal2);border:1px solid var(--line2)}
+.av{width:32px;height:32px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-weight:700;font-size:13px;color:var(--teal2);border:1px solid var(--line2);flex:none}
 .who .n{font-size:14px;font-weight:600;line-height:1.1}
-.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px}
+.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .p-Admin{background:var(--tealbg);color:var(--teal2)}
 .p-Accounts{background:var(--violetbg);color:var(--violet)}
 .p-Yard,.p-Field{background:var(--amberbg);color:var(--amber)}
 .p-Viewer{background:var(--skybg);color:var(--sky)}
+.p-L1{background:var(--skybg);color:var(--sky)} .p-L2{background:var(--tealbg);color:var(--teal2)}
+.p-L3{background:var(--amberbg);color:var(--amber)} .p-L4{background:var(--violetbg);color:var(--violet)}
+.p-me{background:var(--tealbg);color:var(--teal2);margin-left:6px;vertical-align:1px}
+.st-on{background:var(--greenbg);color:var(--green)} .st-off{background:var(--redbg);color:#fb7185}
 .banner{background:linear-gradient(90deg,#0f766e,var(--teal));color:#effffd}
 .banner .topin{padding:7px 16px;font-size:12px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase}
 .main{max-width:1100px;margin:0 auto;padding:22px 16px 60px}
@@ -117,6 +128,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .tile b{font-size:16px}
 .tile small{color:var(--muted);font-size:13px;margin-top:-6px}
 .tile .soon{position:absolute;top:12px;right:12px;font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--dim);border:1px solid var(--line2);padding:1px 6px;border-radius:999px}
+.tile .soon.new{color:var(--c);border-color:var(--c)}
 .t-teal{--c:var(--teal2);--cb:var(--tealbg)} .t-amber{--c:var(--amber);--cb:var(--amberbg)}
 .t-violet{--c:var(--violet);--cb:var(--violetbg)} .t-sky{--c:var(--sky);--cb:var(--skybg)} .t-red{--c:#fb7185;--cb:var(--redbg)}
 .t-orange{--c:var(--orange);--cb:var(--orangebg)} .t-green{--c:var(--green);--cb:var(--greenbg)}
@@ -133,9 +145,74 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .chip.on{border-color:var(--c,var(--teal));color:var(--text);background:var(--cb,var(--tealbg))}
 .chip:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
 
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--card2);border:1px solid var(--line2);color:var(--text);padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);transition:.2s;z-index:20;font-size:14px;max-width:92vw}
+/* ---------- users & access (HR) ---------- */
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.bar .grow{flex:1;min-width:180px}
+.bar .inp.sm{padding-left:40px}
+.cnt{color:var(--muted);font-size:13px;margin:10px 0 12px}
+.ulist{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.ucard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;display:flex;flex-direction:column;gap:10px}
+.ucard.off{border-style:dashed;background:var(--bg2)}
+.ucard.off .uh .n{color:var(--muted)}
+.uh{display:flex;align-items:center;gap:10px}
+.uh .n{font-weight:700}
+.uh small{display:block;color:var(--muted);font-size:13px;word-break:break-all}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.db{font-size:11px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:7px;background:var(--cb,var(--card2));color:var(--c,var(--muted))}
+.db em{font-style:normal;font-weight:600;opacity:.85;margin-left:5px;letter-spacing:.2px}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px;color:var(--muted)}
+.meta b{color:var(--text);font-weight:600}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 0 3px var(--greenbg);vertical-align:1px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px}
+.empty{color:var(--muted);padding:30px 16px;text-align:center;border:1px dashed var(--line2);border-radius:var(--r);grid-column:1/-1}
+
+/* ---------- dialog (bottom sheet on phones) ---------- */
+.dlgw{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.dlg{width:100%;max-width:580px;max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--line2);border-radius:18px 18px 0 0;padding:20px 18px 18px;box-shadow:var(--shadow)}
+.dlg h3{margin:0 0 4px;font-size:19px}
+.dlg p.sub{color:var(--muted);font-size:14px;margin:0 0 16px}
+.dfoot{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.lbl{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:2px 0 6px}
+.drow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.drow .dn{flex:1;min-width:130px;font-size:14px}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.seg button{height:34px;padding:0 11px;border:0;background:var(--bg2);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;border-left:1px solid var(--line2)}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--cb,var(--tealbg));color:var(--c,var(--teal2))}
+.seg button[data-v="0"].on{background:var(--card2);color:var(--text)}
+.note{font-size:13px;color:var(--muted);margin-top:12px;display:flex;gap:8px;align-items:flex-start}
+.note svg.i{width:16px;height:16px;margin-top:2px}
+.pwbox{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:24px;letter-spacing:2px;padding:14px;border-radius:12px;background:var(--bg2);border:1px dashed var(--teal);text-align:center;color:var(--teal2);user-select:all;word-break:break-all;margin:4px 0 12px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--card2);border:1px solid var(--line2);color:var(--text);padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);transition:.2s;z-index:40;font-size:14px;max-width:92vw}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ---------- QHSE › document register ---------- */
+.dlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.dcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;display:flex;flex-direction:column;gap:9px;position:relative}
+.dcard::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--c,var(--teal))}
+.dcard.wd{border-style:dashed;background:var(--bg2)} .dcard.wd .dt{color:var(--muted);text-decoration:line-through}
+.dc{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;font-size:14px;color:var(--c,var(--teal2));letter-spacing:.4px}
+.dt{font-weight:700;font-size:15px}
+.dtop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dtop .sp{flex:1}
+.st-Active{background:var(--greenbg);color:var(--green)} .st-Draft{background:var(--amberbg);color:var(--amber)} .st-Withdrawn{background:var(--redbg);color:#fb7185}
+.ty{background:var(--card2);color:var(--muted)}
+.fpv{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:var(--muted);background:var(--bg2);border:1px dashed var(--line2);border-radius:8px;padding:6px 8px;word-break:break-word}
+.fpv b{color:var(--text);font-weight:600}
+.hist{list-style:none;margin:0;padding:0;border-left:2px solid var(--line2)}
+.hist li{position:relative;padding:0 0 14px 16px;font-size:14px}
+.hist li::before{content:"";position:absolute;left:-6px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--card);border:2px solid var(--green)}
+.hist li small{display:block;color:var(--muted);font-size:12.5px}
+.ro{font-size:13px;color:var(--muted);margin:-4px 0 12px;display:flex;gap:8px;align-items:center}
+.ro svg.i{width:16px;height:16px}
+.segw{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:560px){.dlist{grid-template-columns:1fr}}
+
+@media (min-width:600px){
+  .dlgw{align-items:center;padding:20px}
+  .dlg{border-radius:18px;padding:22px 22px 20px}
+}
 @media (max-width:560px){
   .tiles{grid-template-columns:1fr 1fr;gap:10px}
   .tile{min-height:108px;padding:14px}
@@ -144,6 +221,8 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
   .hello h2{font-size:21px}
   .top .nm small{display:none}
   .dhead small{display:none}
+  .ulist{grid-template-columns:1fr}
+  .seg button{padding:0 9px}
 }
 </style>
 </head>
@@ -188,7 +267,15 @@ var I = {
   ncr:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.01"/>',
   chat:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8"/>',
   audit:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/><circle cx="11" cy="12" r="2.5"/><path d="m13 14 3 3"/>',
-  check:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 13l2 2 4-4"/>'
+  check:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 13l2 2 4-4"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  ban:'<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+  unlock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.7-1.5"/>',
+  rev:'<path d="M20 11a8 8 0 0 0-14.9-3.5M4 5v3h3M4 13a8 8 0 0 0 14.9 3.5M20 19v-3h-3"/>',
+  hist:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  okc:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'
 };
 function ic(n){return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">'+I[n]+'</svg>';}
 
@@ -205,32 +292,155 @@ function call(fn){
 
 /* ---------- preview-only fake server (replaced by Apps Script on install) ---------- */
 var Mock=(function(){
+  var ALL={SC:4,PS:4,YW:4,PR:4,AC:4,HR:4,QH:4}, H=3600000, now=Date.now();
+  /* a = access: department -> level (1 View, 2 Staff, 3 Head); dir = Director (all departments, L4) */
   var U={
-    'jamal@demo.com':{name:'Jamal Uddin',role:'Admin',pw:'demo123',status:'Active'},
-    'accounts@demo.com':{name:'Accounts Office',role:'Accounts',pw:'demo123',status:'Active'},
-    'yard@demo.com':{name:'Yard Store',role:'Yard',pw:'demo123',status:'Active'},
-    'site1@demo.com':{name:'Site Team 1',role:'Field',pw:'demo123',status:'Active'},
-    'viewer@demo.com':{name:'Office Viewer',role:'Viewer',pw:'demo123',status:'Active'},
-    'blocked@demo.com':{name:'Old Staff',role:'Field',pw:'demo123',status:'Blocked'}
-  }, fails={}, sess={};
-  function wait(v,ms){return new Promise(function(r){setTimeout(function(){r(v);},ms||550);});}
-  function err(m,ms){return new Promise(function(_,j){setTimeout(function(){j(m);},ms||550);});}
+    'jamal@demo.com':{name:'Jamal Uddin',dir:1,pw:'demo123',on:1,last:now-6*60000,other:1,staff:'ST-001'},
+    'junaid@demo.com':{name:'Md. Junaid',dir:1,pw:'demo123',on:1,last:null,other:0,staff:'ST-002'},
+    'accounts@demo.com':{name:'Accounts Office',a:{AC:2,PR:2,SC:1},pw:'demo123',on:1,last:now-26*H,other:1,staff:''},
+    'yard@demo.com':{name:'Yard Store',a:{YW:2,PS:1},pw:'demo123',on:1,last:now-3*H,other:0,staff:''},
+    'site1@demo.com':{name:'Site Team 1',a:{PS:2,YW:1},pw:'demo123',on:1,last:now-9*24*H,other:2,staff:''},
+    'viewer@demo.com':{name:'Office Viewer',a:{SC:1,PS:1,AC:1},pw:'demo123',on:1,last:null,other:0,staff:''},
+    'blocked@demo.com':{name:'Old Staff',a:{PS:2,YW:1},pw:'demo123',on:0,last:now-40*24*H,other:0,staff:''},
+    'qhse@demo.com':{name:'QHSE Head',a:{QH:3,PS:1},pw:'demo123',on:1,last:now-2*H,other:0,staff:''},
+    'safety@demo.com':{name:'Safety Officer',a:{QH:1,PS:2},pw:'demo123',on:1,last:now-5*H,other:0,staff:''}
+  }, STAFF=[{id:'ST-001',name:'Jamal Uddin'},{id:'ST-002',name:'Md. Junaid'},{id:'ST-003',name:'Md. Mohosin Miah'},{id:'ST-004',name:'Site Supervisor 1'},{id:'ST-005',name:'Yard Keeper'}],
+  fails={}, sess={};
+  /* D1 seed = every document the system already prints (Rev 0, register start 17 Nov 2026) + the control procedure */
+  var DCODES=['SC','PS','YW','PR','AC','HR','QH'], DOC={};
+  [['CAE-QH-P01','Control of documents and records','QH','Procedure','QHSE Head','Draft','',0],
+   ['CAE-SC-F01','Quotation (Rental / Project / Service / Sale)','SC','Form','Head of Sales','Active','Quote',14],
+   ['CAE-AC-F01','Proforma invoice','AC','Form','Accounts Head','Active','PI',3],
+   ['CAE-AC-F02','Invoice (Mushak-6.3)','AC','Form','Accounts Head','Active','Invoice',6],
+   ['CAE-AC-F03','Debit note','AC','Form','Accounts Head','Active','Note',1],
+   ['CAE-AC-F04','Credit note','AC','Form','Accounts Head','Active','Note',0],
+   ['CAE-PS-F01','Delivery challan','PS','Form','Projects Head','Active','Challan',9],
+   ['CAE-PS-F02','Return challan','PS','Form','Projects Head','Active','Challan',4],
+   ['CAE-YW-F01','Stock transfer note','YW','Form','Yard Head','Active','Challan',2],
+   ['CAE-PR-F01','Purchase order','PR','Form','Procurement Head','Active','PO',1]
+  ].forEach(function(x){DOC[x[0]]={code:x[0],title:x[1],dept:x[2],type:x[3],rev:0,revDate:'2026-11-17',owner:x[4],status:x[5],sys:x[6],issued:x[7],
+    hist:[{rev:0,date:'2026-11-17',by:'System',note:x[6]?'Registered (document the system already makes)':'Added as draft'}]};});
+  function wait(v,ms){return new Promise(function(r){setTimeout(function(){r(v);},ms||450);});}
+  function err(m,ms){return new Promise(function(_,j){setTimeout(function(){j(m);},ms||450);});}
+  function acc(u){return u.dir?Object.assign({},ALL):Object.assign({},u.a);}
+  function pub(e){var u=U[e];return {name:u.name,role:'',email:e,depts:acc(u)};}
+  function live(e){var n=U[e].other;for(var t in sess)if(sess[t]===e)n++;return n;}
+  function endAll(e,keep){for(var t in sess)if(sess[t]===e&&t!==keep)delete sess[t];U[e].other=0;}
+  function dirs(skip){return Object.keys(U).filter(function(e){return e!==skip&&U[e].on&&U[e].dir;}).length;}
+  function gate(t){var e=sess[t];if(!e||!U[e]||!U[e].on)return 'NOSESSION';if(!U[e].dir)return 'NOACCESS';return '';}
+  function genPw(){var A='ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789',o='',b=new Uint32Array(10);
+    try{crypto.getRandomValues(b);}catch(x){for(var i=0;i<10;i++)b[i]=Math.floor(Math.random()*1e9);}
+    for(var j=0;j<10;j++)o+=A[b[j]%A.length];return o.slice(0,5)+'-'+o.slice(5);}
   return {
     officeLogin:function(email,pw){
       email=String(email||'').trim().toLowerCase();
       var f=fails[email]||{n:0,until:0};
       if(f.until>Date.now()) return err('LOCKED|'+Math.ceil((f.until-Date.now())/60000));
       var u=U[email];
-      if(u&&u.status==='Blocked'&&u.pw===pw) return err('BLOCKED');
+      if(u&&!u.on&&u.pw===pw) return err('BLOCKED');
       if(!u||u.pw!==pw){f.n++; if(f.n>=5){f.until=Date.now()+15*60000;f.n=0;} fails[email]=f;
         return err(f.until>Date.now()?'LOCKED|15':'BAD|'+(5-f.n));}
       fails[email]={n:0,until:0};
-      var t='tok'+Math.random().toString(36).slice(2); sess[t]=email;
-      return wait({token:t,user:{name:u.name,role:u.role,email:email}});
+      var t='tok'+Math.random().toString(36).slice(2); sess[t]=email; u.last=Date.now();
+      return wait({token:t,user:pub(email)});
     },
-    officeMe:function(t){var e=sess[t];return e?wait({name:U[e].name,role:U[e].role,email:e},200):err('NOSESSION',200);},
-    officeLogout:function(t){delete sess[t];return wait(true,150);}
+    officeMe:function(t){var e=sess[t];return e&&U[e]&&U[e].on?wait(pub(e),200):err('NOSESSION',200);},
+    officeLogout:function(t){delete sess[t];return wait(true,150);},
+    officeUsersList:function(t){
+      var g=gate(t);if(g)return err(g,300);
+      return wait({me:sess[t],rows:Object.keys(U).map(function(e){var u=U[e];
+        return {name:u.name,email:e,depts:acc(u),status:u.on?'Enabled':'Blocked',last:u.last,sessions:u.on?live(e):0,staff:u.staff};})},500);
+    },
+    officeStaffList:function(t){var g=gate(t);if(g)return err(g,200);return wait(STAFF.slice(),250);},
+    officeUserSave:function(t,r){
+      var g=gate(t);if(g)return err(g);
+      r=r||{};var e=String(r.email||'').trim().toLowerCase(),n=String(r.name||'').trim(),me=sess[t];
+      if(!n||n.length>80)return err('BADINPUT|name');
+      if(!/^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/.test(e)||e.length>120)return err('BADINPUT|email');
+      var d=r.depts||{},isDir=Object.keys(ALL).every(function(k){return d[k]===4;}),a={};
+      Object.keys(ALL).forEach(function(k){var v=d[k];if(v===1||v===2||v===3)a[k]=v;});
+      if(!isDir&&!Object.keys(a).length)return err('BADINPUT|departments');
+      if(r.isNew){
+        if(U[e])return err('DUP');
+        var pw=genPw();U[e]={name:n,dir:isDir?1:0,a:a,pw:pw,on:1,last:null,other:0,staff:String(r.staff||'')};
+        return wait({password:pw});
+      }
+      var u=U[e];if(!u)return err('NOTFOUND');
+      var cur=acc(u),same=(!!u.dir===isDir)&&(isDir||Object.keys(ALL).every(function(k){return (cur[k]||0)===(a[k]||0);}));
+      if(e===me&&!same)return err('SELF');
+      if(u.dir&&!isDir&&u.on&&!dirs(e))return err('LASTDIR');
+      u.name=n;u.staff=String(r.staff||'');var ended=0;
+      if(!same){ended=live(e);u.dir=isDir?1:0;u.a=a;endAll(e);}
+      return wait({ok:true,ended:ended});
+    },
+    officeUserReset:function(t,e){
+      var g=gate(t);if(g)return err(g);var u=U[e];if(!u)return err('NOTFOUND');
+      var ended=live(e)-(e===sess[t]?1:0);endAll(e,t);u.pw=genPw();return wait({password:u.pw,ended:ended});
+    },
+    officeUserBlock:function(t,e,block){
+      var g=gate(t);if(g)return err(g);var u=U[e];if(!u)return err('NOTFOUND');
+      if(e===sess[t])return err('SELF');
+      if(block&&u.dir&&u.on&&!dirs(e))return err('LASTDIR');
+      var ended=0;if(block){ended=live(e);endAll(e);}u.on=block?0:1;return wait({ok:true,ended:ended});
+    },
+    officeUserSignOutAll:function(t,e){
+      var g=gate(t);if(g)return err(g);var u=U[e];if(!u)return err('NOTFOUND');
+      var ended=live(e)-(e===sess[t]?1:0);endAll(e,t);return wait({ended:ended});
+    },
+    /* ---- D1 document register (QHSE): any QH level reads; QH Head (L3) or Director writes ---- */
+    officeDocList:function(t){var g=dgate(t,0);if(g)return err(g,300);
+      return wait({can:canDoc(t),today:today(),setup:true,depts:DCODES.filter(function(d){return sees(t,d);}),rows:Object.keys(DOC).filter(function(k){return sees(t,DOC[k].dept);}).map(function(k){return JSON.parse(JSON.stringify(DOC[k]));})},450);},
+    officeDocSave:function(t,r){
+      var g=dgate(t,1);if(g)return err(g);r=r||{};
+      var title=String(r.title||'').trim(),owner=String(r.owner||'').trim();
+      if(!title||title.length>120)return err('BADINPUT|title');
+      if(owner.length>60)return err('BADINPUT|owner');
+      if(r.isNew){
+        if(DCODES.indexOf(r.dept)<0||!sees(t,r.dept))return err('BADINPUT|department');
+        var T={Form:'F',Procedure:'P',Record:'R'}[r.type];if(!T)return err('BADINPUT|type');
+        if(r.status!=='Draft'&&r.status!=='Active')return err('BADINPUT|status');
+        var code=nextCode(r.dept,T);
+        DOC[code]={code:code,title:title,dept:r.dept,type:r.type,rev:0,revDate:today(),owner:owner,status:r.status,sys:'',issued:0,
+          hist:[{rev:0,date:today(),by:who(t),note:'Added'+(r.status==='Active'?' and approved':' as draft')}]};
+        return wait({code:code});
+      }
+      var d=DOC[r.code];if(!d||!sees(t,d.dept))return err('NOTFOUND');
+      if(r.rev!==d.rev||r.was!==d.status)return err('STALE');
+      var ch=[];if(d.title!==title)ch.push('title');if(d.owner!==owner)ch.push('owner');
+      if(!ch.length)return wait({ok:true,same:true});
+      d.title=title;d.owner=owner;d.hist.push({rev:d.rev,date:today(),by:who(t),note:'Details changed ('+ch.join(', ')+')'});
+      return wait({ok:true});
+    },
+    officeDocRevise:function(t,code,rev,note,date){
+      var g=dgate(t,1);if(g)return err(g);var d=DOC[code];if(!d||!sees(t,d.dept))return err('NOTFOUND');
+      if(rev!==d.rev)return err('STALE');
+      if(d.status==='Withdrawn')return err('WITHDRAWN');
+      note=String(note||'').trim();if(!note||note.length>300)return err('BADINPUT|what changed');
+      if(!okDate(date))return err('BADINPUT|date');
+      d.rev++;d.revDate=date;d.hist.push({rev:d.rev,date:date,by:who(t),note:note});
+      return wait({rev:d.rev});
+    },
+    officeDocStatus:function(t,code,status,rev,was){
+      var g=dgate(t,1);if(g)return err(g);var d=DOC[code];if(!d||!sees(t,d.dept))return err('NOTFOUND');
+      if(rev!==d.rev||was!==d.status)return err('STALE');
+      if(status!=='Active'&&status!=='Withdrawn')return err('BADINPUT|status');
+      if(status==='Withdrawn'&&d.sys)return err('SYSDOC');
+      if(d.status===status)return wait({ok:true,same:true});
+      var was=d.status;d.status=status;
+      d.hist.push({rev:d.rev,date:today(),by:who(t),note:status==='Active'?(was==='Draft'?'Approved':'Made active again'):'Withdrawn'});
+      return wait({ok:true});
+    }
   };
+  function dlvl(t){var e=sess[t];if(!e||!U[e]||!U[e].on)return -1;var u=U[e];return u.dir?4:(u.a.QH||0);}
+  function dgate(t,write){var l=dlvl(t);if(l<0)return 'NOSESSION';if(l<1||write&&l<3)return 'NOACCESS';return '';}
+  function canDoc(t){return dlvl(t)>=3;}
+  /* a non-Director sees only the documents of their own departments */
+  function sees(t,d){var u=U[sess[t]];return !!u&&(u.dir||(u.a[d]||0)>=1);}
+  function who(t){return U[sess[t]].name;}
+  function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  function okDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(s)))return false;var p=s.split('-').map(Number),d=new Date(p[0],p[1]-1,p[2]);
+    if(d.getFullYear()!==p[0]||d.getMonth()!==p[1]-1||d.getDate()!==p[2])return false;return p[0]>=2020&&d.getTime()<=Date.now()+30*864e5;}
+  function nextCode(dept,T){var n=0,p='CAE-'+dept+'-'+T;Object.keys(DOC).forEach(function(k){if(k.indexOf(p)===0)n=Math.max(n,+k.slice(p.length)||0);});return p+('0'+(n+1)).slice(-2);}
 })();
 
 /* ======================= session (this device) ======================= */
@@ -247,15 +457,24 @@ var S={token:null,user:null};
 /* ======================= helpers ======================= */
 var app=document.getElementById('app');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on');},2600);}
-function nu(u){u=u||{};return {name:String(u.name||'—'),role:String(u.role||''),email:String(u.email||''),depts:u.depts};} /* server user, tidied: a missing field never breaks the page */
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on');},3200);}
+function nu(u){u=u||{};return {name:String(u.name||'—'),role:String(u.role||''),email:String(u.email||''),depts:cleanAccess(u.depts)};} /* server user, tidied: a missing field never breaks the page */
 function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();}
 function greet(){var h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
+function code(m){return String(m).replace(/^(Error|Exception):\s*/,'');}
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtWhen(ms){
+  if(typeof ms!=='number'||!isFinite(ms)||ms<=0) return 'Never';
+  var d=new Date(ms),n=new Date(),hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  var day=function(x){return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime();},diff=Math.round((day(n)-day(d))/864e5);
+  return diff===0?'Today '+hm:diff===1?'Yesterday '+hm:d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()+' '+hm;
+}
 
 /* ======================= screen 1: login ======================= */
 var LSEQ=0,LBUSY=false; /* one sign-in request at a time; late replies from an old screen are ignored */
 function viewLogin(note){
   document.title='Core Access · Sign in';
+  closeDlg();
   LSEQ++;LBUSY=false;
   app.innerHTML=
   '<div class="login"><div style="width:100%">'+
@@ -272,7 +491,7 @@ function viewLogin(note){
     '<button class="btn btn-primary btn-block" id="go" type="button">Sign in</button>'+
     '<div class="foot">Forgot your password? Ask the admin to reset it.</div>'+
    '</div>'+
-   (LIVE?'':'<div class="demo"><b>Preview only</b> — try <code data-e="jamal@demo.com">jamal@demo.com</code> (Admin), <code data-e="accounts@demo.com">accounts@</code>, <code data-e="yard@demo.com">yard@</code>, <code data-e="site1@demo.com">site1@</code>, <code data-e="viewer@demo.com">viewer@</code> or <code data-e="blocked@demo.com">blocked@</code> with password <b>demo123</b>. A wrong password 5 times locks the email for 15 min.</div>')+
+   (LIVE?'':'<div class="demo"><b>Preview only</b> — try <code data-e="jamal@demo.com">jamal@demo.com</code> (Director: open <b>HR › Users &amp; access</b>), <code data-e="accounts@demo.com">accounts@</code>, <code data-e="yard@demo.com">yard@</code>, <code data-e="site1@demo.com">site1@</code>, <code data-e="viewer@demo.com">viewer@</code>, <code data-e="qhse@demo.com">qhse@</code> (QHSE Head: <b>QHSE › Document register</b>), <code data-e="safety@demo.com">safety@</code> (QHSE View) or <code data-e="blocked@demo.com">blocked@</code> with password <b>demo123</b>. A wrong password 5 times locks the email for 15 min.</div>')+
   '</div></div>';
   var em=document.getElementById('em'),pw=document.getElementById('pw');
   document.getElementById('eye').onclick=function(){var s=pw.type==='password';pw.type=s?'text':'password';this.innerHTML=ic(s?'eyeoff':'eye');this.setAttribute('aria-label',s?'Hide password':'Show password');pw.focus();};
@@ -296,7 +515,7 @@ function doLogin(){
   },function(m){
     if(my!==LSEQ) return; LBUSY=false;
     go.disabled=false;go.textContent='Sign in';
-    var k=String(m).replace(/^(Error|Exception):\s*/,'').split('|');
+    var k=code(m).split('|');
     if(k[0]==='LOCKED') showMsg('warn','Too many wrong tries. This email is locked for <b>'+esc(k[1])+' min</b>. Ask the admin if you need in now.');
     else if(k[0]==='BUSY') showMsg('warn','Too many sign-in attempts right now. Please wait a minute and try again.');
     else if(k[0]==='BLOCKED') showMsg('err','Your access is <b>blocked</b>. Please contact the admin.');
@@ -316,7 +535,7 @@ var DEPTS=[
   {d:'HR',n:'HR & Admin',c:'t-red',iso:'7.1.2 · 7.2'},
   {d:'QH',n:'QHSE',c:'t-green',iso:'6.1 · 7.5 · 9.2 · 10.2 · 45001'}
 ];
-/* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen (Field logins see only these) */
+/* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen · r = ready */
 var TILES=[
   {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
   {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, email, revise',ic:'doc',l:1},
@@ -340,15 +559,15 @@ var TILES=[
   {d:'AC',k:'receivables',t:'Receivables & job P/L',x:'Who owes, job profit',ic:'chart',l:1},
   {d:'AC',k:'feed',t:'Feed',x:'Raw money in / out',ic:'feed',l:2},
   {d:'HR',k:'staff',t:'Staff & training',x:'Competence, certificates',ic:'idcard',l:1},
-  {d:'HR',k:'users',t:'Users & access',x:'Logins, departments, levels',ic:'users',l:4},
+  {d:'HR',k:'users',t:'Users & access',x:'Logins, departments, levels',ic:'users',l:4,r:1},
   {d:'HR',k:'settings',t:'Settings',x:'Company, terms, taxes',ic:'gear',l:4},
-  {d:'QH',k:'docreg',t:'Document register',x:'Codes, revisions',ic:'folders',l:1},
+  {d:'QH',k:'docreg',t:'Document register',x:'Codes, revisions',ic:'folders',l:1,r:1},
   {d:'QH',k:'safety',t:'Safety',x:'Risk, toolbox talks, incidents',ic:'shield',l:1},
   {d:'QH',k:'ncr',t:'NCR / corrective action',x:'Cause, fix, verify',ic:'ncr',l:1},
   {d:'QH',k:'complaints',t:'Complaints',x:'Log, answer, close',ic:'chat',l:1},
   {d:'QH',k:'audit',t:'Internal audit & review',x:'Audit plan, management review',ic:'audit',l:1}
 ];
-/* until W2: old role -> departments + level */
+/* logins made before W2 have only an old role -> departments + level */
 var ROLEMAP={
   Admin:{SC:4,PS:4,YW:4,PR:4,AC:4,HR:4,QH:4},
   Accounts:{AC:2,PR:2,SC:1},
@@ -357,17 +576,35 @@ var ROLEMAP={
   Field:{PS:2,YW:1}
 };
 var LVL={1:'View',2:'Staff',3:'Head',4:'Director'};
+/* access = {dept: level}; only known departments and whole levels 1-4 are kept; empty -> null */
+function cleanAccess(m){
+  if(!m||typeof m!=='object'||Array.isArray(m)) return null;
+  var o={},n=0;
+  DEPTS.forEach(function(D){var v=m[D.d];if(typeof v==='number'&&v>=1&&v<=4&&v===Math.floor(v)){o[D.d]=v;n++;}});
+  return n?o:null;
+}
+function allDir(){var o={};DEPTS.forEach(function(D){o[D.d]=4;});return o;}
+function isDirector(a){return !!a&&DEPTS.every(function(D){return a[D.d]===4;});}
+function topLevel(a){var t=0;for(var k in a)if(a[k]>t)t=a[k];return t;}
+/* money clearance: prices / amounts only for SC, PR, AC (any level) and Directors; PS / YW never */
+function seesMoney(a){return isDirector(a)||['SC','PR','AC'].some(function(d){return (a&&a[d]||0)>=1;});}
 function myAccess(u){return u.depts||ROLEMAP[u.role]||{};}
 function myTiles(u){
-  var a=myAccess(u), field=!u.depts&&u.role==='Field';
-  return TILES.filter(function(t){return (a[t.d]||0)>=t.l&&(!field||t.s);});
+  var a=myAccess(u);
+  return TILES.filter(function(t){return (a[t.d]||0)>=t.l;});
+}
+function mePill(u){
+  if(!u.depts) return '<span class="pill p-'+esc(u.role)+'">'+esc(u.role)+'</span>';
+  var l=isDirector(u.depts)?4:Math.min(topLevel(u.depts),3);
+  return '<span class="pill p-L'+l+'">'+LVL[l]+'</span>';
 }
 function shell(screen,body){
   var u=S.user;
+  closeDlg();
   app.innerHTML=
    '<header class="top"><div class="topin">'+
      '<div class="mark">CA</div><div class="nm">Core Access<small>Office &amp; Site</small></div><div class="sp"></div>'+
-     '<div class="who" title="'+esc(u.email)+'"><div class="av">'+esc(initials(u.name))+'</div><div><div class="n">'+esc(u.name)+'</div><span class="pill p-'+esc(u.role)+'">'+esc(u.role)+'</span></div></div>'+
+     '<div class="who" title="'+esc(u.email)+'"><div class="av">'+esc(initials(u.name))+'</div><div><div class="n">'+esc(u.name)+'</div>'+mePill(u)+'</div></div>'+
      '<button class="iconbtn" id="out" title="Sign out" aria-label="Sign out">'+ic('logout')+'</button>'+
    '</div></header>'+
    '<div class="banner"><div class="topin">'+esc(screen)+'</div></div>'+
@@ -376,6 +613,7 @@ function shell(screen,body){
 }
 function viewHome(f){
   document.title='Core Access · Home';
+  US.seq++;
   f=f||'';
   var a=myAccess(S.user), mine=myTiles(S.user);
   var ds=DEPTS.filter(function(D){return mine.some(function(t){return t.d===D.d;});});
@@ -385,17 +623,443 @@ function viewHome(f){
     ds.forEach(function(D){body+='<button type="button" class="chip '+D.c+(f===D.d?' on':'')+'" data-f="'+D.d+'" aria-pressed="'+(f===D.d)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';});
     body+='</div>';
   }
+  if(!ds.length) body+='<div class="empty">No screens are open for this login yet. Ask a Director to give you a department.</div>';
   ds.forEach(function(D){
     if(f&&f!==D.d) return;
     body+='<section class="dsec '+D.c+'"><div class="dhead"><span class="dcode">'+D.d+'</span><b>'+esc(D.n)+'</b><span class="lv">'+LVL[a[D.d]]+'</span>'+(D.iso?'<small>ISO '+esc(D.iso)+'</small>':'')+'</div><div class="tiles">';
     mine.filter(function(t){return t.d===D.d;}).forEach(function(t){
-      body+='<button type="button" class="tile '+D.c+'" data-k="'+t.k+'"><span class="soon">SOON</span><span class="ic">'+ic(t.ic)+'</span><b>'+esc(t.t)+'</b><small>'+esc(t.x)+'</small></button>';
+      body+='<button type="button" class="tile '+D.c+'" data-k="'+t.k+'">'+(t.r?'':'<span class="soon">SOON</span>')+'<span class="ic">'+ic(t.ic)+'</span><b>'+esc(t.t)+'</b><small>'+esc(t.x)+'</small></button>';
     });
     body+='</div></section>';
   });
   shell('Home',body);
   [].forEach.call(document.querySelectorAll('.chip'),function(c){c.onclick=function(){var v=c.getAttribute('data-f');viewHome(v);var n=document.querySelector('.chip[data-f="'+v+'"]');if(n)n.focus();};});
-  [].forEach.call(document.querySelectorAll('.tile'),function(b){b.onclick=function(){toast(b.querySelector('b').textContent+' — comes in a later step.');};});
+  [].forEach.call(document.querySelectorAll('.tile'),function(b){b.onclick=function(){
+    var k=b.getAttribute('data-k');
+    if(k==='users') return viewUsers();
+    if(k==='docreg') return viewDocs();
+    toast(b.querySelector('b').textContent+' — comes in a later step.');
+  };});
+}
+
+/* ======================= server errors (any screen) ======================= */
+/* a dead session goes back to sign-in; no access goes Home; the rest is text for the screen */
+function srvGate(m){
+  var k=code(m).split('|')[0];
+  if(k==='NOSESSION'){S={token:null,user:null};tokClear();viewLogin('<div class="msg warn">'+ic('alert')+'<div>Your sign-in has ended. Please sign in again.</div></div>');return true;}
+  if(k==='NOACCESS'){viewHome();toast('You do not have access to that screen.');return true;}
+  return false;
+}
+function errText(m){
+  var k=code(m).split('|');
+  switch(k[0]){
+    case 'DUP': return 'This email already has a login. Find it in the list and use <b>Edit</b>.';
+    case 'LASTDIR': return 'There must always be at least one <b>enabled Director</b>. Make another Director first.';
+    case 'SELF': return 'You can\'t block yourself or change your own access. Ask another Director.';
+    case 'BADINPUT': return 'Please check the <b>'+esc(k[1]||'fields')+'</b>.';
+    case 'NOTFOUND': return 'This no longer exists (or is not yours to see). The list has been refreshed.';
+    case 'BUSY': return 'The server is busy. Please try again in a moment.';
+    case 'STALE': return 'Someone changed this document a moment ago. The list has been refreshed — please check and try again.';
+    case 'WITHDRAWN': return 'This document is <b>withdrawn</b>. Make it active again before revising it.';
+    case 'NOREG': return 'The document register is not set up yet. A Director runs <b>Web app › Set up document register</b> in the sheet.';
+    case 'SYSDOC': return 'The system prints this document, so it can\'t be withdrawn. Revise it instead.';
+    default: return 'Could not finish: '+esc(code(m));
+  }
+}
+
+/* ======================= dialog ======================= */
+var DLG={seq:0,busy:false,prev:null};
+function closeDlg(){
+  var w=document.getElementById('dlg');DLG.seq++;DLG.busy=false;
+  if(w){w.parentNode.removeChild(w);if(DLG.prev&&DLG.prev.focus&&document.body.contains(DLG.prev))DLG.prev.focus();}
+}
+function openDlg(html){
+  closeDlg();
+  DLG.prev=document.activeElement;
+  var w=document.createElement('div');w.className='dlgw';w.id='dlg';
+  w.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgt">'+html+'</div>';
+  document.body.appendChild(w);
+  w.addEventListener('mousedown',function(e){if(e.target===w&&!DLG.busy)closeDlg();});
+  return DLG.seq;
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('dlg')&&!DLG.busy){e.preventDefault();closeDlg();}});
+function dlgErr(html){var x=document.getElementById('derr');if(x)x.innerHTML=html?'<div class="msg err">'+ic('alert')+'<div>'+html+'</div></div>':'';}
+function busyBtn(b,on,label){if(!b)return;b.disabled=on;if(on){b.setAttribute('data-l',b.innerHTML);b.innerHTML='<span class="spin"></span> '+label;}else if(b.hasAttribute('data-l')){b.innerHTML=b.getAttribute('data-l');}}
+/* yes / no question; run() returns a promise; done(result) runs after success */
+function askDlg(title,text,okLabel,danger,run,done,reload){
+  var my=openDlg('<h3 id="dlgt">'+title+'</h3><p class="sub">'+text+'</p><div id="derr"></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button>'+
+    '<button type="button" class="btn '+(danger?'btn-danger':'btn-primary')+'" id="dyes">'+okLabel+'</button></div>');
+  var yes=document.getElementById('dyes');
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;DLG.busy=true;busyBtn(yes,true,'Working…');dlgErr('');
+    run().then(function(r){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();done(r);},
+      function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);dlgErr(errText(m));var k0=code(m).split('|')[0];if(k0==='NOTFOUND'||k0==='STALE')(reload||usersLoad)();});
+  };
+  setTimeout(function(){if(my===DLG.seq)yes.focus();},30);
+}
+/* a new password is shown once only */
+function pwDlg(name,pw,note){
+  openDlg('<h3 id="dlgt">New password for '+esc(name)+'</h3><p class="sub">Shown <b>once only</b>. Give it to the person yourself (in person or by phone), not by email.</p>'+
+    '<div class="pwbox" id="pwv">'+esc(pw)+'</div>'+
+    (note?'<div class="note">'+ic('alert')+'<div>'+note+'</div></div>':'')+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="pwc">'+ic('copy')+' Copy</button><button type="button" class="btn btn-primary" id="pwd">Done</button></div>');
+  var c=document.getElementById('pwc');
+  c.onclick=function(){
+    var ok=function(){c.innerHTML=ic('copy')+' Copied';toast('Password copied.');};
+    var fb=function(){try{var r=document.createRange();r.selectNodeContents(document.getElementById('pwv'));var s=window.getSelection();s.removeAllRanges();s.addRange(r);if(document.execCommand('copy'))return ok();}catch(e){}toast('Select the password and copy it by hand.');};
+    try{if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(pw).then(ok,fb);}catch(e){}
+    fb();
+  };
+  document.getElementById('pwd').onclick=closeDlg;
+  setTimeout(function(){c.focus();},30);
+}
+
+/* ======================= screen: HR › Users & access (Directors) ======================= */
+var US={rows:[],me:'',q:'',f:'all',seq:0,staff:null};
+function nrow(r){
+  r=r||{};
+  var a=cleanAccess(r.depts)||{}, n=+r.sessions;
+  return {name:String(r.name||'—'),email:String(r.email||''),depts:a,enabled:r.status==='Enabled',
+    last:(typeof r.last==='number'&&isFinite(r.last))?r.last:null,sessions:(n>0&&isFinite(n))?Math.floor(n):0,staff:String(r.staff||'')};
+}
+function viewUsers(){
+  document.title='Core Access · Users & access';
+  US.q='';US.f='all';
+  var F=[['all','All'],['on','Enabled'],['off','Blocked'],['live','Signed in now']];
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="uq" type="search" placeholder="Search name or email" autocomplete="off" aria-label="Search logins"></div>'+
+    '<button type="button" class="btn btn-primary btn-sm" id="uadd">'+ic('plus')+' Add login</button></div>'+
+    '<div class="chips t-red" id="uf" role="group" aria-label="Show">'+F.map(function(x){return '<button type="button" class="chip'+(x[0]==='all'?' on':'')+'" data-f="'+x[0]+'" aria-pressed="'+(x[0]==='all')+'">'+x[1]+'</button>';}).join('')+'</div>'+
+    '<p class="cnt" id="ucnt">&nbsp;</p><div id="ulist" class="ulist"><div class="empty">Loading logins…</div></div>';
+  shell('HR · Users & access',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('uadd').onclick=function(){editDlg(null);};
+  document.getElementById('uq').oninput=function(){US.q=this.value.trim().toLowerCase();usersDraw();};
+  [].forEach.call(document.querySelectorAll('#uf .chip'),function(c){c.onclick=function(){
+    US.f=c.getAttribute('data-f');
+    [].forEach.call(document.querySelectorAll('#uf .chip'),function(x){var on=x===c;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});
+    usersDraw();
+  };});
+  document.getElementById('ulist').onclick=function(e){
+    var b=e.target.closest?e.target.closest('[data-a]'):null;if(!b||b.disabled)return;
+    var card=b.closest('.ucard'),em=card&&card.getAttribute('data-e'),r=null;
+    US.rows.forEach(function(x){if(x.email===em)r=x;});
+    if(r) userAct(b.getAttribute('data-a'),r);
+  };
+  usersLoad();
+}
+function usersLoad(){
+  var my=++US.seq;
+  call('officeUsersList',S.token).then(function(r){
+    if(my!==US.seq||!document.getElementById('ulist'))return;
+    US.me=String(r&&r.me||'');US.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(nrow);
+    US.rows.sort(function(x,y){return (y.enabled-x.enabled)||x.name.localeCompare(y.name);});
+    usersDraw();
+  },function(m){
+    if(my!==US.seq||!document.getElementById('ulist'))return;
+    if(srvGate(m))return;
+    document.getElementById('ulist').innerHTML='<div class="empty">Could not load the logins: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="uretry">Try again</button></div>';
+    document.getElementById('uretry').onclick=usersLoad;
+  });
+}
+function accBadges(a){
+  if(isDirector(a)) return '<span class="db t-violet">ALL<em>Director</em></span>';
+  var h=DEPTS.filter(function(D){return a[D.d];}).map(function(D){return '<span class="db '+D.c+'" title="'+esc(D.n)+'">'+D.d+'<em>'+LVL[Math.min(a[D.d],3)]+'</em></span>';}).join('');
+  return h||'<span class="db">No access</span>';
+}
+function usersDraw(){
+  var L=document.getElementById('ulist');if(!L)return;
+  var rows=US.rows, on=0, live=0;
+  rows.forEach(function(r){if(r.enabled)on++;if(r.sessions)live++;});
+  document.getElementById('ucnt').textContent=rows.length+' login'+(rows.length===1?'':'s')+' · '+on+' enabled · '+(rows.length-on)+' blocked · '+live+' signed in now';
+  var show=rows.filter(function(r){
+    if(US.f==='on'&&!r.enabled||US.f==='off'&&r.enabled||US.f==='live'&&!r.sessions)return false;
+    return !US.q||r.name.toLowerCase().indexOf(US.q)>=0||r.email.toLowerCase().indexOf(US.q)>=0;
+  });
+  if(!show.length){L.innerHTML='<div class="empty">'+(rows.length?'No logins match.':'No logins yet. Use <b>Add login</b>.')+'</div>';return;}
+  L.innerHTML=show.map(function(r){
+    var me=r.email===US.me, a=r.depts, other=me?r.sessions-1:r.sessions;
+    var B=function(act,label,icon,cls,off){return '<button type="button" class="btn btn-sm '+(cls||'btn-ghost')+'" data-a="'+act+'"'+(off?' disabled':'')+'>'+ic(icon)+label+'</button>';};
+    return '<article class="ucard'+(r.enabled?'':' off')+'" data-e="'+esc(r.email)+'">'+
+      '<div class="uh"><div class="av">'+esc(initials(r.name))+'</div><div style="flex:1;min-width:0"><div class="n">'+esc(r.name)+(me?'<span class="pill p-me">You</span>':'')+'</div><small>'+esc(r.email)+'</small></div>'+
+        '<span class="pill '+(r.enabled?'st-on':'st-off')+'">'+(r.enabled?'Enabled':'Blocked')+'</span></div>'+
+      '<div class="badges">'+accBadges(a)+'</div>'+
+      '<div class="meta"><span>Last sign-in</span><b>'+esc(fmtWhen(r.last))+'</b>'+
+        '<span>Signed in now</span><b>'+(r.sessions?'<i class="live"></i>Yes · '+r.sessions+' device'+(r.sessions===1?'':'s')+(me?' (incl. this one)':''):'No')+'</b>'+
+        '<span>Prices &amp; amounts</span><b>'+(seesMoney(a)?'Sees them':'Hidden')+'</b>'+
+        '<span>Staff record</span><b>'+(r.staff?esc(r.staff):'—')+'</b></div>'+
+      '<div class="acts">'+
+        B('edit','Edit','edit')+B('reset','Reset password','key')+
+        (me?'':(r.enabled?B('block','Block','ban','btn-danger'):B('unblock','Unblock','unlock')))+
+        B('out',me?'Sign out my other devices':'Sign out everywhere','logout','',other<1)+
+      '</div></article>';
+  }).join('');
+}
+function userAct(a,r){
+  var n=esc(r.name), done=function(msg){return function(res){toast(msg(res||{}));usersLoad();};};
+  var ended=function(x){x=+x.ended||0;return x?' Signed out on '+x+' device'+(x===1?'':'s')+'.':'';};
+  if(a==='edit') return editDlg(r);
+  if(a==='reset') return askDlg('Reset password for '+n+'?','A new password is made and shown to you once. The old one stops working at once and all of '+n+'\'s sign-ins end'+(r.email===US.me?' (except this one)':'')+'.','Make new password',false,
+    function(){return call('officeUserReset',S.token,r.email);},
+    function(res){usersLoad();pwDlg(r.name,String(res&&res.password||''),'Old sign-ins ended: '+(+res.ended||0)+'.');});
+  if(a==='block') return askDlg('Block '+n+'?',n+' is signed out on all devices at once and can\'t sign in until a Director unblocks the login. Nothing they entered is deleted.','Block',true,
+    function(){return call('officeUserBlock',S.token,r.email,true);},done(function(x){return r.name+' is blocked.'+ended(x);}));
+  if(a==='unblock') return askDlg('Unblock '+n+'?',n+' can sign in again with the same password, with the same access as before.','Unblock',false,
+    function(){return call('officeUserBlock',S.token,r.email,false);},done(function(){return r.name+' can sign in again.';}));
+  if(a==='out') return askDlg(r.email===US.me?'Sign out your other devices?':'Sign out '+n+' everywhere?',r.email===US.me?'Every other phone or PC signed in as you is signed out. This one stays signed in.':n+' is signed out on every phone and PC. The login stays enabled and the password stays the same.','Sign out',true,
+    function(){return call('officeUserSignOutAll',S.token,r.email);},done(function(x){return 'Signed out on '+(+x.ended||0)+' device'+(+x.ended===1?'':'s')+'.';}));
+}
+/* add (r = null) or edit a login: name (pick a Staff row or type), email, Director or level per department */
+function editDlg(r){
+  var isNew=!r, a={}, dir=r?isDirector(r.depts):false, keepA={};
+  if(r&&!dir) DEPTS.forEach(function(D){if(r.depts[D.d])a[D.d]=Math.min(r.depts[D.d],3);});
+  var me=r&&r.email===US.me;
+  var rowsH=function(){return DEPTS.map(function(D){var v=a[D.d]||0;
+    return '<div class="drow '+D.c+'" data-d="'+D.d+'"><span class="dcode">'+D.d+'</span><span class="dn">'+esc(D.n)+'</span>'+
+      '<span class="seg" role="radiogroup" aria-label="'+esc(D.n)+' level">'+[0,1,2,3].map(function(l){
+        return '<button type="button" role="radio" aria-checked="'+(v===l)+'" data-v="'+l+'"'+(v===l?' class="on"':'')+'>'+(l?LVL[l]:'None')+'</button>';}).join('')+'</span></div>';}).join('');};
+  var my=openDlg('<h3 id="dlgt">'+(isNew?'Add login':'Edit login')+'</h3>'+
+    '<p class="sub">'+(isNew?'A password is made for the new login and shown to you once.':'Changing the access signs this person out everywhere; they sign in again with the new access.')+'</p>'+
+    '<div id="derr"></div>'+
+    (me?'<div class="msg warn">'+ic('alert')+'<div>This is <b>your own</b> login. You can change the name; another Director must change your access.</div></div>':'')+
+    '<label class="fld"><span>Name</span><input class="inp np" id="fn" maxlength="80" list="stafflist" autocomplete="off" placeholder="Pick from Staff or type" value="'+esc(r?r.name:'')+'"><datalist id="stafflist"></datalist><small id="fst">'+(r&&r.staff?'Staff record '+esc(r.staff):'Not linked to a Staff record')+'</small></label>'+
+    '<label class="fld"><span>Email (this is the sign-in name)</span><input class="inp np" id="fe" type="email" inputmode="email" maxlength="120" autocomplete="off" placeholder="name@example.com" value="'+esc(r?r.email:'')+'"'+(isNew?'':' readonly')+'>'+(isNew?'<small>Any email works, personal ones too.</small>':'<small>The email can\'t be changed. Add a new login and block this one instead.</small>')+'</label>'+
+    '<span class="lbl">Access</span>'+
+    '<label class="check" style="margin:0 0 6px"><input type="checkbox" id="fdir"'+(dir?' checked':'')+(me?' disabled':'')+'> <span><b style="color:var(--text)">Director</b> — all departments, all actions, admin (L4)</span></label>'+
+    '<div id="fdr"'+(dir?' hidden':'')+'>'+rowsH()+'</div>'+
+    '<div class="note" id="fmo"></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="fcan">Cancel</button><button type="button" class="btn btn-primary" id="fsave">'+(isNew?'Add login':'Save')+'</button></div>');
+  var fn=document.getElementById('fn'),fe=document.getElementById('fe'),fdir=document.getElementById('fdir'),fdr=document.getElementById('fdr'),save=document.getElementById('fsave');
+  var staffId=r?r.staff:'';
+  var money=function(){var x=dir?allDir():a;document.getElementById('fmo').innerHTML=ic('alert')+'<div>'+(seesMoney(x)?'<b>Sees prices and amounts</b> (Sales, Procurement, Accounts or Director).':'<b>No prices or amounts</b> are sent to this login (only Sales, Procurement, Accounts and Directors see them).')+'</div>';};
+  var segs=function(){if(me)[].forEach.call(fdr.querySelectorAll('button'),function(b){b.disabled=true;});};
+  money();segs();
+  fdir.onchange=function(){dir=fdir.checked;if(dir){keepA=a;}else{a=keepA||{};fdr.innerHTML=rowsH();segs();}fdr.hidden=dir;money();};
+  fdr.onclick=function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(!b||b.disabled)return;
+    var d=b.closest('.drow').getAttribute('data-d'),v=+b.getAttribute('data-v');if(v)a[d]=v;else delete a[d];
+    [].forEach.call(b.parentNode.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});money();};
+  /* staff list for the name box (pick a Staff row = linked) */
+  var fillStaff=function(list){var dl=document.getElementById('stafflist');if(!dl)return;dl.innerHTML=list.map(function(s){return '<option value="'+esc(s.name)+'">';}).join('');};
+  var linkStaff=function(){var v=fn.value.trim().toLowerCase(),hit=null;(US.staff||[]).forEach(function(s){if(s.name.toLowerCase()===v)hit=s;});
+    /* a name that matches no Staff row keeps the link this login already had (a typo fix does not unlink it) */
+    staffId=hit?hit.id:(r?r.staff:'');document.getElementById('fst').textContent=staffId?'Staff record '+staffId:'Not linked to a Staff record';};
+  if(US.staff) fillStaff(US.staff);
+  else call('officeStaffList',S.token).then(function(l){US.staff=(Array.isArray(l)?l:[]).map(function(s){s=s||{};return {id:String(s.id||''),name:String(s.name||'')};}).filter(function(s){return s.id&&s.name;});if(my===DLG.seq)fillStaff(US.staff);},function(){});
+  fn.oninput=linkStaff;
+  document.getElementById('fcan').onclick=function(){if(!DLG.busy)closeDlg();};
+  var doSave=function(){
+    if(DLG.busy)return;
+    fn.classList.remove('bad');fe.classList.remove('bad');dlgErr('');
+    var name=fn.value.trim(),email=fe.value.trim().toLowerCase(),acc=dir?allDir():a;
+    if(!name){fn.classList.add('bad');dlgErr('Enter the name.');fn.focus();return;}
+    if(isNew&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){fe.classList.add('bad');dlgErr('Enter a valid email address.');fe.focus();return;}
+    if(!dir&&!Object.keys(a).length){dlgErr('Give at least one department, or tick <b>Director</b>.');return;}
+    DLG.busy=true;busyBtn(save,true,'Saving…');
+    call('officeUserSave',S.token,{email:isNew?email:r.email,name:name,depts:acc,staff:staffId,isNew:isNew}).then(function(res){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();usersLoad();
+      if(isNew) pwDlg(name,String(res&&res.password||''),'Give the person this password and the web-app link. They can\'t change it themselves; a Director can reset it any time.');
+      else {var x=+(res&&res.ended)||0;toast('Saved.'+(x?' '+name+' was signed out on '+x+' device'+(x===1?'':'s')+'.':''));}
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(save,false);
+      var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='email')fe.classList.add('bad');if(k[0]==='BADINPUT'&&k[1]==='name')fn.classList.add('bad');
+      dlgErr(errText(m));if(k[0]==='NOTFOUND')usersLoad();
+    });
+  };
+  save.onclick=doSave;
+  [fn,fe].forEach(function(x){x.onkeydown=function(ev){if(ev.key==='Enter'&&!(x===fn&&ev.isComposing)){ev.preventDefault();doSave();}};});
+  setTimeout(function(){if(my===DLG.seq)(isNew?fn:fn).focus();},30);
+}
+
+/* ======================= screen: QHSE › Document register (D1) ======================= */
+/* every QH login reads it; QHSE Head (L3) or Director adds, revises, approves, withdraws. Records are add-only: the history is never edited. */
+var DR={rows:[],can:false,today:'',depts:[],setup:true,q:'',f:'',st:'',seq:0};
+var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
+var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
+function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
+function isDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
+function fmtDay(s){if(!isDay(s))return '—';var p=s.split('-');return (+p[2])+' '+MON[(+p[1]-1)%12]+' '+p[0];}
+function ndoc(r){
+  r=r||{};var rev=+r.rev;
+  return {code:String(r.code||''),title:String(r.title||'—'),dept:deptOf(r.dept)?r.dept:'',type:DTYPES.indexOf(r.type)>=0?r.type:'Form',
+    rev:(rev>=0&&rev===Math.floor(rev))?rev:0,revDate:isDay(r.revDate)?r.revDate:'',owner:String(r.owner||''),
+    status:DSTAT.indexOf(r.status)>=0?r.status:'Draft',sys:RECEX[r.sys]?String(r.sys):'',issued:(+r.issued>0)?Math.floor(+r.issued):0,
+    hist:(Array.isArray(r.hist)?r.hist:[]).map(function(h){h=h||{};return {rev:+h.rev||0,date:isDay(h.date)?h.date:'',by:String(h.by||'—'),note:String(h.note||'')};})};
+}
+function footerTxt(d){return '<b>'+esc(d.code)+'</b> · Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+' · Page 1 / 2 · '+(d.sys?esc(RECEX[d.sys]):'record no.');}
+function viewDocs(){
+  document.title='Core Access · Document register';
+  DR.q='';DR.f='';DR.st='';
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="dq" type="search" placeholder="Search code, title or owner" autocomplete="off" aria-label="Search documents"></div>'+
+    '<span id="dadd"></span></div>'+
+    '<div id="dro"></div><div class="chips" id="df" role="group" aria-label="Department"></div>'+
+    '<div style="margin:10px 0 0"><span class="seg t-green" id="dst" role="radiogroup" aria-label="Status">'+['','Active','Draft','Withdrawn'].map(function(s){
+      return '<button type="button" role="radio" data-s="'+s+'" aria-checked="'+(s==='')+'"'+(s===''?' class="on"':'')+'>'+(s||'All')+'</button>';}).join('')+'</span></div>'+
+    '<p class="cnt" id="dcnt">&nbsp;</p><div id="dlist" class="dlist"><div class="empty">Loading the register…</div></div>';
+  shell('QHSE · Document register',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('dq').oninput=function(){DR.q=this.value.trim().toLowerCase();docsDraw();};
+  document.getElementById('dst').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-s]'):null;if(!b)return;DR.st=b.getAttribute('data-s');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});docsDraw();};
+  document.getElementById('df').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;DR.f=b.getAttribute('data-f');docsChips();docsDraw();};
+  document.getElementById('dlist').onclick=function(e){
+    var b=e.target.closest?e.target.closest('[data-a]'):null;if(!b||b.disabled)return;
+    var c=b.closest('.dcard').getAttribute('data-c'),d=null;DR.rows.forEach(function(x){if(x.code===c)d=x;});
+    if(d) docAct(b.getAttribute('data-a'),d);
+  };
+  docsLoad();
+}
+function docsLoad(){
+  var my=++DR.seq;
+  call('officeDocList',S.token).then(function(r){
+    if(my!==DR.seq||!document.getElementById('dlist'))return;
+    DR.can=!!(r&&r.can===true);DR.today=isDay(r&&r.today)?r.today:'';DR.setup=!(r&&r.setup===false);
+    DR.depts=(r&&Array.isArray(r.depts)?r.depts:[]).filter(function(x){return !!deptOf(x);});
+    DR.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(ndoc).filter(function(d){return d.code;});
+    var ord=function(d){for(var i=0;i<DEPTS.length;i++)if(DEPTS[i].d===d.dept)return i;return 99;};
+    DR.rows.sort(function(a,b){return (ord(a)-ord(b))||a.code.localeCompare(b.code);});
+    if(!DR.depts.length)DR.can=false;
+    document.getElementById('dadd').innerHTML=DR.can&&DR.setup?'<button type="button" class="btn btn-primary btn-sm" id="dnew">'+ic('plus')+' Add document</button>':'';
+    if(DR.can&&DR.setup) document.getElementById('dnew').onclick=function(){docEdit(null);};
+    document.getElementById('dro').innerHTML=DR.can?'':'<p class="ro">'+ic('eye')+'View only — a QHSE Head or a Director adds and revises documents.</p>';
+    docsChips();docsDraw();
+  },function(m){
+    if(my!==DR.seq||!document.getElementById('dlist'))return;
+    if(srvGate(m))return;
+    document.getElementById('dlist').innerHTML='<div class="empty">Could not load the register: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="dretry">Try again</button></div>';
+    document.getElementById('dretry').onclick=docsLoad;
+  });
+}
+function docsChips(){
+  var el=document.getElementById('df');if(!el)return;
+  var ds=DEPTS.filter(function(D){return DR.rows.some(function(d){return d.dept===D.d;});});
+  if(DR.f&&!ds.some(function(D){return D.d===DR.f;}))DR.f='';
+  el.innerHTML='<button type="button" class="chip'+(DR.f?'':' on')+'" data-f="" aria-pressed="'+!DR.f+'">All</button>'+ds.map(function(D){
+    return '<button type="button" class="chip '+D.c+(DR.f===D.d?' on':'')+'" data-f="'+D.d+'" aria-pressed="'+(DR.f===D.d)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';}).join('');
+}
+function docsDraw(){
+  var L=document.getElementById('dlist');if(!L)return;
+  var rows=DR.rows,n={Active:0,Draft:0,Withdrawn:0};rows.forEach(function(d){n[d.status]++;});
+  document.getElementById('dcnt').textContent=rows.length+' document'+(rows.length===1?'':'s')+' · '+n.Active+' active · '+n.Draft+' draft · '+n.Withdrawn+' withdrawn';
+  var show=rows.filter(function(d){
+    if(DR.f&&d.dept!==DR.f||DR.st&&d.status!==DR.st)return false;
+    return !DR.q||(d.code+' '+d.title+' '+d.owner).toLowerCase().indexOf(DR.q)>=0;
+  });
+  if(!DR.setup){L.innerHTML='<div class="empty">The document register is not set up yet. A Director opens the sheet and runs <b>Web app › Set up document register</b>.</div>';return;}
+  if(!show.length){L.innerHTML='<div class="empty">'+(rows.length?'No documents match.':'The register is empty.')+'</div>';return;}
+  L.innerHTML=show.map(function(d){
+    var D=deptOf(d.dept)||{d:'—',n:'',c:''},wd=d.status==='Withdrawn';
+    var B=function(a,label,icon,cls){return '<button type="button" class="btn btn-sm '+(cls||'btn-ghost')+'" data-a="'+a+'">'+ic(icon)+label+'</button>';};
+    var acts=B('hist','History','hist');
+    if(DR.can){
+      if(d.status==='Draft')acts+=B('approve','Approve','okc','btn-primary');
+      if(!wd)acts+=B('rev','Revise','rev');
+      acts+=B('edit','Edit details','edit');
+      if(d.status==='Active'&&!d.sys)acts+=B('wd','Withdraw','ban','btn-danger');
+      if(wd)acts+=B('act','Make active','unlock');
+    }
+    return '<article class="dcard '+D.c+(wd?' wd':'')+'" data-c="'+esc(d.code)+'">'+
+      '<div class="dtop"><span class="dc">'+esc(d.code)+'</span><span class="pill ty">'+esc(d.type)+'</span><span class="sp"></span><span class="pill st-'+d.status+'">'+d.status+'</span></div>'+
+      '<div class="dt">'+esc(d.title)+'</div>'+
+      '<div class="meta"><span>Revision</span><b>Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+'</b>'+
+        '<span>Department</span><b>'+esc(D.d)+(D.n?' · '+esc(D.n):'')+'</b>'+
+        '<span>Owner</span><b>'+(d.owner?esc(d.owner):'—')+'</b>'+
+        '<span>Made by</span><b>'+(d.sys?'System — auto PDF · '+d.issued+' issued':'By hand (not in the system yet)')+'</b></div>'+
+      '<div class="fpv" title="Footer printed on every page">PDF footer: '+footerTxt(d)+'</div>'+
+      '<div class="acts">'+acts+'</div></article>';
+  }).join('');
+}
+function docAct(a,d){
+  var c=esc(d.code);
+  var st=function(s,msg){return function(){return call('officeDocStatus',S.token,d.code,s,d.rev,d.status);};};
+  var done=function(msg){return function(){toast(msg);docsLoad();};};
+  if(a==='hist') return docHist(d);
+  if(a==='edit') return docEdit(d);
+  if(a==='rev') return docRevise(d);
+  if(a==='approve') return askDlg('Approve '+c+'?',esc(d.title)+' becomes the <b>active</b> Rev '+d.rev+'. Staff use this version from now on.','Approve',false,st('Active'),done(d.code+' is approved.'),docsLoad);
+  if(a==='wd') return askDlg('Withdraw '+c+'?',esc(d.title)+' is marked <b>withdrawn</b> and must not be used any more. It stays in the register with its history.','Withdraw',true,st('Withdrawn'),done(d.code+' is withdrawn.'),docsLoad);
+  if(a==='act') return askDlg('Make '+c+' active again?',esc(d.title)+' Rev '+d.rev+' can be used again.','Make active',false,st('Active'),done(d.code+' is active again.'),docsLoad);
+}
+function docHist(d){
+  var h=d.hist.slice().reverse();
+  openDlg('<h3 id="dlgt">'+esc(d.code)+' · history</h3><p class="sub">'+esc(d.title)+'. Entries are never edited; a mistake is fixed by a new entry.</p>'+
+    (h.length?'<ul class="hist">'+h.map(function(x){return '<li><b>Rev '+x.rev+'</b> · '+esc(x.note)+'<small>'+esc(fmtDay(x.date))+' · '+esc(x.by)+'</small></li>';}).join('')+'</ul>':'<div class="empty">No entries.</div>')+
+    '<div class="dfoot"><button type="button" class="btn btn-primary" id="hclose">Close</button></div>');
+  var b=document.getElementById('hclose');b.onclick=closeDlg;setTimeout(function(){b.focus();},30);
+}
+function nextCodeFor(dept,type){var T={Form:'F',Procedure:'P',Record:'R'}[type],p='CAE-'+dept+'-'+T,n=0;
+  DR.rows.forEach(function(d){if(d.code.indexOf(p)===0)n=Math.max(n,+d.code.slice(p.length)||0);});return p+(n+1<10?'0':'')+(n+1);}
+/* add (d = null) or edit the details of a document; code, department and type are fixed once added */
+function docEdit(d){
+  /* a new document only in one of my departments (Directors: all) */
+  var mine=DEPTS.filter(function(D){return DR.depts.indexOf(D.d)>=0;});
+  var isNew=!d, dept=d?d.dept:(DR.depts.indexOf(DR.f)>=0?DR.f:DR.depts.indexOf('QH')>=0?'QH':(mine[0]||{}).d), type=d?d.type:'Form', status='Draft';
+  var segH=function(id,list,v){return '<span class="seg t-green" id="'+id+'" role="radiogroup">'+list.map(function(x){return '<button type="button" role="radio" data-v="'+x+'" aria-checked="'+(x===v)+'"'+(x===v?' class="on"':'')+'>'+x+'</button>';}).join('')+'</span>';};
+  var my=openDlg('<h3 id="dlgt">'+(isNew?'Add document':'Edit '+esc(d.code))+'</h3>'+
+    '<p class="sub">'+(isNew?'The code is given on save and never changes.':'Title and owner only. A change to the content is a <b>Revise</b> (Rev +1).')+'</p><div id="derr"></div>'+
+    (isNew?'<span class="lbl">Department</span><div class="segw" id="edept">'+mine.map(function(D){return '<button type="button" class="chip '+D.c+(D.d===dept?' on':'')+'" data-v="'+D.d+'" aria-pressed="'+(D.d===dept)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';}).join('')+'</div>'+
+      '<div style="margin:14px 0 4px"><span class="lbl">Type</span>'+segH('etype',DTYPES,type)+'</div>'+
+      '<p class="ro" style="margin:10px 0 14px">Code: <b class="dc" id="ecode" style="font-size:13px"></b></p>':'')+
+    '<label class="fld"><span>Title</span><input class="inp np" id="etitle" maxlength="120" autocomplete="off" placeholder="e.g. Scaffold inspection checklist" value="'+esc(d?d.title:'')+'"></label>'+
+    '<label class="fld"><span>Owner</span><input class="inp np" id="eowner" maxlength="60" autocomplete="off" placeholder="e.g. QHSE Head" value="'+esc(d?d.owner:'')+'"><small>Who keeps it up to date (a role, not a person).</small></label>'+
+    (isNew?'<span class="lbl">Start as</span>'+segH('estat',['Draft','Active'],status)+'<small style="display:block;color:var(--dim);font-size:12px;margin-top:5px">Active = approved now (Rev 0). Draft = approve later.</small>':'')+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="ecan">Cancel</button><button type="button" class="btn btn-primary" id="esave">'+(isNew?'Add document':'Save')+'</button></div>');
+  var ti=document.getElementById('etitle'),ow=document.getElementById('eowner'),save=document.getElementById('esave');
+  var showCode=function(){var e=document.getElementById('ecode');if(e)e.textContent=nextCodeFor(dept,type);};
+  var segOn=function(box,b){[].forEach.call(box.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute(x.getAttribute('role')==='radio'?'aria-checked':'aria-pressed',on);});};
+  if(isNew){
+    document.getElementById('edept').onclick=function(e){var b=e.target.closest?e.target.closest('[data-v]'):null;if(!b)return;dept=b.getAttribute('data-v');segOn(this,b);showCode();};
+    document.getElementById('etype').onclick=function(e){var b=e.target.closest?e.target.closest('[data-v]'):null;if(!b)return;type=b.getAttribute('data-v');segOn(this,b);showCode();};
+    document.getElementById('estat').onclick=function(e){var b=e.target.closest?e.target.closest('[data-v]'):null;if(!b)return;status=b.getAttribute('data-v');segOn(this,b);};
+    showCode();
+  }
+  document.getElementById('ecan').onclick=function(){if(!DLG.busy)closeDlg();};
+  var doSave=function(){
+    if(DLG.busy)return;ti.classList.remove('bad');dlgErr('');
+    var t=ti.value.trim();if(!t){ti.classList.add('bad');dlgErr('Enter the title.');ti.focus();return;}
+    DLG.busy=true;busyBtn(save,true,'Saving…');
+    call('officeDocSave',S.token,isNew?{isNew:true,dept:dept,type:type,title:t,owner:ow.value.trim(),status:status}:{code:d.code,rev:d.rev,was:d.status,title:t,owner:ow.value.trim()}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();docsLoad();
+      toast(isNew?'Added '+String(r&&r.code||'')+'.':(r&&r.same?'Nothing changed.':'Saved.'));
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(save,false);
+      var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='title')ti.classList.add('bad');
+      dlgErr(errText(m));if(k[0]==='NOTFOUND'||k[0]==='STALE')docsLoad();
+    });
+  };
+  save.onclick=doSave;
+  [ti,ow].forEach(function(x){x.onkeydown=function(ev){if(ev.key==='Enter'&&!ev.isComposing){ev.preventDefault();doSave();}};});
+  setTimeout(function(){if(my===DLG.seq)ti.focus();},30);
+}
+/* revise = Rev +1 with what changed and the issue date; earlier PDFs keep their old Rev */
+function docRevise(d){
+  var my=openDlg('<h3 id="dlgt">Revise '+esc(d.code)+'</h3><p class="sub">'+esc(d.title)+': Rev '+d.rev+' → <b>Rev '+(d.rev+1)+'</b></p><div id="derr"></div>'+
+    '<label class="fld"><span>What changed</span><textarea class="inp np" id="rnote" maxlength="300" rows="3" placeholder="e.g. Clause 4.1: advance 50 % → 40 %"></textarea><small>Ctrl + Enter saves.</small></label>'+
+    '<label class="fld"><span>Issue date</span><input class="inp np" id="rdate" type="date" value="'+esc(DR.today)+'"></label>'+
+    '<div class="note">'+ic('alert')+'<div>PDFs made before keep <b>Rev '+d.rev+'</b> in their footer; new PDFs print <b>Rev '+(d.rev+1)+'</b>. The history entry can\'t be edited later.</div></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="rcan">Cancel</button><button type="button" class="btn btn-primary" id="rsave">Save Rev '+(d.rev+1)+'</button></div>');
+  var no=document.getElementById('rnote'),dt=document.getElementById('rdate'),save=document.getElementById('rsave');
+  document.getElementById('rcan').onclick=function(){if(!DLG.busy)closeDlg();};
+  var doSave=function(){
+    if(DLG.busy)return;no.classList.remove('bad');dt.classList.remove('bad');dlgErr('');
+    var n=no.value.trim(),v=dt.value;
+    if(!n){no.classList.add('bad');dlgErr('Say what changed.');no.focus();return;}
+    if(!isDay(v)){dt.classList.add('bad');dlgErr('Pick the issue date.');dt.focus();return;}
+    DLG.busy=true;busyBtn(save,true,'Saving…');
+    call('officeDocRevise',S.token,d.code,d.rev,n,v).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();docsLoad();toast(d.code+' is now Rev '+(+(r&&r.rev)||d.rev+1)+'.');
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(save,false);
+      var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='date')dt.classList.add('bad');if(k[0]==='BADINPUT'&&k[1]==='what changed')no.classList.add('bad');
+      dlgErr(errText(m));if(k[0]==='NOTFOUND'||k[0]==='STALE')docsLoad();
+    });
+  };
+  save.onclick=doSave;
+  no.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();doSave();}};
+  dt.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doSave();}};
+  setTimeout(function(){if(my===DLG.seq)no.focus();},30);
 }
 
 /* ======================= start ======================= */
@@ -404,7 +1068,7 @@ function viewHome(f){
   if(!t) return viewLogin();
   call('officeMe',t).then(function(u){S.token=t;S.user=nu(u);viewHome();},function(m){
     /* only a dead session clears the saved sign-in; a network / server hiccup keeps it for the next try */
-    if(String(m).replace(/^(Error|Exception):\s*/,'')==='NOSESSION'){tokClear();viewLogin();}
+    if(code(m)==='NOSESSION'){tokClear();viewLogin();}
     else viewLogin('<div class="msg warn">'+ic('alert')+'<div>Could not check your sign-in just now. <b>Reload</b> to try again, or sign in below.</div></div>');
   });
 })();
