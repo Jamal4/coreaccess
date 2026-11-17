@@ -49,6 +49,9 @@
 // D1 (c2) (17 Nov): Drive folders. Every system PDF goes to PDF > <type> > <year> (quotes, proformas, invoices, notes, POs),
 //   PDF > Projects > Active > <JobNo> - <Client> - <Site> > Challans, or PDF > Yard > Transfers > <year>; Editable inside.
 //   Wraps makePdf. One-time move of the older PDFs: officePdfMoveDry (plan) then officePdfMoveApply (editor or menu).
+// CodeRabbit CLI review (17 Nov, W2 + D1): register writes go history first (oDocTx_: a failed register write adds a
+//   "Not applied" entry, so no change is ever left without its history); detail edits send the old title / owner (STALE
+//   if someone changed them meanwhile); a remade PDF never bins the new PDF / Doc itself.
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF'), every PDF_SPECS entry + renderInto (D1 c footer), makePdf (D1 c2 folders).
 // ============================================================================
@@ -657,6 +660,12 @@ function oDocSee_(a, dept) { return oIsDir_(a) || (a[dept] || 0) >= 1; }
 function oDocCan_(a) { return oIsDir_(a) || (a.QH || 0) >= 3; }
 function oDocDb_(env) { var db = env.db(); if (!db || !db.hasTab(ODOC_REG_) || !db.hasTab(ODOC_HIST_)) oFail_('NOREG'); return db; }
 function oDocHist_(db, env, code, rev, date, by, note) { db.insert(ODOC_HIST_, { At: new Date(env.now()), Code: code, Rev: rev, Date: oDayCell_(date), By: oCell_(by), Note: oCell_(note) }); }
+// History first, then the register (DocHistory is add-only): if the register write fails, a correcting "Not applied"
+// entry follows, so a register change can never stand without its history entry.
+function oDocTx_(db, env, code, rev, date, by, note, write) {
+  oDocHist_(db, env, code, rev, date, by, note);
+  try { return write(); } catch (e) { try { oDocHist_(db, env, code, rev, date, by, 'Not applied (save failed): ' + note); } catch (x) { /* sheet down */ } throw e; }
+}
 function oDocRow_(db, code) { var c = typeof code === 'string' ? code : ''; return /^CAE-[A-Z]{2}-[FPR]\d{2,3}$/.test(c) ? find(db.rows(ODOC_REG_), 'Code', c) : null; }
 function oDocIssued_(db, code, byHand) {
   var seen = {}, n = 0, add = function (x) { x = String(x == null ? '' : x).trim(); if (x && !seen[x]) { seen[x] = 1; n++; } };
@@ -672,8 +681,8 @@ function oDocSetup_(env, db) {
   db.rows(ODOC_REG_).forEach(function (r) { have[String(r.Code)] = 1; });
   ODOC_SEED_.forEach(function (x) {
     if (have[x[0]]) return;
-    db.insert(ODOC_REG_, { Code: x[0], Title: x[1], Dept: x[2], Type: x[3], Rev: 0, RevDate: oDayCell_(ODOC_START_), Owner: x[4], Status: x[5], Sys: x[6], ByHand: x[7], Notes: '' });
-    oDocHist_(db, env, x[0], 0, ODOC_START_, 'System', x[6] ? 'Registered (document the system already makes)' + (x[7] ? '; issued by hand before: ' + x[7] : '') : 'Added as draft');
+    oDocTx_(db, env, x[0], 0, ODOC_START_, 'System', x[6] ? 'Registered (document the system already makes)' + (x[7] ? '; issued by hand before: ' + x[7] : '') : 'Added as draft', function () {
+      db.insert(ODOC_REG_, { Code: x[0], Title: x[1], Dept: x[2], Type: x[3], Rev: 0, RevDate: oDayCell_(ODOC_START_), Owner: x[4], Status: x[5], Sys: x[6], ByHand: x[7], Notes: '' }); });
     n++;
   });
   return n;
@@ -724,17 +733,17 @@ function officeDocSave(token, r) {
       db.rows(ODOC_REG_).forEach(function (x) { var c = String(x.Code); if (c.indexOf(p) === 0 && /^\d{2,3}$/.test(c.slice(p.length))) n = Math.max(n, +c.slice(p.length)); });
       if (n >= 999) oFail_('BADINPUT|type');
       var code = p + pad(n + 1, 2);
-      db.insert(ODOC_REG_, { Code: code, Title: oCell_(title), Dept: r.dept, Type: r.type, Rev: 0, RevDate: oDayCell_(day), Owner: oCell_(owner), Status: r.status, Sys: '', ByHand: '', Notes: '' });
-      oDocHist_(db, env, code, 0, day, L.name, 'Added' + (r.status === 'Active' ? ' and approved' : ' as draft'));
+      oDocTx_(db, env, code, 0, day, L.name, 'Added' + (r.status === 'Active' ? ' and approved' : ' as draft'), function () {
+        db.insert(ODOC_REG_, { Code: code, Title: oCell_(title), Dept: r.dept, Type: r.type, Rev: 0, RevDate: oDayCell_(day), Owner: oCell_(owner), Status: r.status, Sys: '', ByHand: '', Notes: '' }); });
       return { code: code };
     }
     var d = oDocMine_(db, a, r.code), ch = [], q = function (x) { x = String(x); return '"' + (x.length > 60 ? x.slice(0, 57) + '...' : x) + '"'; };
     if (r.rev !== (+d.Rev || 0) || (r.was !== undefined && r.was !== String(d.Status))) oFail_('STALE');
+    if (r.old !== undefined && (!r.old || typeof r.old !== 'object' || r.old.title !== oUncell_(d.Title) || (r.old.owner == null ? '' : r.old.owner) !== oUncell_(d.Owner))) oFail_('STALE'); // details changed meanwhile
     if (oUncell_(d.Title) !== title) ch.push('title ' + q(oUncell_(d.Title)) + ' -> ' + q(title));
     if (oUncell_(d.Owner) !== owner) ch.push('owner ' + q(oUncell_(d.Owner)) + ' -> ' + q(owner));
     if (!ch.length) return { ok: true, same: true };
-    db.update(ODOC_REG_, d, { Title: oCell_(title), Owner: oCell_(owner) });
-    oDocHist_(db, env, d.Code, +d.Rev || 0, day, L.name, 'Details changed: ' + ch.join('; '));
+    oDocTx_(db, env, d.Code, +d.Rev || 0, day, L.name, 'Details changed: ' + ch.join('; '), function () { db.update(ODOC_REG_, d, { Title: oCell_(title), Owner: oCell_(owner) }); });
     return { ok: true };
   });
 }
@@ -748,8 +757,7 @@ function officeDocRevise(token, code, rev, note, date) {
     note = oText_(note, 300); if (!note) oFail_('BADINPUT|what changed');
     var max = oDayOf_(env.now() + 30 * 864e5);
     if (!oDayOk_(date) || date < '2020-01-01' || date > max || date < oDay_(d.RevDate)) oFail_('BADINPUT|date'); // never before the current Rev
-    db.update(ODOC_REG_, d, { Rev: cur + 1, RevDate: oDayCell_(date) });
-    oDocHist_(db, env, d.Code, cur + 1, date, L.name, note);
+    oDocTx_(db, env, d.Code, cur + 1, date, L.name, note, function () { db.update(ODOC_REG_, d, { Rev: cur + 1, RevDate: oDayCell_(date) }); });
     return { rev: cur + 1 };
   });
 }
@@ -764,8 +772,7 @@ function officeDocStatus(token, code, status, rev, was) {
     if (status === 'Withdrawn' && d.Sys) oFail_('SYSDOC');
     if (d.Status === status) return { ok: true, same: true };
     var from = String(d.Status);
-    db.update(ODOC_REG_, d, { Status: status });
-    oDocHist_(db, env, d.Code, cur, day, L.name, status === 'Active' ? (from === 'Draft' ? 'Approved' : 'Made active again') : 'Withdrawn');
+    oDocTx_(db, env, d.Code, cur, day, L.name, status === 'Active' ? (from === 'Draft' ? 'Approved' : 'Made active again') : 'Withdrawn', function () { db.update(ODOC_REG_, d, { Status: status }); });
     return { ok: true };
   });
 }
@@ -926,17 +933,18 @@ function oPdfMake_(db, what, no, o, make0, base, self) {
   var o2 = {}; if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { o2[k] = o[k]; });
   o2.folder = dir;
   var r = make0.call(self, db, what, no, o2);
-  try { oPdfOldBin_(base(), what, r && r.file, dir); } catch (e) { /* the new PDF is made; an old copy may stay */ }
+  try { oPdfOldBin_(base(), what, r && r.file, dir, [oPdfIdOf_(r && r.url), oPdfIdOf_(r && r.doc)]); } catch (e) { /* the new PDF is made; an old copy may stay */ }
   return r;
 }
 // A remade document: the same-named PDF + Doc made before the change (PDF > <type>, PDF > <type> > Editable) go to the bin.
-function oPdfOldBin_(root, what, file, dir) {
+function oPdfOldBin_(root, what, file, dir, mine) { // mine = ids of the PDF + Doc just made: never binned
   if (typeof file !== 'string' || !/\.pdf$/i.test(file)) return;
+  var keep = (mine || []).filter(function (x) { return x; }), ok = function (f) { return oAlive_(f) && keep.indexOf(f.getId()) < 0; };
   var pdf = oSubFind_(root, { n: 'PDF' }), old = pdf ? oSubFind_(pdf, { n: OPDF_[what][3] }) : null;
   if (!old || old.getId() === dir.getId()) return;
   var ed = oSubFind_(old, { n: 'Editable' }), doc = file.replace(/\.pdf$/i, '');
-  oIt_(old.getFiles()).forEach(function (f) { if (oAlive_(f) && f.getName() === file) f.setTrashed(true); });
-  if (ed) oIt_(ed.getFiles()).forEach(function (f) { if (oAlive_(f) && f.getName() === doc) f.setTrashed(true); });
+  oIt_(old.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === file) f.setTrashed(true); });
+  if (ed) oIt_(ed.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === doc) f.setTrashed(true); });
 }
 if (typeof makePdf === 'function' && !makePdf.officePdf_) {
   var OF_makePdf0_ = makePdf;
@@ -1403,7 +1411,7 @@ function selfTestOffice() {
       eq('O146 edit: same -> no entry; title + owner changed -> one entry; unknown / odd code NOTFOUND', j(officeDocSave(tQ, { code: r1.code, rev: 0, was: 'Draft', title: 'Scaffold inspection checklist', owner: 'QHSE Head' })) + ':' + j(officeDocSave(tQ, { code: r1.code, rev: 0, title: 'Scaffold inspection checklist (weekly)', owner: 'Safety Officer' })) + ':' + byC(r1.code).hist.map(function (h) { return h.note; }).join('/') + ':' +
         [err(function () { officeDocSave(tQ, { code: 'CAE-QH-F99', title: 'X' }); }), err(function () { officeDocSave(tQ, { code: { toString: 1 }, title: 'X' }); }), err(function () { officeDocSave(tQ, { code: '__proto__', title: 'X' }); })].join(','), '{"ok":true,"same":true}:{"ok":true}:Added as draft/Details changed: title "Scaffold inspection checklist" -> "Scaffold inspection checklist (weekly)"; owner "QHSE Head" -> "Safety Officer":NOTFOUND,NOTFOUND,NOTFOUND');
       db.writes = []; officeDocSave(tQ, { code: r1.code, rev: 0, title: '=HYPERLINK("http://x","y")', owner: '+SUM(1)' });
-      var wr = db.writes[0] || {};
+      var wr = db.writes.filter(function (w) { return 'Title' in w; })[0] || {}; // history is written first
       eq('O147 a title / owner starting with = + - @ is written with a leading quote (text, no formula), shown back unchanged; saving it again = no change', wr.Title.charAt(0) + wr.Owner.charAt(0) + ':' + byC(r1.code).title + ':' + byC(r1.code).owner + ':' + officeDocSave(tQ, { code: r1.code, rev: 0, title: '=HYPERLINK("http://x","y")', owner: '+SUM(1)' }).same, "'':=HYPERLINK(\"http://x\",\"y\"):+SUM(1):true");
       var bd = function (rev, note, date) { return err(function () { officeDocRevise(tQ, r1.code, rev, note, date); }); };
       eq('O148 revise: wrong Rev STALE, empty note, bad / far / old / fake dates refused', [bd(1, 'x', '2026-11-17'), bd('0', 'x', '2026-11-17'), bd(0, '', '2026-11-17'), bd(0, '\u200b', '2026-11-17'), bd(0, new Array(302).join('n'), '2026-11-17'), bd(0, 'x', '2026-02-30'), bd(0, 'x', '2019-12-31'), bd(0, 'x', '2026-12-18'), bd(0, 'x', '17-11-2026'), bd(0, 'x', 20261117), bd(0, 'x', null)].join(','),
@@ -1545,6 +1553,25 @@ function selfTestOffice() {
       eq('O190 an archived job folder is found even when Projects › Active does not exist (plan + link check), no Active made', (function () { var r0 = fd.folder('R', null), pr = r0.createFolder('PDF').createFolder('Projects'), j = pr.createFolder('Archive').createFolder('2026').createFolder('CAE-J-2026-001 – Old name');
         var path = oPdfPath_(db2, 'Challan', 'CAE/DC/2026/001', NOW), g = oPdfDir_(r0, path.slice(0, 4), false);
         return (g === j) + ':' + !pr.ks.some(function (k) { return k.name === 'Active'; }) + ':' + (oPdfDir_(r0, path, true).par === j); })(), 'true:true:true');
+      // --- CodeRabbit CLI review (17 Nov): concurrent detail edits, history-first writes, new PDF never binned
+      eq('O191 detail edit with the old title / owner: changed meanwhile by someone else -> STALE, nothing written; not an object -> STALE', (function () { var t0 = byC(r1.code), h0 = db.rows(ODOC_HIST_).length;
+        var a1 = officeDocSave(tD, { code: r1.code, rev: 2, was: 'Active', title: 'Changed by Director', owner: t0.owner, old: { title: t0.title, owner: t0.owner } }).ok;
+        var a2 = err(function () { officeDocSave(tQ, { code: r1.code, rev: 2, was: 'Active', title: t0.title, owner: 'New owner', old: { title: t0.title, owner: t0.owner } }); });
+        var a3 = err(function () { officeDocSave(tQ, { code: r1.code, rev: 2, was: 'Active', title: 'X', owner: 'Y', old: 'x' }); });
+        var a4 = officeDocSave(tQ, { code: r1.code, rev: 2, was: 'Active', title: 'Changed by Director', owner: 'QHSE Head', old: { title: 'Changed by Director', owner: t0.owner } }).ok;
+        return [a1, a2, a3, byC(r1.code).title, a4, byC(r1.code).owner, db.rows(ODOC_HIST_).length - h0].join(','); })(), 'true,STALE,STALE,Changed by Director,true,QHSE Head,2');
+      eq('O192 register write fails -> the register is unchanged, history has the entry + a \"Not applied\" entry', (function () { var u0 = db.update, h0 = db.rows(ODOC_HIST_).length; db.update = function () { throw new Error('sheet busy'); };
+        try { var e1 = err(function () { officeDocRevise(tQ, r2.code, 1, 'tx test', '2026-11-17'); }); } finally { db.update = u0; }
+        return e1 + ':' + byC(r2.code).rev + ':' + db.rows(ODOC_HIST_).slice(h0).map(function (h) { return h.Note; }).join('/'); })(), 'sheet busy:1:tx test/Not applied (save failed): tx test');
+      eq('O193 history write fails -> nothing changes in the register (history goes first)', (function () { var i0 = db.insert; db.insert = function (t) { if (t === ODOC_HIST_) throw new Error('hist down'); return i0.apply(db, arguments); };
+        try { var e1 = err(function () { officeDocStatus(tQ, r2.code, 'Withdrawn', 1, 'Active'); }), e2 = err(function () { officeDocSave(tQ, { code: r2.code, rev: 1, was: 'Active', title: 'New title' }); }); } finally { db.insert = i0; }
+        return e1 + ',' + e2 + ':' + byC(r2.code).status + ':' + byC(r2.code).title; })(), 'hist down,hist down:Active:Toolbox talk record');
+      eq('O194 add: register row fails -> no row, history says Not applied', (function () { var i0 = db.insert, n0 = db.rows(ODOC_REG_).length; db.insert = function (t) { if (t === ODOC_REG_) throw new Error('reg down'); return i0.apply(db, arguments); };
+        try { var e1 = err(function () { officeDocSave(tQ, { isNew: true, dept: 'QH', type: 'Form', title: 'Tx', status: 'Draft' }); }); } finally { db.insert = i0; }
+        return e1 + ':' + (db.rows(ODOC_REG_).length - n0) + ':' + db.rows(ODOC_HIST_).slice(-1)[0].Note; })(), 'reg down:0:Not applied (save failed): Added as draft');
+      eq('O195 a remade PDF written into the old folder is never binned by its own clean-up; older same-named copies are', (function () { var oq = mkOld('Quotes'), nf = fd.file('CAE-Q-2026-001 Fresh.pdf', oq), nd = fd.file('CAE-Q-2026-001 Fresh', edOld('Quotes')), st = fd.file('CAE-Q-2026-001 Fresh.pdf', oq);
+        oPdfMake_(db2, 'Quote', 'CAE/Q/2026/001', {}, function () { return { file: 'CAE-Q-2026-001 Fresh.pdf', url: nf.getUrl(), doc: 'https://docs.google.com/document/d/' + nd.id + '/edit' }; }, base);
+        return [nf.gone, nd.gone, st.gone].join(','); })(), 'false,false,true');
       eq('O185 no PDF folder at all -> nothing done', oPdfMove_(db2, { base: fd.folder('Empty', null), file: drv.file }, true, NOW).left.join(), 'No PDF folder');
       e3.clock.db = null;
       eq('O156 no sheet: list says not set up, writes NOREG', officeDocList(tD).setup + ':' + err(function () { officeDocStatus(tD, 'CAE-QH-P01', 'Active', 0); }), 'false:NOREG');

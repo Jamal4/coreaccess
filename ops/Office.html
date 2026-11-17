@@ -474,7 +474,7 @@ function fmtWhen(ms){
 var LSEQ=0,LBUSY=false; /* one sign-in request at a time; late replies from an old screen are ignored */
 function viewLogin(note){
   document.title='Core Access · Sign in';
-  closeDlg();
+  closeDlg();resetCaches();
   LSEQ++;LBUSY=false;
   app.innerHTML=
   '<div class="login"><div style="width:100%">'+
@@ -671,6 +671,7 @@ function errText(m){
 var DLG={seq:0,busy:false,prev:null};
 function closeDlg(){
   var w=document.getElementById('dlg');DLG.seq++;DLG.busy=false;
+  app.removeAttribute('inert');app.removeAttribute('aria-hidden');
   if(w){w.parentNode.removeChild(w);if(DLG.prev&&DLG.prev.focus&&document.body.contains(DLG.prev))DLG.prev.focus();}
 }
 function openDlg(html){
@@ -679,11 +680,23 @@ function openDlg(html){
   var w=document.createElement('div');w.className='dlgw';w.id='dlg';
   w.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgt">'+html+'</div>';
   document.body.appendChild(w);
+  app.setAttribute('inert','');app.setAttribute('aria-hidden','true'); /* the screen behind can't be reached while the dialog is open */
   w.addEventListener('mousedown',function(e){if(e.target===w&&!DLG.busy)closeDlg();});
   return DLG.seq;
 }
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('dlg')&&!DLG.busy){e.preventDefault();closeDlg();}});
+document.addEventListener('keydown',function(e){
+  var w=document.getElementById('dlg');if(!w)return;
+  if(e.key==='Escape'&&!DLG.busy){e.preventDefault();closeDlg();return;}
+  if(e.key!=='Tab')return; /* Tab stays inside the dialog */
+  var f=[].filter.call(w.querySelectorAll('button,input,select,textarea,a[href],[tabindex]'),function(x){return !x.disabled&&x.tabIndex>=0&&!x.closest('[hidden]');});
+  if(!f.length){e.preventDefault();return;}
+  var i=f.indexOf(document.activeElement);
+  if(e.shiftKey&&i<=0){e.preventDefault();f[f.length-1].focus();}
+  else if(!e.shiftKey&&(i<0||i===f.length-1)){e.preventDefault();f[0].focus();}
+});
 function dlgErr(html){var x=document.getElementById('derr');if(x)x.innerHTML=html?'<div class="msg err">'+ic('alert')+'<div>'+html+'</div></div>':'';}
+/* STALE: the dialog holds the old version -> close it, reload, ask to open again (a retry would only fail again) */
+function staleClose(reload){closeDlg();reload();toast('Someone changed this a moment ago. The list is refreshed — please open it again.');}
 function busyBtn(b,on,label){if(!b)return;b.disabled=on;if(on){b.setAttribute('data-l',b.innerHTML);b.innerHTML='<span class="spin"></span> '+label;}else if(b.hasAttribute('data-l')){b.innerHTML=b.getAttribute('data-l');}}
 /* yes / no question; run() returns a promise; done(result) runs after success */
 function askDlg(title,text,okLabel,danger,run,done,reload){
@@ -695,7 +708,7 @@ function askDlg(title,text,okLabel,danger,run,done,reload){
   yes.onclick=function(){
     if(DLG.busy)return;DLG.busy=true;busyBtn(yes,true,'Working…');dlgErr('');
     run().then(function(r){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();done(r);},
-      function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);dlgErr(errText(m));var k0=code(m).split('|')[0];if(k0==='NOTFOUND'||k0==='STALE')(reload||usersLoad)();});
+      function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k0=code(m).split('|')[0];if(k0==='STALE')return staleClose(reload||usersLoad);dlgErr(errText(m));if(k0==='NOTFOUND')(reload||usersLoad)();});
   };
   setTimeout(function(){if(my===DLG.seq)yes.focus();},30);
 }
@@ -726,7 +739,7 @@ function nrow(r){
 }
 function viewUsers(){
   document.title='Core Access · Users & access';
-  US.q='';US.f='all';
+  US.q='';US.f='all';US.rows=[];US.me='';US.loaded=false;
   var F=[['all','All'],['on','Enabled'],['off','Blocked'],['live','Signed in now']];
   var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
     '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="uq" type="search" placeholder="Search name or email" autocomplete="off" aria-label="Search logins"></div>'+
@@ -754,7 +767,7 @@ function usersLoad(){
   var my=++US.seq;
   call('officeUsersList',S.token).then(function(r){
     if(my!==US.seq||!document.getElementById('ulist'))return;
-    US.me=String(r&&r.me||'');US.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(nrow);
+    US.loaded=true;US.me=String(r&&r.me||'');US.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(nrow);
     US.rows.sort(function(x,y){return (y.enabled-x.enabled)||x.name.localeCompare(y.name);});
     usersDraw();
   },function(m){
@@ -770,7 +783,7 @@ function accBadges(a){
   return h||'<span class="db">No access</span>';
 }
 function usersDraw(){
-  var L=document.getElementById('ulist');if(!L)return;
+  var L=document.getElementById('ulist');if(!L||!US.loaded)return;
   var rows=US.rows, on=0, live=0;
   rows.forEach(function(r){if(r.enabled)on++;if(r.sessions)live++;});
   document.getElementById('ucnt').textContent=rows.length+' login'+(rows.length===1?'':'s')+' · '+on+' enabled · '+(rows.length-on)+' blocked · '+live+' signed in now';
@@ -876,6 +889,8 @@ function editDlg(r){
 /* every QH login reads it; QHSE Head (L3) or Director adds, revises, approves, withdraws. Records are add-only: the history is never edited. */
 var DR={rows:[],can:false,today:'',depts:[],setup:true,q:'',f:'',st:'',seq:0};
 var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
+/* sign-in / sign-out: forget the lists of the earlier login (another person may sign in on this device) */
+function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;}
 var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
 function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
 function isDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
@@ -890,7 +905,7 @@ function ndoc(r){
 function footerTxt(d){return '<b>'+esc(d.code)+'</b> · Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+' · Page 1 / 2 · '+(d.sys?esc(RECEX[d.sys]):'record no.');}
 function viewDocs(){
   document.title='Core Access · Document register';
-  DR.q='';DR.f='';DR.st='';
+  DR.q='';DR.f='';DR.st='';DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false; /* nothing of an earlier sign-in is shown */
   var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
     '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="dq" type="search" placeholder="Search code, title or owner" autocomplete="off" aria-label="Search documents"></div>'+
     '<span id="dadd"></span></div>'+
@@ -915,7 +930,7 @@ function docsLoad(){
   var my=++DR.seq;
   call('officeDocList',S.token).then(function(r){
     if(my!==DR.seq||!document.getElementById('dlist'))return;
-    DR.can=!!(r&&r.can===true);DR.today=isDay(r&&r.today)?r.today:'';DR.setup=!(r&&r.setup===false);
+    DR.loaded=true;DR.can=!!(r&&r.can===true);DR.today=isDay(r&&r.today)?r.today:'';DR.setup=!(r&&r.setup===false);
     DR.depts=(r&&Array.isArray(r.depts)?r.depts:[]).filter(function(x){return !!deptOf(x);});
     DR.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(ndoc).filter(function(d){return d.code;});
     var ord=function(d){for(var i=0;i<DEPTS.length;i++)if(DEPTS[i].d===d.dept)return i;return 99;};
@@ -940,7 +955,7 @@ function docsChips(){
     return '<button type="button" class="chip '+D.c+(DR.f===D.d?' on':'')+'" data-f="'+D.d+'" aria-pressed="'+(DR.f===D.d)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';}).join('');
 }
 function docsDraw(){
-  var L=document.getElementById('dlist');if(!L)return;
+  var L=document.getElementById('dlist');if(!L||!DR.loaded)return;
   var rows=DR.rows,n={Active:0,Draft:0,Withdrawn:0};rows.forEach(function(d){n[d.status]++;});
   document.getElementById('dcnt').textContent=rows.length+' document'+(rows.length===1?'':'s')+' · '+n.Active+' active · '+n.Draft+' draft · '+n.Withdrawn+' withdrawn';
   var show=rows.filter(function(d){
@@ -1020,13 +1035,13 @@ function docEdit(d){
     if(DLG.busy)return;ti.classList.remove('bad');dlgErr('');
     var t=ti.value.trim();if(!t){ti.classList.add('bad');dlgErr('Enter the title.');ti.focus();return;}
     DLG.busy=true;busyBtn(save,true,'Saving…');
-    call('officeDocSave',S.token,isNew?{isNew:true,dept:dept,type:type,title:t,owner:ow.value.trim(),status:status}:{code:d.code,rev:d.rev,was:d.status,title:t,owner:ow.value.trim()}).then(function(r){
+    call('officeDocSave',S.token,isNew?{isNew:true,dept:dept,type:type,title:t,owner:ow.value.trim(),status:status}:{code:d.code,rev:d.rev,was:d.status,title:t,owner:ow.value.trim(),old:{title:d.title,owner:d.owner}}).then(function(r){
       if(my!==DLG.seq)return;DLG.busy=false;closeDlg();docsLoad();
       toast(isNew?'Added '+String(r&&r.code||'')+'.':(r&&r.same?'Nothing changed.':'Saved.'));
     },function(m){
       if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(save,false);
       var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='title')ti.classList.add('bad');
-      dlgErr(errText(m));if(k[0]==='NOTFOUND'||k[0]==='STALE')docsLoad();
+      if(k[0]==='STALE')return staleClose(docsLoad);dlgErr(errText(m));if(k[0]==='NOTFOUND')docsLoad();
     });
   };
   save.onclick=doSave;
@@ -1053,7 +1068,7 @@ function docRevise(d){
     },function(m){
       if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(save,false);
       var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='date')dt.classList.add('bad');if(k[0]==='BADINPUT'&&k[1]==='what changed')no.classList.add('bad');
-      dlgErr(errText(m));if(k[0]==='NOTFOUND'||k[0]==='STALE')docsLoad();
+      if(k[0]==='STALE')return staleClose(docsLoad);dlgErr(errText(m));if(k[0]==='NOTFOUND')docsLoad();
     });
   };
   save.onclick=doSave;
