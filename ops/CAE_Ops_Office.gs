@@ -52,6 +52,9 @@
 // CodeRabbit CLI review (17 Nov, W2 + D1): register writes go history first (oDocTx_: a failed register write adds a
 //   "Not applied" entry, so no change is ever left without its history); detail edits send the old title / owner (STALE
 //   if someone changed them meanwhile); a remade PDF never bins the new PDF / Doc itself.
+// W3 (17 Nov): SC > Quotes. officeQuoteList / officeQuoteGet (any SC level), officeQuoteTerm + officeQuoteEmail (SC Staff+ or
+//   Director, gate in the lock), officeQuotePdf. Reuses QT1 qtSave_ (terms), QF5 qf5Pdf_ (PDF), QF3 emailQuote. tv = terms version
+//   (hash) -> STALE; PDF reused only when made here for the same tv (OQP:<no> in Script Properties). Wraps user_ (log = office login).
 // Replaces: doGet (if an earlier file had one — check before install).
 // Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF'), every PDF_SPECS entry + renderInto (D1 c footer), makePdf (D1 c2 folders).
 // ============================================================================
@@ -1032,10 +1035,281 @@ function menuOfficePdfDry() { var r = officePdfMoveDry(); SpreadsheetApp.getUi()
 function menuOfficePdfApply() { var ui = SpreadsheetApp.getUi(); if (ui.alert('Move the PDFs into the new folders?', 'Year folders + job folders. Links in the sheet stay the same. Safe to repeat.', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
   var r = officePdfMoveApply(); ui.alert('PDF folders', r.moves.length + ' moved, ' + r.left.length + ' left, ' + r.links.ok + ' links OK' + (r.links.bad.length ? ', ' + r.links.bad.length + ' to check' : '') + '.', ui.ButtonSet.OK); }
 
+// ----------------------------------------------------------------- W3 (17 Nov): SC > Quotes (list, view, terms, PDF, email)
+// Reuses QT1 (terms: Terms tab by QuoteType + per-quote QuoteTerms rows, saved by qtSave_), QF5 (quote PDF, one file per quote)
+// and QF3 (email). Any SC level reads; SC Staff (L2) / Head or Director changes the terms and emails. tv = a terms
+// version (hash of everything the terms view shows) -> STALE when it changed meanwhile. Clause text: {{Token}} in the sheet
+// = {Token} on the page. Codes: QLOCKED (job / not Draft-Sent), QSTATE|status, TOFILL|n, STALE, NOTFOUND, BADINPUT|field, BUSY.
+var OQ_NEED_ = { dept: 'SC', level: 1 }, OQ_WRITE_ = { dept: 'SC', level: 2 };
+var OQ_TOK_ = { AdvancePct: 'AdvancePct', PaymentDays: 'PaymentDays', ValidityDays: 'ValidityDays', LateInterestPct: 'LateInterest', MinMonths: 'MinMonths', NoticeDays: 'NoticeDays', PartPeriodRule: 'PartPeriod' };
+var OQ_LIM_ = { AdvancePct: [0, 100], PaymentDays: [1, 365], ValidityDays: [1, 365], LateInterestPct: [0, 10], MinMonths: [1, 60], NoticeDays: [0, 90] };
+var OQ_FIXED_ = { PeriodDays: 'Hire month (days)', BillingSchedule: 'Billing schedule' };
+var OQ_PH_ = /\[(?!to fill in Settings\]|verify with accountant\])[^\]"]*\]/g; // as makePdf counts them (any length, newlines, empty too)
+var OQ_CLOSED_ = ['Lost', 'Expired', 'Cancelled'];
+var OQ_ACT_ = ''; // the office login acting now (log + UpdatedBy), else the Google user
+var OQ_user0_ = user_;
+user_ = function () { return OQ_ACT_ || OQ_user0_(); };
+function oQNo_(v) { return typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9\/._-]{0,39}$/.test(v) ? v : ''; }
+function oQRow_(db, no) { var n = oQNo_(no); var q = n ? find(db.rows('Quotes'), 'QuoteNo', n) : null; if (!q) oFail_('NOTFOUND'); return q; }
+function oQDn_(v) { try { return dayNum(v); } catch (e) { return null; } }
+function oQDay_(n) { return n == null ? '' : oDay_(fromDay(n)); }
+function oQHash_(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h + 1; }
+function oQType_(q) { return String(q.QuoteType || 'Rental'); }
+function oQOv_(db, no) { return qtRows_(db, no).slice().sort(function (a, b) { return num(a.SortOrder) - num(b.SortOrder); }); }
+function oQJob_(db, no) { return find(db.rows('Jobs'), 'QuoteNo', no); }
+function oQLocked_(db, q) { return oQJob_(db, q.QuoteNo) ? 'JOB' : ['Draft', 'Sent'].indexOf(String(q.Status)) < 0 ? 'STATUS' : ''; }
+function oQLines_(db, no) { return db.rows('QuoteLines').filter(function (l) { return String(l.QuoteNo) === String(no); }).sort(function (a, b) { return num(a.LineNo) - num(b.LineNo); }); }
+function oQTv_(db, q) { // everything the terms view + email depend on (not the PDF link)
+  var no = q.QuoteNo, cu = find(db.rows('Customers'), 'CustID', q.CustID) || {}, type = oQType_(q), j = oQJob_(db, no);
+  var st = ['AdvancePct', 'MinHireMonths', 'PaymentDaysDefault', 'QuoteValidityDays', 'LateInterestPctMonth', 'OffHireNoticeDays', 'PartPeriodRule', 'HirePeriodDays'].map(function (k) { return String(S(db, k, '')); });
+  var f = ['Rev', 'Status', 'QuoteType', 'CustID', 'SiteID', 'QuoteDate', 'AdvancePct', 'MinMonths', 'PaymentDays', 'ValidityDays', 'NoticeDays', 'LateInterestPct', 'PartPeriodRule', 'VATPct', 'ATPct', 'AITPct'].map(function (k) { var v = q[k]; return v instanceof Date ? v.getTime() : String(v == null ? '' : v); });
+  var ov = oQOv_(db, no).map(function (o) { return [o.Action, o.ClauseID, o.Section, o.ClauseNo, o.Title, o.Text, o.SortOrder].map(String).join('\u0001'); });
+  var base = QT_termsFor0_(db, type).map(function (r) { return [r.ClauseID, r.Section, r.ClauseNo, r.Title, r.Text, r.SortOrder].map(String).join('\u0001'); });
+  var ln = oQLines_(db, no).map(function (l) { return [l.LineNo, l.ItemCode, l.Description, l.Unit, l.Qty, l.Months, l.Billing, l.Rate, l.Optional, l.Selected].map(String).join('\u0001'); });
+  return oQHash_(JSON.stringify([f, String(cu.PaymentDays == null ? '' : cu.PaymentDays), j ? String(j.JobNo) : '', st, ov, base, ln]));
+}
+function oQTok_(s) { return String(s == null ? '' : s).replace(/\{\{(\w{1,31})\}\}/g, '{$1}'); } // sheet -> page
+function oQUntok_(s, keys) { // page -> sheet; any other { } is refused
+  var bad = false, out = String(s).replace(/\{([A-Za-z]\w{0,30})\}/g, function (m, k) { if (keys.indexOf(k) < 0) { bad = true; return m; } return '{{' + k + '}}'; });
+  if (bad || /[{}]/.test(out.replace(/\{\{[A-Za-z]\w{0,30}\}\}/g, ''))) return null;
+  return out;
+}
+function oQClauseText_(v) { // one clause: 1..1000 chars, no control chars, at least one letter / digit; newlines kept as spaces
+  if (typeof v !== 'string' || v.length > 4000) return '';
+  var s = v.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').replace(/\p{Cf}/gu, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').replace(/[ \t]+/g, ' ').trim();
+  return s.length <= 1000 && /[\p{L}\p{N}]/u.test(s) ? s : '';
+}
+function oQCell_(v) { var s = String(v == null ? '' : v).trim(); return s ? "'" + s : ''; } // always text in the sheet (no formula, no date / number guess)
+function oQFill_(s) { var m = String(s).match(OQ_PH_); return m ? m.length : 0; }
+// the terms as the page shows them + what qtSave_ needs to write them back
+function oQTerms_(db, q, C) { // C (list only): {base: {type: rows}, ov: {no: rows}} read once for all quotes, no tokens
+  var no = q.QuoteNo, type = oQType_(q), std = qtStd_(db, q), tok = C ? {} : quoteTokens(db, q), by = {};
+  var base = C ? (C.base[type] = C.base[type] || QT_termsFor0_(db, type)) : QT_termsFor0_(db, type);
+  var ov = C ? (C.ov[String(no)] || []).slice().sort(function (a, b) { return num(a.SortOrder) - num(b.SortOrder); }) : oQOv_(db, no);
+  ov = ov.filter(function (o) { return o.Action === 'Remove' || !blank(o.Text) && String(o.Text).trim() !== ''; }); // a blank Replace / Add row = standard (QT1 refuses empty wording)
+  ov.forEach(function (o) { if (o.Action !== 'Add' && !blank(o.ClauseID)) by[String(o.ClauseID)] = o; });
+  var vars = qtFieldsFor_(type).map(function (f) {
+    var k = f[0], cur = qtCustom_(f, q, std), lim = OQ_LIM_[k];
+    var v = { k: OQ_TOK_[k], field: k, label: f[1], unit: f[3] === 'rule' ? '' : f[2].trim(), kind: f[3] === 'rule' ? 'pick' : 'num', std: qtShow_(f, std[k][0]),
+      from: /^customer/.test(std[k][1]) ? 'Customer' : 'Company settings', value: cur === '' ? null : cur, tok: String(tok[OQ_TOK_[k]] == null ? '' : tok[OQ_TOK_[k]]) };
+    if (v.kind === 'pick') v.opts = QT_RULES_.slice(); else { v.min = lim[0]; v.max = lim[1]; }
+    return v;
+  });
+  var keys = vars.map(function (v) { return v.k; }), seen = {};
+  Object.keys(tok).forEach(function (k) { if (keys.indexOf(k) < 0 && /^[A-Za-z]\w{0,30}$/.test(k)) { vars.push({ k: k, label: OQ_FIXED_[k] || k, unit: '', kind: 'fixed', std: '', from: 'Company settings', value: null, tok: String(tok[k]) }); keys.push(k); } });
+  if (!C) base.concat(ov).forEach(function (r) { String(r.Text || '').replace(/\{\{([A-Za-z]\w{0,30})\}\}/g, function (m, k) { // a token the PDF does not know stays as it is
+    if (keys.indexOf(k) < 0) { vars.push({ k: k, label: k, unit: '', kind: 'fixed', std: '', from: 'Company settings', value: null, tok: m }); keys.push(k); } return m; }); });
+  var secs = [], sOf = {}, special = qtSections_(base, []).special;
+  base.forEach(function (r) {
+    var s = String(r.Section);
+    if (!seen[s]) { seen[s] = 1; sOf[s] = secs.length; secs.push({ no: s, t: String(r.SectionTitle || ''), cl: [] }); }
+    var o = by[String(r.ClauseID)], st = !o ? 'std' : o.Action === 'Remove' ? 'removed' : 'changed';
+    secs[sOf[s]].cl.push({ id: String(r.ClauseID), no: String(r.ClauseNo), title: String(r.Title || ''), text: oQTok_(st === 'changed' ? o.Text : r.Text), std: oQTok_(r.Text), st: st });
+  });
+  var nBase = secs.length, added = ov.filter(function (o) { return o.Action === 'Add'; });
+  added.forEach(function (o, i) {
+    var s = seen[String(o.Section)] ? String(o.Section) : special;
+    if (sOf[s] == null) { sOf[s] = secs.length; secs.push({ no: s, t: QT_SPECIAL_, cl: [], special: true }); }
+    secs[sOf[s]].cl.push({ id: 'A' + i, no: String(o.ClauseNo), title: String(o.Title || ''), text: oQTok_(o.Text), std: '', st: 'added' });
+  });
+  var fill = 0, changed = ov.length;
+  vars.forEach(function (v) { if (v.kind !== 'fixed' && v.value !== null) changed++; });
+  secs.forEach(function (s) { s.cl.forEach(function (c) { if (c.st !== 'removed') fill += oQFill_(c.text); }); });
+  return { view: { set: type, vars: vars, secs: secs }, fill: fill, changed: changed, keys: keys, nBase: nBase, base: base, by: by, added: added, special: special, std: std, ov: ov };
+}
+// PDF version = hash of the quote PDF spec (everything printed: lines, terms, customer, site, company, footer) + [ ] left in it
+function oQPdfVer_(db, no) {
+  var sp = PDF_SPECS.Quote(db, no), j = JSON.stringify({ b: sp.blocks, c: sp.docCtl || '', f: sp.file || '' });
+  var left = (JSON.stringify(sp.blocks).match(/\[[^\]"]*\]/g) || []).filter(function (x) { return !/^\[(to fill in Settings|verify with accountant)\]$/.test(x); }).length;
+  return { v: oQHash_(j), left: left };
+}
+function oQFid_(u) { var m = String(u || '').match(/\/d\/([\w-]{6,})/) || String(u || '').match(/[?&]id=([\w-]{6,})/); return m ? m[1] : String(u || ''); }
+// the stored PDF is current unless it was made here (OQP:<no> = {v, f}) and the quote changed since. A PDF made elsewhere
+// (sheet panel: QF5 remakes it on every save) is trusted.
+function oQPdfFresh_(env, q, ver) {
+  if (blank(q.PDF)) return '';
+  var p = env.get('OQP:' + q.QuoteNo);
+  return !p || p.f !== oQFid_(q.PDF) || p.v === ver ? String(q.PDF) : '';
+}
+function oQView_(db, env, q, L) {
+  var a = oAcc_(L), M = oCanSeeMoney_(a), no = q.QuoteNo, cu = find(db.rows('Customers'), 'CustID', q.CustID) || {}, site = blank(q.SiteID) ? null : find(db.rows('Sites'), 'SiteID', q.SiteID);
+  var T = oQTerms_(db, q), tv = oQTv_(db, q), job = oQJob_(db, no), items = {}, t = M ? quoteTotals(db, no) : null, pv = oQPdfVer_(db, no);
+  db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  var stf = blank(q.PreparedBy) ? null : find(db.rows('Staff'), 'StaffID', q.PreparedBy), d0 = oQDn_(q.QuoteDate);
+  var vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : num(S(db, 'QuoteValidityDays', 30));
+  var lines = oQLines_(db, no).map(function (l, i) {
+    var it = items[String(l.ItemCode)] || {}, dim = typeof qfDimTxt_ === 'function' ? qfDimTxt_(l) : '';
+    var o = { n: num(l.LineNo) || i + 1, desc: String(l.Description || it.Name || ''), size: dim || String(it.Size == null ? '' : it.Size), unit: String(l.Unit || ''), qty: num(l.Qty),
+      months: blank(l.Months) ? '' : num(l.Months), billing: String(l.Billing || ''), optional: l.Optional === 'Yes', selected: l.Selected === 'Yes' };
+    if (M) { o.rate = num(l.Rate); o.amount = lineAmt(l); }
+    return o;
+  });
+  return {
+    no: no, rev: num(q.Rev), date: oQDay_(d0), type: oQType_(q), status: String(q.Status || 'Draft'),
+    cust: String(cu.Name || q.CustID || ''), contact: String(q.Attention || cu.ContactPerson || ''), phone: String(cu.Phone || ''), email: String(cu.Email || ''),
+    project: site && !blank(site.Project) ? String(site.Project) : String(q.Subject || ''), site: site ? String(site.Address || '') : '', subject: String(q.Subject || ''),
+    job: job ? String(job.JobNo) : '', preparedBy: stf ? String(stf.Name || '') : String(q.PreparedBy || ''), valid: d0 == null ? '' : oQDay_(d0 + vd),
+    pdf: oQPdfFresh_(env, q, pv.v) || (oQLocked_(db, q) ? String(q.PDF || '') : ''), myEmail: String(L.email), tv: tv, money: M, can: oQCan_(a), locked: oQLocked_(db, q), lines: lines,
+    tot: t ? { sub: t.subtotal, vatPct: r2(num(t.vatPct) * 100), vat: t.vat, atPct: r2(num(t.atPct) * 100), at: t.at || 0, aitPct: r2(num(t.aitPct) * 100), ait: t.ait || 0,
+      total: t.total, advPct: r2(num(t.advancePct) * 100), advance: t.advance, words: typeof qf4Words_ === 'function' ? qf4Words_(t.total) : takaWords(t.total) } : null,
+    terms: T.view, fill: T.fill, changed: T.changed
+  };
+}
+function oQCan_(a) { return oIsDir_(a) || (a.SC || 0) >= 2; }
+function officeQuoteList(token) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var cus = {}, sites = {}, jobs = {};
+  db.rows('Customers').forEach(function (c) { cus[String(c.CustID)] = c; });
+  db.rows('Sites').forEach(function (s) { sites[String(s.SiteID)] = s; });
+  db.rows('Jobs').forEach(function (j) { if (!blank(j.QuoteNo) && !jobs[String(j.QuoteNo)]) jobs[String(j.QuoteNo)] = String(j.JobNo); });
+  var C = { base: {}, ov: {} };
+  if (db.hasTab('QuoteTerms')) db.rows('QuoteTerms').forEach(function (o) { var k = String(o.QuoteNo); (C.ov[k] = C.ov[k] || []).push(o); });
+  var rows = db.rows('Quotes').filter(function (q) { return oQNo_(String(q.QuoteNo)); }).map(function (q) {
+    var no = String(q.QuoteNo), s = blank(q.SiteID) ? null : sites[String(q.SiteID)], d0 = oQDn_(q.QuoteDate), T = null;
+    try { T = oQTerms_(db, q, C); } catch (e) { T = { fill: 0, changed: 0 }; }
+    var vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : num(S(db, 'QuoteValidityDays', 30)), o = {
+      no: no, rev: num(q.Rev), date: oQDay_(d0), type: oQType_(q), status: String(q.Status || 'Draft'),
+      cust: String((cus[String(q.CustID)] || {}).Name || q.CustID || ''), project: s && !blank(s.Project) ? String(s.Project) : String(q.Subject || ''),
+      valid: d0 == null ? '' : oQDay_(d0 + vd), job: jobs[no] || '', pdf: !blank(q.PDF), fill: T.fill, changed: T.changed };
+    if (M) { try { o.total = typeof q.Total === 'number' && isFinite(q.Total) ? q.Total : quoteTotals(db, no).total; } catch (e) { o.total = null; } } // Total = sheet formula
+    return o;
+  });
+  return { can: oQCan_(a), money: M, rows: rows };
+}
+function officeQuoteGet(token, no) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  return oQView_(db, env, oQRow_(db, no), L);
+}
+// write: gate before (strangers / viewers never wait) and again inside the lock; the sheet is read fresh inside the lock
+function oQW_(token, fn) {
+  var env = oEnv_(), pre = officeGate_(token, OQ_NEED_);
+  if (!oQCan_(oAcc_(pre))) oFail_('NOACCESS');
+  return env.lock(function () {
+    var L = officeGate_(token, OQ_NEED_);
+    if (!oQCan_(oAcc_(L))) oFail_('NOACCESS');
+    var db = env.db(); if (!db) oFail_('BUSY');
+    var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+    try { return fn(env, db, L); } finally { OQ_ACT_ = prev; }
+  });
+}
+// op = {k:'var', key, value|null} | {k:'clause', id, text | reset | remove | back} | {k:'add', sec (index, -1 = special), text} | {k:'resetAll'}
+function officeQuoteTerm(token, no, tv, op) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    var q = oQRow_(db, no);
+    if (oQLocked_(db, q)) oFail_('QLOCKED');
+    if (typeof tv !== 'number' || tv !== oQTv_(db, q)) oFail_('STALE');
+    if (!op || typeof op !== 'object' || Array.isArray(op)) oFail_('BADINPUT|change');
+    var T = oQTerms_(db, q), type = oQType_(q), fields = qtFieldsFor_(type), set = {}, cls = [], add = [];
+    fields.forEach(function (f) { set[f[0]] = qtCustom_(f, q, T.std); });
+    // qtSave_ writes every row of the quote again: texts read back from the sheet get their text mark again (no formula ever)
+    T.base.forEach(function (r) { var o = T.by[String(r.ClauseID)]; if (o) cls.push(o.Action === 'Remove' ? { id: String(r.ClauseID), mode: 'remove' } : { id: String(r.ClauseID), mode: 'edit', text: oQCell_(o.Text) }); });
+    T.ov.filter(function (o) { return o.Action === 'Add'; }).forEach(function (o) { add.push({ section: String(o.Section), title: oQCell_(o.Title), text: oQCell_(o.Text) }); });
+    var stdOf = function (id) { var r = T.base.filter(function (x) { return String(x.ClauseID) === id; })[0]; return r ? String(r.Text).trim() : null; };
+    var txt = function (s) { var c = oQClauseText_(s); if (!c) oFail_('BADINPUT|wording'); var u = oQUntok_(c, T.keys); if (u === null) oFail_('BADINPUT|wording'); return u; };
+    var cid = function () { var id = typeof op.id === 'string' ? op.id : ''; if (/^A\d{1,3}$/.test(id) && +id.slice(1) < add.length) return { added: +id.slice(1) };
+      if (id && T.base.some(function (r) { return String(r.ClauseID) === id; })) return { base: id }; oFail_('NOTFOUND'); };
+    var mine = function (id) { for (var i = 0; i < cls.length; i++) if (cls[i].id === id) return i; return -1; };
+    if (op.k === 'var') {
+      var f = fields.filter(function (x) { return OQ_TOK_[x[0]] === op.key; })[0]; if (!f) oFail_('BADINPUT|field');
+      if (op.value === null) set[f[0]] = '';
+      else if (f[3] === 'rule') { if (QT_RULES_.indexOf(op.value) < 0) oFail_('BADINPUT|' + f[1]); set[f[0]] = op.value; }
+      else { var lim = OQ_LIM_[f[0]], n = op.value; if (typeof n !== 'number' || !isFinite(n) || n < lim[0] || n > lim[1] || (f[3] === 'int' && n !== Math.floor(n)) || Math.abs(Math.round(n * 100) - n * 100) > 1e-6) oFail_('BADINPUT|' + f[1]); set[f[0]] = String(n); }
+    } else if (op.k === 'clause') {
+      var w = cid(), i = w.base ? mine(w.base) : -1, cur = w.base ? (i < 0 ? 'std' : cls[i].mode) : 'added';
+      if (op.reset === true) { if (w.added != null) oFail_('BADINPUT|clause'); if (i >= 0) cls.splice(i, 1); }
+      else if (op.remove === true) { if (w.added != null) add.splice(w.added, 1); else if (i >= 0) cls[i] = { id: w.base, mode: 'remove' }; else cls.push({ id: w.base, mode: 'remove' }); }
+      else if (op.back === true) { if (cur !== 'remove') oFail_('BADINPUT|clause'); cls.splice(i, 1); }
+      else { if (cur === 'remove') oFail_('BADINPUT|clause'); var t2 = txt(op.text);
+        if (w.added != null) add[w.added].text = oQCell_(t2);
+        else if (t2 === stdOf(w.base)) { if (i >= 0) cls.splice(i, 1); } // same as the standard = standard
+        else if (i >= 0) cls[i].text = oQCell_(t2); else cls.push({ id: w.base, mode: 'edit', text: oQCell_(t2) }); }
+    } else if (op.k === 'add') {
+      if (add.length >= 40) oFail_('BADINPUT|clause');
+      var si = op.sec, sec = si === -1 ? T.special : (typeof si === 'number' && si >= 0 && si === Math.floor(si) && si < T.view.secs.length ? T.view.secs[si].no : null);
+      if (sec === null) oFail_('BADINPUT|section');
+      add.push({ section: sec, title: '', text: oQCell_(txt(op.text)) });
+    } else if (op.k === 'resetAll') { Object.keys(set).forEach(function (k) { set[k] = ''; }); cls = []; add = []; }
+    else oFail_('BADINPUT|change');
+    // qtSave_ deletes this quote's QuoteTerms rows and writes them again: if the sheet fails in between, the old rows go back
+    var keep = T.ov.map(function (o) { var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
+    try { qtSave_(db, { quoteNo: q.QuoteNo, settings: set, clauses: cls, added: add }); }
+    catch (e) {
+      try { var d2 = env.db(); if (keep.length && !qtRows_(d2, q.QuoteNo).length) d2.insert('QuoteTerms', keep); } catch (e2) { /* the error below says try again */ }
+      oFail_('BUSY');
+    }
+    var fresh = env.db() || db; // the sheet as it is now (a row cache can still hold the text marks)
+    return oQView_(fresh, env, oQRow_(fresh, no), L);
+  });
+}
+// PDF: the stored one while it is current; a locked quote (job, Accepted / Lost ...) never gets a new one; only SC Staff+ make one.
+// Made outside the script lock (a PDF takes ~10 s); one make per quote at a time (BUSY, flag set under the lock).
+function oQPdfMake_(env, db, q) {
+  var key = 'OQPB:' + q.QuoteNo;
+  env.lock(function () { if (env.cget(key)) oFail_('BUSY'); env.cput(key, 1, 120); });
+  try {
+    var r = qf5Pdf_(db, q.QuoteNo);
+    env.put('OQP:' + q.QuoteNo, { v: oQPdfVer_(db, q.QuoteNo).v, f: oQFid_(r.url) });
+    return String(r.url);
+  } finally { env.cdel(key); }
+}
+function oQPdfUse_(env, db, q, L) { // -> {url, made}
+  var stored = String(q.PDF || ''), fresh = oQPdfFresh_(env, q, oQPdfVer_(db, q.QuoteNo).v);
+  if (fresh) return { url: fresh, made: false };
+  if (stored && (oQLocked_(db, q) || !oQCan_(oAcc_(L)))) return { url: stored, made: false };
+  if (!oQCan_(oAcc_(L))) oFail_('NOPDF');
+  var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+  try { return { url: oQPdfMake_(env, db, q), made: true }; } finally { OQ_ACT_ = prev; }
+}
+function officeQuotePdf(token, no) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  return oQPdfUse_(env, db, oQRow_(db, no), L);
+}
+// o = {to, cc, note}. Checks first (nothing sent on a refusal), a fresh PDF, then QF3 sends + Draft -> Sent + Log.
+function officeQuoteEmail(token, no, tv, o) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), L0 = L;
+  if (!oQCan_(oAcc_(L0))) oFail_('NOACCESS');
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  var list = function (s, what) { if (s != null && typeof s !== 'string') oFail_('BADINPUT|' + what); var a = qf3List_(String(s || '').slice(0, 2000)).map(function (x) { return x.toLowerCase(); });
+    if (a.length > 10 || !a.every(function (x) { return x.length <= 120 && QF3_RE_.test(x); })) oFail_('BADINPUT|' + what); return a; };
+  var to = list(o.to, 'to'), cc = list(o.cc, 'cc'), note = o.note == null ? '' : o.note;
+  if (!to.length) oFail_('BADINPUT|to');
+  if (typeof note !== 'string' || note.length > 2000) oFail_('BADINPUT|message');
+  note = note.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim();
+  var check = function (db) {
+    var q = oQRow_(db, no);
+    if (OQ_CLOSED_.indexOf(String(q.Status)) >= 0) oFail_('QSTATE|' + String(q.Status));
+    if (typeof tv !== 'number' || tv !== oQTv_(db, q)) oFail_('STALE');
+    var n = oQPdfVer_(db, q.QuoteNo).left; if (n && q.Status !== 'Accepted') oFail_('TOFILL|' + n); // as the PDF counts them
+    return q;
+  };
+  var db0 = env.db(); if (!db0) oFail_('BUSY');
+  oQPdfUse_(env, db0, check(db0), L0);
+  return oQW_(token, function (env2, db, L) {
+    var q = check(db), d = qf3Draft_(db, q.QuoteNo), sid = 'CO', ss = qf3Signers_(db).map(function (s) { return s.id; }), mk = 'OQM:' + L.email, sent = env2.cget(mk) || { n: 0 };
+    if (!oQPdfFresh_(env2, q, oQPdfVer_(db, q.QuoteNo).v) && !(oQLocked_(db, q) && !blank(q.PDF))) oFail_('STALE'); // changed while the PDF was made
+    if (env2.cget('OQE:' + q.QuoteNo)) oFail_('SENTNOW'); // a second click / another person a moment ago
+    if (sent.n >= 30) oFail_('LIMIT'); // per login per day (Gmail quota)
+    if (!blank(q.PreparedBy) && ss.indexOf(String(q.PreparedBy)) >= 0) sid = String(q.PreparedBy); else if (L.staff && ss.indexOf(String(L.staff)) >= 0) sid = String(L.staff);
+    var body = d.body, cut = body.indexOf('\n\n');
+    if (qtHas_(q, 'ValidityDays')) body = body.replace(/valid for \d+ days/, 'valid for ' + num(q.ValidityDays) + ' days'); // QF3 says the company default
+    if (note) body = cut > 0 ? body.slice(0, cut) + '\n\n' + note + body.slice(cut) : note + '\n\n' + body;
+    var was = String(q.Status || 'Draft');
+    UI_ACTIONS_.emailQuote(db, { quoteNo: q.QuoteNo, to: to.join(', '), cc: cc.join(', '), subject: d.subject, body: body, signAs: sid });
+    env2.cput('OQE:' + q.QuoteNo, 1, 60); env2.cput(mk, { n: sent.n + 1 }, 86400);
+    var d3 = env2.db() || db, q2 = oQRow_(d3, no);
+    return { to: to, status: String(q2.Status), was: was };
+  });
+}
+
 // ----------------------------------------------------------------- project-wide gate (web app = execute as me, access Anyone)
 var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // later screens add theirs (each starts with officeGate_)
   'officeUsersList', 'officeStaffList', 'officeUserSave', 'officeUserReset', 'officeUserBlock', 'officeUserSignOutAll',
-  'officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus'];
+  'officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus',
+  'officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
   onEdit: function (e) { return !!(e && e.range && typeof e.range.getSheet === 'function'); },
@@ -1575,6 +1849,138 @@ function selfTestOffice() {
       eq('O185 no PDF folder at all -> nothing done', oPdfMove_(db2, { base: fd.folder('Empty', null), file: drv.file }, true, NOW).left.join(), 'No PDF folder');
       e3.clock.db = null;
       eq('O156 no sheet: list says not set up, writes NOREG', officeDocList(tD).setup + ':' + err(function () { officeDocStatus(tD, 'CAE-QH-P01', 'Active', 0); }), 'false:NOREG');
+    })();
+    // --- W3 quotes (SC): list, view, terms, PDF, email (QT1 / QF5 / QF3 reused; stubs for Drive + Gmail)
+    if (typeof pdfTestDb_ === 'function') (function () {
+      var e4 = oMemEnv_(); OFFICE_ENV_ = e4; var j = JSON.stringify, keepQ5 = QF5_STUB_, keepQ3 = QF3_STUB_;
+      var add = function (em, acc) { oSaveLogin_(e4, { email: em, name: em.split('@')[0], depts: acc, password: 'GoodPass1' }); return officeLogin(em, 'GoodPass1', false).token; };
+      var db = pdfTestDb_(); upgradeQT(db); db.ensureColumn('Quotes', 'PDF'); e4.clock.db = db;
+      (function () { var i0 = db.insert, u0 = db.update, cut = function (o) { Object.keys(o).forEach(function (k) { if (typeof o[k] === 'string' && o[k].charAt(0) === "'") o[k] = o[k].slice(1); }); return o; }; // a sheet drops one leading quote
+        db.insert = function (t, r) { return i0.call(db, t, Array.isArray(r) ? r.map(cut) : cut(r)); }; db.update = function (t, r, p) { return u0.call(db, t, r, cut(p)); }; })();
+      var Q1 = 'CAE/Q/2026/001', Q2 = 'CAE/Q/2026/002', Q3 = 'CAE/Q/2026/003', Q4 = 'CAE/Q/2026/004';
+      db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Email: 'buyer@client.com' });
+      db.insert('Terms', [{ ClauseID: 'TC-0101', QuoteType: 'Sale', Section: '4', SectionTitle: 'Payment Terms', ClauseNo: '4.1', Title: 'Schedule', Text: '{{AdvancePct}} advance with the order. Payable within {{PaymentDays}} days.', SortOrder: 410, Active: 'Yes' },
+        { ClauseID: 'TC-0102', QuoteType: 'Sale', Section: '5', SectionTitle: 'General', ClauseNo: '5.1', Title: 'Validity', Text: 'Valid for {{ValidityDays}} days.', SortOrder: 510, Active: 'Yes' }]);
+      var tD = add('dir@t.com', oDir_()), tS = add('sales@t.com', { SC: 2, PS: 1 }), tV = add('scview@t.com', { SC: 1 }), tY = add('yard@t.com', { YW: 2, PS: 1 });
+      var sent = [], made = 0, boom = false, mail = { aliases: function () { return []; }, me: function () { return 'ops@test'; }, user: function () { return ''; },
+        name: function (u) { return /^https:\/\/x\/\d+$/.test(u) ? 'PDF ' + u.slice(10) + '.pdf' : ''; },
+        blob: function (u) { if (!/^https:\/\/x\/\d+$/.test(u)) throw new Error('gone'); return { getName: function () { return 'PDF ' + u.slice(10) + '.pdf'; } }; },
+        send: function (to, s, b, o) { if (boom) throw new Error('Service invoked too many times'); sent.push({ to: to, s: s, b: b, o: o }); } };
+      QF5_STUB_ = { make: function (d, w, n) { var u = 'https://x/' + (++made); d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
+        drive: { name: function () { return ''; }, trash: function () {} } };
+      QF3_STUB_ = { mail: mail, now: function () { return new Date(2026, 10, 20, 9, 5); } };
+      try {
+        var G = function (t, no) { return officeQuoteGet(t, no || Q1); }, op = function (t, no, o, tv) { return officeQuoteTerm(t, no, tv === undefined ? G(t, no).tv : tv, o); };
+        var V = function (v, k) { return v.terms.vars.filter(function (x) { return x.k === k; })[0]; }, C = function (v, id) { var o = null; v.terms.secs.forEach(function (s) { s.cl.forEach(function (c) { if (c.id === id) o = c; }); }); return o; };
+        var L1 = officeQuoteList(tV);
+        eq('O196 list: any SC level, 4 quotes, read only for SC View, amounts sent', L1.rows.length + ':' + L1.can + ':' + L1.money + ':' + (typeof L1.rows[0].total), '4:false:true:number');
+        eq('O197 list refused for yard / bad token; Sales can write', [err(function () { officeQuoteList(tY); }), err(function () { officeQuoteList('x'); }), officeQuoteList(tS).can].join(), 'NOACCESS,NOSESSION,true');
+        var v1 = G(tV), r1 = L1.rows.filter(function (r) { return r.no === Q1; })[0];
+        eq('O198 Rental fields (page names) + fixed tokens', v1.terms.vars.map(function (x) { return x.k + (x.kind === 'fixed' ? '*' : ''); }).join(), 'AdvancePct,PaymentDays,ValidityDays,LateInterest,MinMonths,NoticeDays,PartPeriod,PeriodDays*,BillingSchedule*');
+        eq('O199 Sale has no hire fields', G(tV, Q2).terms.vars.filter(function (x) { return x.kind !== 'fixed'; }).length, 4);
+        eq('O200 clause text {Token} on the page, never {{ }}', j(G(tV, Q2).terms.secs).indexOf('{{') < 0 && /\{PaymentDays\}/.test(j(G(tV, Q2).terms.secs)), true);
+        eq('O201 list + view agree on fill / changed (min hire 2 = 1 change, 8 [ ] to fill)', [r1.fill, r1.changed, v1.fill, v1.changed].join(), '8,1,8,1');
+        eq('O202 view: lines (size from Items, optional line), totals + words, dates', v1.lines.length + ':' + v1.lines[3].optional + ':' + v1.tot.vatPct + ':' + /^Taka /.test(v1.tot.words) + ':' + v1.date + ':' + v1.valid, '4:true:15:true:2026-11-20:2026-12-20');
+        eq('O203 tv is a number, same when nothing changed', typeof v1.tv === 'number' && v1.tv > 0 && G(tS).tv === v1.tv, true);
+        var v2 = op(tS, Q1, { k: 'var', key: 'AdvancePct', value: 40 });
+        eq('O204 field change: value, token text, advance, stored 0.4, new tv', [V(v2, 'AdvancePct').value, V(v2, 'AdvancePct').tok, v2.tot.advPct, must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, v2.tv !== v1.tv].join(), '40,40%,40,0.4,true');
+        eq('O205 old tv -> STALE, nothing written', err(function () { officeQuoteTerm(tS, Q1, v1.tv, { k: 'var', key: 'AdvancePct', value: 30 }); }) + ':' + must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, 'STALE:0.4');
+        eq('O206 bad values refused', [err(function () { op(tS, Q1, { k: 'var', key: 'AdvancePct', value: 101 }); }), err(function () { op(tS, Q1, { k: 'var', key: 'PaymentDays', value: 2.5 }); }),
+          err(function () { op(tS, Q1, { k: 'var', key: 'PaymentDays', value: '9' }); }), err(function () { op(tS, Q1, { k: 'var', key: 'Nope', value: 1 }); }), err(function () { op(tS, Q1, { k: 'var', key: 'LateInterest', value: 1.155 }); })].join(),
+          'BADINPUT|Advance with the order,BADINPUT|Invoices payable within,BADINPUT|Invoices payable within,BADINPUT|field,BADINPUT|Late payment interest');
+        eq('O207 1.15 % late interest kept (no float slip)', V(op(tS, Q1, { k: 'var', key: 'LateInterest', value: 1.15 }), 'LateInterest').value, 1.15);
+        var v3 = op(tS, Q1, { k: 'var', key: 'AdvancePct', value: null });
+        eq('O208 back to standard', V(v3, 'AdvancePct').value + ':' + must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, 'null:0.5');
+        eq('O209 part month pick', must(db, 'Quotes', 'QuoteNo', (op(tS, Q1, { k: 'var', key: 'PartPeriod', value: 'Pro rata' }), Q1)).PartPeriodRule + ':' + err(function () { op(tS, Q1, { k: 'var', key: 'PartPeriod', value: 'Weekly' }); }), 'Pro rata:BADINPUT|Part month');
+        var cl0 = v1.terms.secs[0].cl[0], pc = null; G(tV, Q2).terms.secs.forEach(function (s) { s.cl.forEach(function (c) { if (!pc && /\{PaymentDays\}/.test(c.text)) pc = c; }); });
+        var v4 = op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay within {PaymentDays} days, please.' }), ov = qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; })[0];
+        eq('O210 clause wording: {Field} stored as {{Field}}, shown changed', ov.Action + ':' + ov.Text + ':' + C(v4, pc.id).st + ':' + C(v4, pc.id).text, 'Replace:Pay within {{PaymentDays}} days, please.:changed:Pay within {PaymentDays} days, please.');
+        eq('O211 unknown field, stray brace, empty, too long refused', [err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay {Foo} now' }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay } now' }); }),
+          err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: '  ' }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: new Array(1002).join('a') }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay {{PaymentDays}}' }); })].join(),
+          'BADINPUT|wording,BADINPUT|wording,BADINPUT|wording,BADINPUT|wording,BADINPUT|wording');
+        op(tS, Q2, { k: 'clause', id: pc.id, text: '=HYPERLINK("x")' });
+        var ins0 = db.insert, seen = []; db.insert = function (t, r) { if (t === 'QuoteTerms') (Array.isArray(r) ? r : [r]).forEach(function (x) { seen.push(x.Text); }); return ins0.call(db, t, r); };
+        op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 21 }); db.insert = ins0;
+        eq('O212 formula-like wording always written with the text mark (also when another change re-writes the rows)', seen.join() + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; })[0].Text, '\'=HYPERLINK("x"):=HYPERLINK("x")');
+        eq('O213 fill in [Description] -> one less to fill', op(tS, Q1, { k: 'clause', id: cl0.id, text: 'Scaffold to the boiler house.' }).fill, 7);
+        var v5 = op(tS, Q2, { k: 'clause', id: pc.id, reset: true });
+        eq('O214 clause back to standard (row gone)', C(v5, pc.id).st + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; }).length, 'std:0');
+        var v6 = op(tS, Q2, { k: 'clause', id: pc.id, remove: true });
+        eq('O215 remove: shown struck, PDF leaves it out; edit / reset-twice rules', C(v6, pc.id).st + ':' + (j(PDF_SPECS.Quote(db, Q2).blocks).indexOf('Payable within') < 0) + ':' + (j(PDF_SPECS.Quote(db, Q2).blocks).indexOf('Valid for') >= 0) + ':' + err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'x y' }); }), 'removed:true:true:BADINPUT|clause');
+        eq('O216 put back; back on a normal clause refused', C(op(tS, Q2, { k: 'clause', id: pc.id, back: true }), pc.id).st + ':' + err(function () { op(tS, Q2, { k: 'clause', id: pc.id, back: true }); }), 'std:BADINPUT|clause');
+        var v7 = op(tS, Q1, { k: 'add', sec: -1, text: 'Night work at 1.5 x the day rate.' }), v8 = op(tS, Q1, { k: 'add', sec: 0, text: 'Extra scope line.' });
+        var sp = v8.terms.secs[v8.terms.secs.length - 1];
+        eq('O217 add: special section at the end + clause in section 1 (ids A0, A1)', sp.t + ':' + sp.cl.map(function (c) { return c.id + '=' + c.st; }).join() + ':' + v8.terms.secs[0].cl.filter(function (c) { return c.st === 'added'; }).map(function (c) { return c.id; }).join(), 'Special Conditions:A1=added:A0');
+        eq('O218 special condition prints in the PDF', j(PDF_SPECS.Quote(db, Q1).blocks).indexOf('Night work at 1.5') >= 0, true);
+        var aid = sp.cl[0].id, v9 = op(tS, Q1, { k: 'clause', id: aid, text: 'Night work at 2 x the day rate.' });
+        eq('O219 added clause: edit, reset refused, delete', C(v9, aid).text + ':' + err(function () { op(tS, Q1, { k: 'clause', id: aid, reset: true }); }) + ':' + j(op(tS, Q1, { k: 'clause', id: aid, remove: true }).terms).indexOf('Night work') , 'Night work at 2 x the day rate.:BADINPUT|clause:-1');
+        eq('O220 unknown clause / section / change refused', [err(function () { op(tS, Q1, { k: 'clause', id: 'TC-9999', remove: true }); }), err(function () { op(tS, Q1, { k: 'clause', id: 'A9', remove: true }); }), err(function () { op(tS, Q1, { k: 'add', sec: 99, text: 'x y' }); }),
+          err(function () { op(tS, Q1, { k: 'drop' }); }), err(function () { op(tS, Q1, null); }), err(function () { op(tS, Q1, [1]); })].join(), 'NOTFOUND,NOTFOUND,BADINPUT|section,BADINPUT|change,BADINPUT|change,BADINPUT|change');
+        var vR = op(tS, Q1, { k: 'resetAll' });
+        eq('O221 all to standard (min hire 2 -> standard 1, rows gone)', vR.changed + ':' + qtRows_(db, Q1).length + ':' + must(db, 'Quotes', 'QuoteNo', Q1).MinMonths, '0:0:1');
+        eq('O222 SC View / yard / bad token cannot change terms; Director can', [err(function () { op(tV, Q1, { k: 'resetAll' }); }), err(function () { officeQuoteTerm(tY, Q1, 1, { k: 'resetAll' }); }), err(function () { officeQuoteTerm('x', Q1, 1, { k: 'resetAll' }); }), op(tD, Q1, { k: 'resetAll' }).changed].join(), 'NOACCESS,NOACCESS,NOSESSION,0');
+        eq('O223 unknown / junk quote numbers', [err(function () { G(tV, 'CAE/Q/2026/999'); }), err(function () { G(tV, { a: 1 }); }), err(function () { G(tV, '../../x'); }), err(function () { officeQuoteTerm(tS, 'nope', 1, { k: 'resetAll' }); })].join(), 'NOTFOUND,NOTFOUND,NOTFOUND,NOTFOUND');
+        eq('O224 tv must be the number shown (string / missing = STALE)', [err(function () { officeQuoteTerm(tS, Q1, String(G(tS).tv), { k: 'resetAll' }); }), err(function () { officeQuoteTerm(tS, Q1, undefined, { k: 'resetAll' }); })].join(), 'STALE,STALE');
+        // PDF: the stored one while current; locked quotes never remade; SC View never makes one
+        eq('O225a SC View: no PDF yet -> NOPDF (makes nothing)', err(function () { officeQuotePdf(tV, Q2); }) + ':' + made, 'NOPDF:0');
+        var p1 = officeQuotePdf(tS, Q2), p2 = officeQuotePdf(tV, Q2), vp = G(tV, Q2);
+        eq('O225 PDF made once, then the same link (View too); view sends it', p1.made + ':' + p2.made + ':' + (p1.url === p2.url) + ':' + (vp.pdf === p1.url) + ':' + made, 'true:false:true:true:1');
+        op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 20 });
+        eq('O226 a terms change -> view has no PDF; View gets the old one, Staff makes a new one', G(tV, Q2).pdf + ':' + officeQuotePdf(tV, Q2).made + ':' + officeQuotePdf(tS, Q2).made + ':' + made, ':false:true:2');
+        db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Name: 'Test Client Renamed' });
+        eq('O227 anything printed changes the PDF version (customer renamed) -> made again', officeQuotePdf(tS, Q2).made + ':' + made, 'true:3');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: 'https://x/77' });
+        eq('O227b a PDF made elsewhere (panel remakes on every save) is trusted', officeQuotePdf(tS, Q2).url + ':' + made, 'https://x/77:3');
+        e4.put('OQPB:x', 1); e4.cput('OQPB:' + Q3, 1, 60); db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { PDF: '' });
+        eq('O228 one PDF make per quote at a time', err(function () { officeQuotePdf(tS, Q3); }), 'BUSY');
+        e4.cdel('OQPB:' + Q3);
+        // email
+        var A = function (no, o) { return Object.assign({ to: 'buyer@client.com', cc: '', note: '' }, o || {}); }, ns = sent.length;
+        eq('O229 [to fill] left -> TOFILL, nothing sent', err(function () { officeQuoteEmail(tS, Q1, G(tS).tv, A(Q1)); }) + ':' + (sent.length - ns), 'TOFILL|8:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { Status: 'Draft' }); var vq = G(tS, Q2);
+        var m1 = officeQuoteEmail(tS, Q2, vq.tv, A(Q2, { cc: 'Sales@T.com', note: 'As discussed on site today.' })), s1 = sent[sent.length - 1];
+        eq('O230 email: sent with a fresh PDF, Draft -> Sent, note after the greeting, cc', m1.status + ':' + m1.was + ':' + s1.to + ':' + s1.o.cc + ':' + /^Dear [^\n]+,\n\nAs discussed on site today\.\n\nPlease find/.test(s1.b) + ':' + s1.o.attachments[0].getName(), 'Sent:Draft:buyer@client.com:sales@t.com:true:PDF 77.pdf');
+        eq('O231 log says who (office login)', db.rows('Log').filter(function (x) { return x.Action === 'Quote emailed' && x.Ref === Q2; }).map(function (x) { return x.User; }).pop() + ':' + db.rows('Log').filter(function (x) { return x.Action === 'Quote terms'; }).map(function (x) { return x.User; }).pop() + ':' + OQ_ACT_, 'office:sales@t.com:office:sales@t.com:');
+        eq('O232 after sending: view still has the PDF (status change only)', G(tS, Q2).pdf !== '', true);
+        ns = sent.length;
+        eq('O233 refusals send nothing', [err(function () { officeQuoteEmail(tS, Q2, 1, A(Q2)); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: 'not-an-email' })); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: '' })); }),
+          err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: new Array(12).join('a@b.co,') })); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { note: new Array(2002).join('n') })); }),
+          err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { cc: ['x'] })); }), err(function () { officeQuoteEmail(tV, Q2, G(tV, Q2).tv, A(Q2)); }), err(function () { officeQuoteEmail(tY, Q2, 1, A(Q2)); })].join() + ':' + (sent.length - ns),
+          'STALE,BADINPUT|to,BADINPUT|to,BADINPUT|to,BADINPUT|message,BADINPUT|cc,NOACCESS,NOACCESS:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q4), { Status: 'Lost' });
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { Status: 'Expired' });
+        eq('O234 Lost / Expired: not sent (QSTATE), terms locked (QLOCKED)', [err(function () { officeQuoteEmail(tS, Q4, G(tS, Q4).tv, A(Q4)); }), err(function () { officeQuoteEmail(tS, Q3, G(tS, Q3).tv, A(Q3)); }), err(function () { op(tS, Q4, { k: 'resetAll' }); }), G(tS, Q4).locked].join() + ':' + (sent.length - ns), 'QSTATE|Lost,QSTATE|Expired,QLOCKED,STATUS:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { Status: 'Sent' }); db.insert('Jobs', { JobNo: 'CAE/J/2026/009', QuoteNo: Q3, Status: 'Active' });
+        eq('O235 quote with a job: terms locked (JOB), list shows the job', G(tS, Q3).locked + ':' + err(function () { op(tS, Q3, { k: 'resetAll' }); }) + ':' + officeQuoteList(tS).rows.filter(function (r) { return r.no === Q3; })[0].job, 'JOB:QLOCKED:CAE/J/2026/009');
+        eq('O236a a second send within a minute -> SENTNOW', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }), 'SENTNOW');
+        e4.cdel('OQE:' + Q2); boom = true; ns = sent.length; var st2 = must(db, 'Quotes', 'QuoteNo', Q2).Status;
+        eq('O236 Gmail error: message says nothing was sent, status unchanged', /nothing was sent/.test(err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); })) + ':' + (must(db, 'Quotes', 'QuoteNo', Q2).Status === st2), 'true:true');
+        boom = false;
+        e4.cput('OQM:sales@t.com', { n: 30 }, 60);
+        eq('O236b 30 emails a day per login -> LIMIT', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }), 'LIMIT');
+        e4.cdel('OQM:sales@t.com');
+        // locked quote keeps its PDF (Q3 has a job now)
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { PDF: 'https://x/55' }); e4.put('OQP:' + Q3, { v: 1, f: 'https://x/55' }); var m0 = made;
+        eq('O239 locked quote: stored PDF opened / emailed, never made again', officeQuotePdf(tS, Q3).url + ':' + G(tS, Q3).pdf + ':' + (made - m0), 'https://x/55:https://x/55:0');
+        // a failing sheet write in the middle of qtSave_ puts the old rows back
+        op(tS, Q2, { k: 'add', sec: -1, text: 'Keep me.' }); var n0 = qtRows_(db, Q2).length, i1 = db.insert;
+        var once = 1; db.insert = function (t, r) { if (t === 'QuoteTerms' && once) { once = 0; throw new Error('Service Spreadsheets timed out'); } return i1.call(db, t, r); };
+        var eB = err(function () { op(tS, Q2, { k: 'add', sec: -1, text: 'Lost?' }); }); db.insert = i1;
+        eq('O240 sheet error mid-save -> BUSY, old clause rows back', eB + ':' + (qtRows_(db, Q2).length === n0) + ':' + qtRows_(db, Q2).some(function (o) { return o.Text === 'Keep me.'; }), 'BUSY:true:true');
+        // placeholders counted as the PDF counts them (long, newline, empty)
+        op(tS, Q2, { k: 'clause', id: 'TC-0102', text: 'Valid at [' + new Array(91).join('s') + '] and [] for {ValidityDays} days.' });
+        eq('O241 long / empty [ ] count like the PDF -> TOFILL|2', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }) + ':' + G(tS, Q2).fill, 'TOFILL|2:2');
+        eq('O242 wording back to the standard text = standard (no row)', C(op(tS, Q2, { k: 'clause', id: 'TC-0102', text: 'Valid for {ValidityDays} days.' }), 'TC-0102').st + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === 'TC-0102'; }).length, 'std:0');
+        db.insert('QuoteTerms', { QuoteNo: Q2, ClauseID: 'TC-0102', Action: 'Replace', Section: '5', ClauseNo: '5.1', Text: '', SortOrder: 510 });
+        eq('O243 a blank Replace row (hand-made) does not block changes', V(op(tS, Q2, { k: 'var', key: 'AdvancePct', value: 45 }), 'AdvancePct').value, 45);
+        var ins2 = db.insert, all = []; db.insert = function (t, r) { if (t === 'QuoteTerms') (Array.isArray(r) ? r : [r]).forEach(function (x) { all.push(x.Text); }); return ins2.call(db, t, r); };
+        op(tS, Q2, { k: 'var', key: 'AdvancePct', value: 46 }); db.insert = ins2;
+        eq('O244 every clause text written with the text mark', all.filter(function (x) { return !/^'/.test(x); }).join('|') + ':' + all.length, ':1');
+        db.ensureColumn('Quotes', 'Total'); db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q4), { Total: 1234.5 });
+        eq('O245 list uses the sheet Total when there is one', officeQuoteList(tS).rows.filter(function (r) { return r.no === Q4; })[0].total, 1234.5);
+        eq('O237 W3 calls are on the web API list', ['officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail'].every(function (n) { return OFFICE_WEB_API_.indexOf(n) >= 0; }), true);
+        eq('O238 user_ is the Google user again outside a web call', OQ_ACT_ === '' && user_() === OQ_user0_(), true);
+      } finally { QF5_STUB_ = keepQ5; QF3_STUB_ = keepQ3; }
     })();
     OFFICE_ENV_ = env;
     var big = new Array(1 << 20).join('a') + '@x', t0 = Date.now();

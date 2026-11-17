@@ -209,6 +209,70 @@ textarea.inp{height:auto;min-height:84px;padding:10px 14px;resize:vertical;line-
 .segw{display:flex;flex-wrap:wrap;gap:6px}
 @media (max-width:560px){.dlist{grid-template-columns:1fr}}
 
+/* ---------- SC › quotes (W3) ---------- */
+.qlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.qcard{position:relative;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;cursor:pointer;color:var(--text)}
+.qcard::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--teal2)}
+.qcard:hover{border-color:var(--teal);background:var(--card2)}
+.qcard:focus-visible{outline:2px solid var(--teal2);outline-offset:2px}
+.qno{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700;font-size:14px;color:var(--teal2);letter-spacing:.3px}
+.qc{font-weight:700;font-size:15px}
+.qp{color:var(--muted);font-size:13px;margin-top:-6px}
+.qamt{font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+.qrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qrow .sp{flex:1}
+.qs-Draft{background:var(--amberbg);color:var(--amber)} .qs-Sent{background:var(--skybg);color:var(--sky)} .qs-Accepted{background:var(--greenbg);color:var(--green)}
+.qs-Lost{background:var(--redbg);color:#fb7185} .qs-Expired,.qs-Cancelled{background:var(--card2);color:var(--muted)}
+.tag{font-size:12px;color:var(--muted)} .tag.fill{color:#fb7185;font-weight:700} .tag.chg{color:var(--amber);font-weight:700}
+.qhead{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
+.qhead h2{margin:0;font-size:21px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.3px}
+.qhead .sub{color:var(--muted);font-size:14px;margin-top:2px}
+.qacts{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.qgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:12px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.box h4{margin:0 0 10px;font-size:12px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim)}
+.ltab{width:100%;border-collapse:collapse;font-size:14px}
+.ltab th{text-align:left;font-size:12px;color:var(--dim);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line2)}
+.ltab td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.ltab .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ltab tr.opt td{color:var(--muted)}
+.ltab small{display:block;color:var(--dim);font-size:12px}
+.tots{display:grid;grid-template-columns:1fr auto;gap:4px 18px;max-width:360px;margin:12px 0 0 auto;font-size:14px}
+.tots b{text-align:right;font-variant-numeric:tabular-nums}
+.tots .gt{font-size:16px;border-top:1px solid var(--line2);padding-top:6px}
+.words{color:var(--muted);font-size:13px;font-style:italic;text-align:right;margin-top:8px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:2px 0 12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.tsec{margin:14px 0 4px;font-weight:700;font-size:14px}
+.cl{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);margin-bottom:6px;font-size:14px;line-height:1.6}
+.cl .cn{color:var(--dim);font-variant-numeric:tabular-nums;min-width:30px;font-size:13px;padding-top:1px}
+.cl .ct{flex:1;min-width:0;word-wrap:break-word}
+.cl .ctt{font-weight:700;margin-right:6px}
+.cl.c-changed,.cl.c-added{border-color:rgba(245,158,11,.45);background:linear-gradient(90deg,var(--amberbg),transparent 60%)}
+.cl.c-removed{opacity:.55;border-style:dashed} .cl.c-removed .ct{text-decoration:line-through}
+.cl .cm{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--amber);display:block}
+.tv{display:inline;border:0;border-radius:6px;padding:1px 6px;margin:0 1px;font:inherit;font-weight:700;cursor:pointer;line-height:1.5}
+span.tv{cursor:default}
+.v-std{background:var(--tealbg);color:var(--teal2)} .v-cust{background:var(--skybg);color:var(--sky)} .v-quote{background:var(--amberbg);color:var(--amber)} .v-fill{background:var(--redbg);color:#fb7185;outline:1px dashed rgba(244,63,94,.6)}
+.tv:focus-visible{outline:2px solid var(--teal2);outline-offset:1px}
+.vars{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:6px}
+.var{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg2);font-size:13.5px}
+.var span{color:var(--muted)}
+.lockn{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:#fde68a;background:var(--amberbg);border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:9px 11px;margin-bottom:12px}
+.lockn svg.i{width:16px;height:16px;margin-top:2px}
+@media (max-width:560px){
+  .qlist{grid-template-columns:1fr}
+  .ltab thead{display:none}
+  .ltab tr{display:grid;grid-template-columns:1fr auto;border-bottom:1px solid var(--line);padding:6px 0}
+  .ltab td{border:0;padding:2px 4px}
+  .ltab td.ln{display:none}
+  .ltab td.d{grid-column:1/-1}
+  .ltab td.sz::before{content:"Size ";color:var(--dim)} .ltab td.q::before{content:"Qty ";color:var(--dim)} .ltab td.ra::before{content:"Rate ";color:var(--dim)}
+  .ltab td.r{text-align:left}
+  .qacts{margin-left:0;width:100%}
+  .cl .cn{min-width:24px}
+}
+
 @media (min-width:600px){
   .dlgw{align-items:center;padding:20px}
   .dlg{border-radius:18px;padding:22px 22px 20px}
@@ -283,7 +347,7 @@ function ic(n){return '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">'+I
 var LIVE = (typeof google!=='undefined' && google.script && google.script.run);
 function call(fn){
   var args=[].slice.call(arguments,1);
-  if(!LIVE) return Mock[fn].apply(null,args);
+  if(!LIVE) return Mock[fn]?Mock[fn].apply(null,args):Promise.reject('Preview: this screen has no demo data'); /* preview: screens without demo data say so */
   return new Promise(function(res,rej){
     var r=google.script.run.withSuccessHandler(res).withFailureHandler(function(e){rej(e&&e.message||String(e));});
     r[fn].apply(r,args);
@@ -538,7 +602,7 @@ var DEPTS=[
 /* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen · r = ready */
 var TILES=[
   {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
-  {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, email, revise',ic:'doc',l:1},
+  {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, terms, email',ic:'doc',l:1,r:1},
   {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2},
   {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1},
   {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1},
@@ -638,6 +702,7 @@ function viewHome(f){
     var k=b.getAttribute('data-k');
     if(k==='users') return viewUsers();
     if(k==='docreg') return viewDocs();
+    if(k==='quotes') return viewQuotes();
     toast(b.querySelector('b').textContent+' — comes in a later step.');
   };});
 }
@@ -659,7 +724,13 @@ function errText(m){
     case 'BADINPUT': return 'Please check the <b>'+esc(k[1]||'fields')+'</b>.';
     case 'NOTFOUND': return 'This no longer exists (or is not yours to see). The list has been refreshed.';
     case 'BUSY': return 'The server is busy. Please try again in a moment.';
-    case 'STALE': return 'Someone changed this document a moment ago. The list has been refreshed — please check and try again.';
+    case 'STALE': return 'Someone changed this a moment ago. It has been reloaded — please check and try again.';
+    case 'QLOCKED': return 'The terms of this quote are locked now (it has a job, or it is no longer Draft / Sent). The quote has been reloaded.';
+    case 'QSTATE': return 'This quote is <b>'+esc(k[1]||'closed')+'</b> — nothing was sent.';
+    case 'TOFILL': return '<b>'+esc(k[1]||'Some')+'</b> [ ] place(s) in the quote are still to fill (red in the terms). Fill them first.';
+    case 'NOPDF': return 'There is no PDF of this quote yet. Sales staff make it.';
+    case 'SENTNOW': return 'This quote was emailed less than a minute ago. Check before sending it again.';
+    case 'LIMIT': return 'You have sent many emails today. Please try again tomorrow or ask a Director.';
     case 'WITHDRAWN': return 'This document is <b>withdrawn</b>. Make it active again before revising it.';
     case 'NOREG': return 'The document register is not set up yet. A Director runs <b>Web app › Set up document register</b> in the sheet.';
     case 'SYSDOC': return 'The system prints this document, so it can\'t be withdrawn. Revise it instead.';
@@ -890,7 +961,8 @@ function editDlg(r){
 var DR={rows:[],can:false,today:'',depts:[],setup:true,q:'',f:'',st:'',seq:0};
 var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
 /* sign-in / sign-out: forget the lists of the earlier login (another person may sign in on this device) */
-function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;}
+function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;
+  QS.rows=[];QS.can=false;QS.money=false;QS.cur=null;QS.loaded=false;QS.seq++;}
 var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
 function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
 function isDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
@@ -1075,6 +1147,330 @@ function docRevise(d){
   no.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();doSave();}};
   dt.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();doSave();}};
   setTimeout(function(){if(my===DLG.seq)no.focus();},30);
+}
+
+/* ======================= screen: SC › Quotes (W3) ======================= */
+/* any SC level reads; SC Staff (L2), Head or Director changes the terms (Draft / Sent, no job) and emails. Amounts come only when the server sends money. */
+var QS={rows:[],can:false,money:false,q:'',st:'',ty:'',seq:0,cur:null,only:false};
+var QSTAT=['Draft','Sent','Accepted','Lost','Expired','Cancelled'], QTYPES=['Rental','Project','Service','Sale'];
+/* [text] that is a note, not a field to fill (as the sheet counts them) */
+var NOFILL=['to fill in Settings','verify with accountant'];
+function tk(n){n=+n;if(!isFinite(n))return '—';var neg=n<0;n=Math.abs(n);var s=n.toFixed(2).split('.'),i=s[0],last=i.slice(-3),rest=i.slice(0,-3);
+  if(rest)last=','+last;return (neg?'−':'')+rest.replace(/\B(?=(\d{2})+(?!\d))/g,',')+last+'.'+s[1];}
+function num(n){n=+n;return isFinite(n)?String(Math.round(n*100)/100):'—';}
+function nquote(r){
+  r=r||{};var rev=+r.rev;
+  return {no:String(r.no||''),rev:(rev>=0&&rev===Math.floor(rev))?rev:0,date:isDay(r.date)?r.date:'',type:QTYPES.indexOf(r.type)>=0?r.type:'',
+    status:QSTAT.indexOf(r.status)>=0?r.status:'Draft',cust:String(r.cust||'—'),project:String(r.project||''),total:(typeof r.total==='number'&&isFinite(r.total))?r.total:null,
+    valid:isDay(r.valid)?r.valid:'',job:String(r.job||''),pdf:r.pdf===true,fill:(+r.fill>0)?Math.floor(+r.fill):0,changed:(+r.changed>0)?Math.floor(+r.changed):0};
+}
+function viewQuotes(){
+  document.title='Core Access · Quotes';
+  QS.q='';QS.st='';QS.ty='';QS.cur=null;QS.rows=[];QS.can=false;QS.money=false;QS.loaded=false; /* nothing of an earlier sign-in is shown */
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="qq" type="search" placeholder="Search number, customer or project" autocomplete="off" aria-label="Search quotes"></div>'+
+    '<span id="qnew"></span></div>'+
+    '<div class="chips t-teal" id="qst" role="group" aria-label="Status">'+[''].concat(QSTAT).map(function(s){
+      return '<button type="button" class="chip'+(s===''?' on':'')+'" data-s="'+s+'" aria-pressed="'+(s==='')+'">'+(s||'All')+'</button>';}).join('')+'</div>'+
+    '<div style="margin:10px 0 0"><span class="seg t-teal" id="qty" role="radiogroup" aria-label="Type">'+['','Rental','Project','Service','Sale'].map(function(s){
+      return '<button type="button" role="radio" data-s="'+s+'" aria-checked="'+(s==='')+'"'+(s===''?' class="on"':'')+'>'+(s||'All types')+'</button>';}).join('')+'</span></div>'+
+    '<p class="cnt" id="qcnt">&nbsp;</p><div id="qlist" class="qlist"><div class="empty">Loading quotes…</div></div>';
+  shell('Sales · Quotes',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('qq').oninput=function(){QS.q=this.value.trim().toLowerCase();quotesDraw();};
+  document.getElementById('qst').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;QS.st=b.getAttribute('data-s');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});quotesDraw();};
+  document.getElementById('qty').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-s]'):null;if(!b)return;QS.ty=b.getAttribute('data-s');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});quotesDraw();};
+  document.getElementById('qlist').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;
+    var no=b.getAttribute('data-q'),ok=QS.rows.some(function(r){return r.no===no;});if(ok)viewQuote(no);};
+  quotesLoad();
+}
+function quotesLoad(){
+  var my=++QS.seq;
+  call('officeQuoteList',S.token).then(function(r){
+    if(my!==QS.seq||!document.getElementById('qlist'))return;
+    QS.loaded=true;QS.can=!!(r&&r.can===true);QS.money=!!(r&&r.money===true);
+    QS.rows=(r&&Array.isArray(r.rows)?r.rows:[]).map(nquote).filter(function(x){return x.no;});
+    /* newest first: date, then number */
+    QS.rows.sort(function(a,b){return (b.date>a.date?1:b.date<a.date?-1:0)||b.no.localeCompare(a.no);});
+    var nb=document.getElementById('qnew');
+    if(nb){nb.innerHTML=QS.can?'<button type="button" class="btn btn-primary btn-sm" id="qadd">'+ic('plus')+' New quote</button>':'';
+      if(QS.can)document.getElementById('qadd').onclick=function(){toast('New quote — coming next (W4).');};}
+    quotesDraw();
+  },function(m){
+    if(my!==QS.seq||!document.getElementById('qlist'))return;
+    if(srvGate(m))return;
+    document.getElementById('qlist').innerHTML='<div class="empty">Could not load the quotes: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="qretry">Try again</button></div>';
+    document.getElementById('qretry').onclick=quotesLoad;
+  });
+}
+function quotesDraw(){
+  var L=document.getElementById('qlist');if(!L||!QS.loaded)return;
+  var rows=QS.rows,n={};QSTAT.forEach(function(s){n[s]=0;});rows.forEach(function(r){n[r.status]++;});
+  document.getElementById('qcnt').textContent=rows.length+' quote'+(rows.length===1?'':'s')+(rows.length?' · ':'')+QSTAT.filter(function(s){return n[s];}).map(function(s){return n[s]+' '+s.toLowerCase();}).join(' · ');
+  var show=rows.filter(function(r){
+    if(QS.st&&r.status!==QS.st||QS.ty&&r.type!==QS.ty)return false;
+    return !QS.q||(r.no+' '+r.cust+' '+r.project).toLowerCase().indexOf(QS.q)>=0;
+  });
+  if(!show.length){L.innerHTML='<div class="empty">'+(rows.length?'No quotes match.':'No quotes yet.')+'</div>';return;}
+  L.innerHTML=show.map(function(r){
+    return '<button type="button" class="qcard" data-q="'+esc(r.no)+'">'+
+      '<div class="qrow"><span class="qno">'+esc(r.no)+(r.rev?' · Rev '+r.rev:'')+'</span><span class="sp"></span>'+(r.type?'<span class="pill ty">'+esc(r.type)+'</span>':'')+'<span class="pill qs-'+r.status+'">'+r.status+'</span></div>'+
+      '<div class="qc">'+esc(r.cust)+'</div>'+(r.project?'<div class="qp">'+esc(r.project)+'</div>':'')+
+      '<div class="qrow">'+(QS.money&&r.total!==null?'<span class="qamt">Tk '+tk(r.total)+'</span>':'')+'<span class="sp"></span><span class="tag">'+esc(fmtDay(r.date))+'</span></div>'+
+      '<div class="qrow">'+(r.job?'<span class="tag">Job <b style="color:var(--text)">'+esc(r.job)+'</b></span>':r.valid&&(r.status==='Draft'||r.status==='Sent')?'<span class="tag">Valid until '+esc(fmtDay(r.valid))+'</span>':'')+
+        '<span class="sp"></span>'+(r.fill?'<span class="tag fill">'+r.fill+' to fill</span>':'')+(r.changed?'<span class="tag chg">'+r.changed+' term'+(r.changed===1?'':'s')+' changed</span>':'')+'</div>'+
+    '</button>';
+  }).join('');
+}
+
+/* ---------- one quote ---------- */
+function nqfull(r){
+  r=r||{};var b=nquote(r),num0=function(v){v=+v;return isFinite(v)?v:0;},has=function(v){return typeof v==='number'&&isFinite(v);};
+  b.contact=String(r.contact||'');b.phone=String(r.phone||'');b.email=String(r.email||'');b.site=String(r.site||'');b.subject=String(r.subject||'');
+  b.preparedBy=String(r.preparedBy||'');b.pdf=typeof r.pdf==='string'?r.pdf:'';b.myEmail=String(r.myEmail||'');
+  b.tv=+r.tv||0;b.money=r.money===true;b.can=r.can===true;b.locked=r.locked==='JOB'||r.locked==='STATUS'?r.locked:'';
+  b.lines=(Array.isArray(r.lines)?r.lines:[]).map(function(l,i){l=l||{};return {n:+l.n||i+1,desc:String(l.desc||''),size:String(l.size||''),unit:String(l.unit||''),qty:num0(l.qty),
+    months:(l.months===''||l.months==null)?'':num0(l.months),billing:String(l.billing||''),rate:has(l.rate)?l.rate:null,amount:has(l.amount)?l.amount:null,optional:l.optional===true,selected:l.selected!==false};});
+  var t=r.tot&&typeof r.tot==='object'?r.tot:null;
+  b.tot=t?{sub:num0(t.sub),vatPct:num0(t.vatPct),vat:num0(t.vat),atPct:num0(t.atPct),at:num0(t.at),aitPct:num0(t.aitPct),ait:num0(t.ait),total:num0(t.total),advPct:num0(t.advPct),advance:num0(t.advance),words:String(t.words||'')}:null;
+  if(!b.tot)b.money=false;
+  b.terms=nterms(r.terms);b.fill=(+r.fill>0)?Math.floor(+r.fill):0;b.changed=(+r.changed>0)?Math.floor(+r.changed):0;return b;
+}
+function nterms(T){
+  T=T||{};var V=(Array.isArray(T.vars)?T.vars:[]).map(function(v){v=v||{};var kind=v.kind==='pick'||v.kind==='fixed'?v.kind:'num',ok=function(x){return kind==='num'?typeof x==='number'&&isFinite(x):typeof x==='string';};
+    return {k:String(v.k||''),label:String(v.label||v.k||''),unit:String(v.unit||''),kind:kind,opts:kind==='pick'&&Array.isArray(v.opts)?v.opts.map(String):[],
+      std:ok(v.std)?v.std:'',from:v.from==='Customer'?'Customer':'Company settings',value:kind!=='fixed'&&ok(v.value)?v.value:null,tok:typeof v.tok==='string'?v.tok:null,
+      min:+v.min||0,max:isFinite(+v.max)&&v.max!==''&&v.max!=null?+v.max:1e9};}).filter(function(v){return /^[A-Za-z]\w{0,30}$/.test(v.k);});
+  var ST=['std','changed','removed','added'];
+  return {set:String(T.set||''),vars:V,secs:(Array.isArray(T.secs)?T.secs:[]).map(function(s){s=s||{};return {t:String(s.t||''),no:String(s.no||''),cl:(Array.isArray(s.cl)?s.cl:[]).map(function(c){c=c||{};
+    return {id:String(c.id||''),no:String(c.no||''),title:String(c.title||''),text:String(c.text||''),std:String(c.std||''),st:ST.indexOf(c.st)>=0?c.st:'std'};}).filter(function(c){return c.id;})};})};
+}
+function vsrc(v){return v.value!==null?'quote':v.from==='Customer'?'cust':'std';}
+function vshow(v){var x=v.value!==null?v.value:v.std;return (v.kind==='num'?num(x):String(x))+(v.unit?' '+v.unit:'');}
+/* [text] still to fill: matches in order, notes excluded */
+function fills(s){var re=/\[([^\]"]*)\]/g,m,o=[];while((m=re.exec(s)))if(NOFILL.indexOf(m[1])<0)o.push({at:m.index,len:m[0].length,what:m[1]});return o;}
+/* clause text → safe HTML: {Key} = variable chip (shows the printed text), [text] = to fill (red) */
+function clauseHtml(c,vars,edit){
+  var out='',re=/\{([A-Za-z]\w{0,30})\}|\[([^\]"]*)\]/g,last=0,m,fi=0,s=c.text,live=edit&&c.st!=='removed';
+  while((m=re.exec(s))){
+    out+=esc(s.slice(last,m.index));last=re.lastIndex;
+    if(m[1]){var v=null;vars.forEach(function(x){if(x.k===m[1])v=x;});
+      if(!v){out+=esc(m[0]);continue;}
+      var val=v.value!==null?v.value:v.std,lab=v.tok!==null?v.tok:v.kind==='num'?num(val):String(val);
+      out+=live&&v.kind!=='fixed'?'<button type="button" class="tv v-'+vsrc(v)+'" data-var="'+esc(v.k)+'" title="'+esc(v.label)+' — click to change">'+esc(lab)+'</button>':'<span class="tv v-'+(v.kind==='fixed'?'std':vsrc(v))+'" title="'+esc(v.label)+'">'+esc(lab)+'</span>';
+    } else if(NOFILL.indexOf(m[2])>=0){out+=esc(m[0]);}
+    else {
+      out+=live?'<button type="button" class="tv v-fill" data-fill="'+fi+'" title="Fill in for this quote">['+esc(m[2])+']</button>':'<span class="tv v-fill">['+esc(m[2])+']</span>';
+      fi++;
+    }
+  }
+  return out+esc(s.slice(last));
+}
+function viewQuote(no){
+  document.title='Core Access · '+no;
+  QS.cur=null;QS.only=false;
+  shell('Sales · Quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qback">'+ic('back')+' Quotes</button></div><div id="qv"><div class="empty">Loading '+esc(no)+'…</div></div>');
+  document.getElementById('qback').onclick=function(){viewQuotes();};
+  quoteLoad(no);
+}
+function quoteLoad(no){
+  var my=++QS.seq;
+  call('officeQuoteGet',S.token,no).then(function(r){
+    if(my!==QS.seq||!document.getElementById('qv'))return;
+    QS.cur=nqfull(r);if(!QS.cur.no)QS.cur.no=no;quoteDraw();
+  },function(m){
+    if(my!==QS.seq||!document.getElementById('qv'))return;
+    if(srvGate(m))return;
+    if(code(m).split('|')[0]==='NOTFOUND'){viewQuotes();toast(no+' no longer exists.');return;}
+    document.getElementById('qv').innerHTML='<div class="empty">Could not load '+esc(no)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="qretry">Try again</button></div>';
+    document.getElementById('qretry').onclick=function(){quoteLoad(no);};
+  });
+}
+function quoteDraw(){
+  var el=document.getElementById('qv'),q=QS.cur;if(!el||!q)return;
+  var edit=q.can&&!q.locked,M=q.money;
+  var kv=function(rows){return '<div class="meta">'+rows.filter(function(x){return x[1];}).map(function(x){return '<span>'+x[0]+'</span><b>'+x[1]+'</b>';}).join('')+'</div>';};
+  var h='<div class="qhead"><div><h2>'+esc(q.no)+(q.rev?' · Rev '+q.rev:'')+'</h2><div class="sub">'+esc(q.subject||q.project)+'</div>'+
+      '<div class="qrow" style="margin-top:8px">'+(q.type?'<span class="pill ty">'+esc(q.type)+'</span>':'')+'<span class="pill qs-'+q.status+'">'+q.status+'</span></div></div>'+
+    '<div class="qacts"><button type="button" class="btn btn-ghost btn-sm" id="qpdf">'+ic('doc')+(q.pdf?'Open PDF':'Make PDF')+'</button>'+
+      (q.can&&['Lost','Expired','Cancelled'].indexOf(q.status)<0?'<button type="button" class="btn btn-primary btn-sm" id="qmail">'+ic('mail')+'Email to client</button>':'')+'</div></div>'+
+    '<div class="qgrid">'+
+      '<div class="box"><h4>Customer</h4>'+kv([['Name',esc(q.cust)],['Attention',esc(q.contact)],['Phone',esc(q.phone)],['Email',esc(q.email)]])+'</div>'+
+      '<div class="box"><h4>Project</h4>'+kv([['Project',esc(q.project)],['Site',esc(q.site)],['Job',q.job?esc(q.job):'—']])+'</div>'+
+      '<div class="box"><h4>Quote</h4>'+kv([['Date',esc(fmtDay(q.date))],['Valid until',q.valid?esc(fmtDay(q.valid)):''],['Prepared by',esc(q.preparedBy)],['Terms set',esc(q.terms.set)]])+'</div>'+
+    '</div>';
+  /* lines: the same 7 columns as the new-quote grid (W4) and the PDF */
+  h+='<div class="box" style="margin-bottom:12px"><h4>Lines</h4>';
+  if(!q.lines.length)h+='<div class="empty">No lines yet.</div>';
+  else{
+    h+='<table class="ltab"><thead><tr><th class="ln">#</th><th>Description</th><th>Size</th><th class="r">Qty</th><th>Unit</th>'+(M?'<th class="r">Rate</th><th class="r">Amount</th>':'')+'</tr></thead><tbody>'+
+      q.lines.map(function(l){var off=l.optional&&!l.selected,mo=l.months!==''&&l.months>1?' × '+num(l.months)+' months':'';
+        return '<tr'+(off?' class="opt"':'')+'><td class="ln">'+l.n+'</td><td class="d">'+(l.optional?'<b>Optional:</b> ':'')+esc(l.desc)+(off?'<small>Not included in the total</small>':'')+'</td>'+
+          '<td class="sz">'+(l.size?esc(l.size):'—')+'</td><td class="r q">'+esc(num(l.qty))+'</td><td class="un">'+esc(l.unit)+esc(mo)+'</td>'+
+          (M?'<td class="r ra">'+(l.rate===null?'—':tk(l.rate))+'</td><td class="r">'+(l.amount===null?'—':off?'('+tk(l.amount)+')':tk(l.amount))+'</td>':'')+'</tr>';}).join('')+'</tbody></table>';
+    if(M)h+='<div class="tots"><span>Subtotal</span><b>Tk '+tk(q.tot.sub)+'</b><span>VAT '+esc(num(q.tot.vatPct))+' %</span><b>Tk '+tk(q.tot.vat)+'</b>'+
+      (q.tot.at?'<span>AT '+esc(num(q.tot.atPct))+' %</span><b>Tk '+tk(q.tot.at)+'</b>':'')+(q.tot.ait?'<span>AIT '+esc(num(q.tot.aitPct))+' %</span><b>Tk '+tk(q.tot.ait)+'</b>':'')+
+      '<span class="gt">Total</span><b class="gt">Tk '+tk(q.tot.total)+'</b><span>Advance '+esc(num(q.tot.advPct))+' %</span><b>Tk '+tk(q.tot.advance)+'</b></div>'+
+      (q.tot.words?'<div class="words">'+esc(q.tot.words)+'</div>':'');
+  }
+  h+='</div>';
+  /* terms */
+  var T=q.terms;
+  h+='<div class="box" id="qterms"><div class="qrow" style="margin-bottom:6px"><h4 style="margin:0">Terms &amp; conditions</h4><span class="sp"></span>'+
+      '<span class="tag'+(q.changed?' chg':'')+'">'+q.changed+' change'+(q.changed===1?'':'s')+'</span><span class="tag'+(q.fill?' fill':'')+'">'+q.fill+' to fill</span></div>'+
+    '<div class="legend"><span><i class="v-std"></i>Standard (company settings)</span><span><i class="v-cust"></i>From the customer</span><span><i class="v-quote"></i>Changed for this quote</span><span><i class="v-fill"></i>Still to fill</span></div>';
+  if(q.locked)h+='<div class="lockn">'+ic('lock')+'<div>'+(q.locked==='JOB'?'Terms are locked: this quote has job <b>'+esc(q.job)+'</b>. A change now goes by a variation.':'Terms are locked while the quote is <b>'+esc(q.status)+'</b>. <b>Revise</b> the quote to change them.')+'</div></div>';
+  else if(!q.can)h+='<p class="ro">'+ic('eye')+'View only — Sales staff, a Sales Head or a Director change the terms.</p>';
+  h+='<div class="vars">'+T.vars.filter(function(v){return v.kind!=='fixed';}).map(function(v){var s=vsrc(v);
+      return '<div class="var"><span>'+esc(v.label)+'</span>'+(edit?'<button type="button" class="tv v-'+s+'" data-var="'+esc(v.k)+'">'+esc(vshow(v))+'</button>':'<span class="tv v-'+s+'">'+esc(vshow(v))+'</span>')+'</div>';}).join('')+'</div>';
+  h+='<div class="qrow" style="margin:10px 0 2px"><span class="seg t-teal" id="tonly" role="radiogroup" aria-label="Show"><button type="button" role="radio" data-o="0" aria-checked="'+!QS.only+'"'+(QS.only?'':' class="on"')+'>All clauses</button>'+
+      '<button type="button" role="radio" data-o="1" aria-checked="'+QS.only+'"'+(QS.only?' class="on"':'')+'>Only to fill or changed</button></span><span class="sp"></span>'+
+      (edit?'<button type="button" class="btn btn-ghost btn-sm" id="tadd">'+ic('plus')+'Special condition</button><button type="button" class="btn btn-ghost btn-sm" id="treset">'+ic('rev')+'All to standard</button>':'')+'</div>';
+  var shown=0;
+  T.secs.forEach(function(s,si){
+    var rows=s.cl.map(function(c,ci){return {c:c,n:c.no||((s.no||si+1)+'.'+(ci+1))};}).filter(function(x){return !QS.only||x.c.st!=='std'||fills(x.c.text).length;});
+    if(!rows.length&&QS.only)return;
+    h+='<div class="tsec">'+esc(s.no||String(si+1))+'. '+esc(s.t)+'</div>';
+    rows.forEach(function(x){var c=x.c;shown++;
+      h+='<div class="cl c-'+c.st+'" data-cl="'+esc(c.id)+'"><span class="cn">'+esc(x.n)+'</span><div class="ct">'+
+        (c.st!=='std'?'<span class="cm">'+{changed:'Changed for this quote',removed:'Removed from this quote',added:'Added for this quote'}[c.st]+'</span>':'')+(c.title?'<span class="ctt">'+esc(c.title)+'</span>':'')+clauseHtml(c,T.vars,edit)+'</div>'+
+        (edit?'<button type="button" class="iconbtn" style="width:34px;height:34px" data-ce="'+esc(c.id)+'" title="Change this clause" aria-label="Change clause '+esc(x.n)+'">'+ic('edit')+'</button>':'')+'</div>';});
+    if(edit&&!QS.only)h+='<button type="button" class="btn btn-ghost btn-sm" data-add="'+si+'" style="margin:0 0 6px">'+ic('plus')+'Clause in '+esc(s.t)+'</button>';
+  });
+  if(!shown)h+='<div class="empty">'+(QS.only?'Nothing to fill and nothing changed — all standard.':'No terms on this quote.')+'</div>';
+  h+='</div>';
+  el.innerHTML=h;
+  document.getElementById('qpdf').onclick=quotePdf;
+  var mb=document.getElementById('qmail');if(mb)mb.onclick=quoteEmailDlg;
+  document.getElementById('tonly').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-o]'):null;if(!b)return;QS.only=b.getAttribute('data-o')==='1';quoteDraw();};
+  if(edit){
+    document.getElementById('tadd').onclick=function(){clauseAddDlg(-1,'Special Conditions');};
+    document.getElementById('treset').onclick=function(){askDlg('Put all terms back to standard?','Every change, removed clause, added clause and filled-in text on '+esc(q.no)+' goes back to the standard <b>'+esc(T.set)+'</b> terms. The lines and prices stay as they are.','All to standard',true,
+      function(){return termOp({k:'resetAll'});},function(r){termDone(r,'Terms are back to standard.');},function(){quoteLoad(q.no);});};
+    document.getElementById('qterms').onclick=function(e){
+      var t=e.target.closest?e.target:null;if(!t)return;
+      var vb=t.closest('[data-var]');if(vb&&vb.tagName==='BUTTON')return varDlg(vb.getAttribute('data-var'));
+      var fb=t.closest('[data-fill]');if(fb)return fillDlg(fb.closest('[data-cl]').getAttribute('data-cl'),+fb.getAttribute('data-fill'));
+      var ce=t.closest('[data-ce]');if(ce)return clauseDlg(ce.getAttribute('data-ce'));
+      var ad=t.closest('[data-add]');if(ad){var si=+ad.getAttribute('data-add');return clauseAddDlg(si,(T.secs[si]||{}).t||'');}
+    };
+  }
+}
+function findClause(id){var o=null;QS.cur.terms.secs.forEach(function(s){s.cl.forEach(function(c){if(c.id===id)o=c;});});return o;}
+/* one change to the terms; the server sends the whole quote back */
+function termOp(op){var q=QS.cur;return call('officeQuoteTerm',S.token,q.no,q.tv,op);}
+function termDone(r,msg){var keep=QS.only;QS.cur=nqfull(r);QS.only=keep;quoteDraw();if(msg)toast(msg);}
+function quoteStale(q){closeDlg();quoteLoad(q.no);toast('Someone changed this quote a moment ago. It is reloaded — please open it again.');}
+function termFail(m,q){var k=code(m).split('|')[0];if(k==='STALE'||k==='QLOCKED'||k==='NOTFOUND')quoteLoad(q.no);}
+/* a small form dialog: body html, getOp() returns the op or a string error */
+function formDlg(title,sub,body,okLabel,getOp,msg,extra){
+  var q=QS.cur;
+  var my=openDlg('<h3 id="dlgt">'+title+'</h3><p class="sub">'+sub+'</p><div id="derr"></div>'+body+
+    '<div class="dfoot">'+(extra||'')+'<button type="button" class="btn btn-ghost" id="fcan">Cancel</button><button type="button" class="btn btn-primary" id="fok">'+okLabel+'</button></div>');
+  var ok=document.getElementById('fok');
+  var go=function(op){
+    if(DLG.busy)return;if(typeof op==='string'){dlgErr(op);return;}
+    var btn=op.__btn||ok;delete op.__btn;var m2=op.__msg||msg;delete op.__msg;
+    DLG.busy=true;busyBtn(btn,true,'Saving…');dlgErr('');
+    termOp(op).then(function(r){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();termDone(r,m2);},
+      function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(btn,false);if(code(m).split('|')[0]==='STALE')return quoteStale(q);dlgErr(errText(m));termFail(m,q);});
+  };
+  document.getElementById('fcan').onclick=function(){if(!DLG.busy)closeDlg();};
+  ok.onclick=function(){go(getOp());};
+  return {my:my,go:go};
+}
+function varDlg(k){
+  var v=null;QS.cur.terms.vars.forEach(function(x){if(x.k===k&&x.kind!=='fixed')v=x;});if(!v)return;
+  var cur=v.value!==null?v.value:v.std,stdTxt=(v.kind==='num'?num(v.std):v.std)+(v.unit?' '+v.unit:'');
+  var body=v.kind==='pick'?'<span class="lbl">'+esc(v.label)+'</span><span class="seg t-teal" id="vpick" role="radiogroup">'+v.opts.map(function(o){return '<button type="button" role="radio" data-v="'+esc(o)+'" aria-checked="'+(o===cur)+'"'+(o===cur?' class="on"':'')+'>'+esc(o)+'</button>';}).join('')+'</span>':
+    '<label class="fld"><span>'+esc(v.label)+(v.unit?' ('+esc(v.unit)+')':'')+'</span><input class="inp np" id="vin" type="number" inputmode="decimal" step="any" min="'+v.min+'" max="'+v.max+'" value="'+esc(num(cur))+'"></label>';
+  var pick=cur;
+  var d=formDlg(esc(v.label),'Standard: <b>'+esc(stdTxt)+'</b> — from '+(v.from==='Customer'?'the customer':'company settings')+'. A different value applies to this quote only'+(k==='AdvancePct'?' and changes the advance amount':'')+'.',
+    body+'<div class="note">'+ic('alert')+'<div>Used everywhere this field appears in the terms'+(k==='PaymentDays'||k==='LateInterest'?', and on this job\'s invoices':'')+'.</div></div>','Save',
+    function(){if(v.kind==='pick')return {k:'var',key:k,value:pick};var x=document.getElementById('vin'),s=x.value.trim(),n=Number(s);
+      if(s===''||!isFinite(n)||n<v.min||n>v.max){x.classList.add('bad');return 'Enter a number from '+v.min+' to '+v.max+'.';}return {k:'var',key:k,value:n};},
+    'Saved for this quote.',v.value!==null?'<button type="button" class="btn btn-ghost" id="vstd">Use standard</button>':'');
+  var vp=document.getElementById('vpick');if(vp)vp.onclick=function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(!b)return;pick=b.getAttribute('data-v');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});};
+  var vs=document.getElementById('vstd');if(vs)vs.onclick=function(){d.go({k:'var',key:k,value:null,__btn:vs,__msg:v.label+' is back to standard.'});};
+  var vi=document.getElementById('vin');if(vi){vi.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();document.getElementById('fok').click();}};setTimeout(function(){if(d.my===DLG.seq){vi.focus();vi.select();}},30);}
+}
+function fillDlg(id,idx){
+  var c=findClause(id);if(!c)return;
+  var hit=fills(c.text)[idx];if(!hit)return;
+  var d=formDlg('Fill in: '+esc(hit.what),'This clause is changed for this quote only.','<label class="fld"><span>'+esc(hit.what)+'</span><input class="inp np" id="fin" maxlength="200" autocomplete="off"></label><div class="fpv" id="fpre"></div>','Save',
+    function(){var x=document.getElementById('fin'),s=x.value.trim();if(!s){x.classList.add('bad');return 'Type the text to fill in.';}
+      if(/[\[\]{}]/.test(s)){x.classList.add('bad');return 'Leave out [ ] and { } — they mark fields.';}
+      return {k:'clause',id:id,text:c.text.slice(0,hit.at)+s+c.text.slice(hit.at+hit.len)};},'Filled in.');
+  var fin=document.getElementById('fin'),pre=function(){var s=fin.value.trim()||'['+hit.what+']';document.getElementById('fpre').textContent=c.text.slice(0,hit.at)+s+c.text.slice(hit.at+hit.len);};
+  fin.oninput=pre;pre();fin.onkeydown=function(ev){if(ev.key==='Enter'&&!ev.isComposing){ev.preventDefault();document.getElementById('fok').click();}};
+  setTimeout(function(){if(d.my===DLG.seq)fin.focus();},30);
+}
+function clauseDlg(id){
+  var c=findClause(id);if(!c)return;
+  if(c.st==='removed'){return askDlg('Put this clause back?',esc(c.text),'Put back',false,function(){return termOp({k:'clause',id:id,back:true});},function(r){termDone(r,'Clause is back.');},function(){quoteLoad(QS.cur.no);});}
+  var extra=(c.st==='changed'?'<button type="button" class="btn btn-ghost" id="cstd">Back to standard</button>':'')+'<button type="button" class="btn btn-danger" id="crem">'+(c.st==='added'?'Delete clause':'Remove from this quote')+'</button>';
+  var d=formDlg('Change clause','Wording for this quote only. Keep <b>{Field}</b> names as they are; <b>[text]</b> marks something still to fill in.'+(c.st==='changed'&&c.std?'<br><span style="color:var(--dim)">Standard: '+esc(c.std)+'</span>':''),
+    '<label class="fld"><span>Wording</span><textarea class="inp np" id="cin" rows="4" maxlength="1000">'+esc(c.text)+'</textarea><small>Ctrl + Enter saves.</small></label>','Save wording',
+    function(){var x=document.getElementById('cin'),s=x.value.trim();if(!s){x.classList.add('bad');return 'The clause can\'t be empty — use <b>Remove</b> instead.';}
+      var bad=(s.match(/\{([^}]*)\}/g)||[]).filter(function(t){var k=t.slice(1,-1);return !QS.cur.terms.vars.some(function(v){return v.k===k;});});
+      if(bad.length||/[{}]/.test(s.replace(/\{[A-Za-z]\w{0,30}\}/g,''))){x.classList.add('bad');return 'Unknown field '+esc(bad[0]||'{ }')+'. Use one of: '+QS.cur.terms.vars.map(function(v){return '{'+esc(v.k)+'}';}).join(' ');}
+      return {k:'clause',id:id,text:s};},'Clause saved.',extra);
+  var cs=document.getElementById('cstd');if(cs)cs.onclick=function(){d.go({k:'clause',id:id,reset:true,__btn:cs,__msg:'Clause is back to standard.'});};
+  document.getElementById('crem').onclick=function(){d.go({k:'clause',id:id,remove:true,__btn:document.getElementById('crem'),__msg:c.st==='added'?'Clause deleted.':'Clause removed from this quote.'});};
+  var ci=document.getElementById('cin');ci.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();document.getElementById('fok').click();}};
+  setTimeout(function(){if(d.my===DLG.seq)ci.focus();},30);
+}
+function clauseAddDlg(si,name){
+  var d=formDlg(si<0?'Add a special condition':'Add a clause to '+esc(name),si<0?'Goes into a <b>Special Conditions</b> section at the end, for this quote only.':'Numbered at the end of the section, for this quote only.',
+    '<label class="fld"><span>Wording</span><textarea class="inp np" id="ain" rows="4" maxlength="1000" placeholder="e.g. Night work is charged at 1.5 × the day rate."></textarea><small>Ctrl + Enter saves.</small></label>','Add clause',
+    function(){var x=document.getElementById('ain'),s=x.value.trim();if(!s){x.classList.add('bad');return 'Type the wording.';}return {k:'add',sec:si,text:s};},'Clause added.');
+  var ai=document.getElementById('ain');ai.onkeydown=function(ev){if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();document.getElementById('fok').click();}};
+  setTimeout(function(){if(d.my===DLG.seq)ai.focus();},30);
+}
+function quotePdf(){
+  var q=QS.cur,b=document.getElementById('qpdf');if(!q||!b||b.disabled)return;
+  if(q.fill&&!q.pdf)toast('Note: '+q.fill+' field'+(q.fill===1?' is':'s are')+' still to fill — they print as [ ].');
+  var ok=function(u){return /^https:\/\/(docs|drive)\.google\.com\//.test(u);};
+  /* open the tab now (in the click), fill it when the link comes: pop-up blockers allow that */
+  var w=null;if(LIVE)try{w=window.open('','_blank');}catch(e){}
+  busyBtn(b,true,q.pdf?'Opening…':'Making PDF…'); /* always asks the server: someone may have changed the quote since this view was loaded */
+  call('officeQuotePdf',S.token,q.no).then(function(r){
+    busyBtn(b,false);var u=String(r&&r.url||'');
+    if(!ok(u)){if(w)try{w.close();}catch(e){}toast(LIVE?'The PDF link looks wrong — open it from the sheet.':'Preview: the PDF of '+q.no+' would open in a new tab.');}
+    else if(w)w.location.href=u;else toast('Allow pop-ups to open the PDF.');
+    if(ok(u)&&QS.cur===q){q.pdf=u;b.innerHTML=ic('doc')+'Open PDF';}
+  },function(m){busyBtn(b,false);if(w)try{w.close();}catch(e){}if(srvGate(m))return;toast(errText(m).replace(/<[^>]+>/g,''));});
+}
+function quoteEmailDlg(){
+  var q=QS.cur;if(!q)return;
+  if(q.fill&&q.status!=='Accepted'){toast(q.fill+' field'+(q.fill===1?' is':'s are')+' still to fill (red). Fill '+(q.fill===1?'it':'them')+' first.');var t=document.getElementById('qterms');if(t&&t.scrollIntoView)t.scrollIntoView({behavior:'smooth'});return;}
+  var my=openDlg('<h3 id="dlgt">Email '+esc(q.no)+'</h3><p class="sub">The quote PDF goes out from the company address with the director\'s signature'+(q.pdf?'':' (the PDF is made first)')+'. '+(q.status==='Draft'?'The quote then shows as <b>Sent</b>.':'')+'</p><div id="derr"></div>'+
+    '<label class="fld"><span>To</span><input class="inp np" id="mto" type="email" multiple maxlength="400" autocomplete="off" value="'+esc(q.email)+'"><small>Several addresses: separate with a comma.</small></label>'+
+    '<label class="fld"><span>Cc</span><input class="inp np" id="mcc" type="email" multiple maxlength="400" autocomplete="off" value="'+esc(q.myEmail)+'"></label>'+
+    '<label class="fld"><span>Message (optional)</span><textarea class="inp np" id="mno" rows="3" maxlength="2000" placeholder="Added after the greeting, above the standard text"></textarea></label>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="mcan">Cancel</button><button type="button" class="btn btn-primary" id="msend">'+ic('mail')+' Send</button></div>');
+  var to=document.getElementById('mto'),cc=document.getElementById('mcc'),send=document.getElementById('msend');
+  var re=/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/,list=function(s){return s.split(/[,;\s]+/).filter(Boolean);};
+  document.getElementById('mcan').onclick=function(){if(!DLG.busy)closeDlg();};
+  send.onclick=function(){
+    if(DLG.busy)return;to.classList.remove('bad');cc.classList.remove('bad');dlgErr('');
+    var a=list(to.value),b=list(cc.value);
+    if(!a.length||!a.every(function(x){return re.test(x);})){to.classList.add('bad');dlgErr('Enter the client\'s email address.');to.focus();return;}
+    if(!b.every(function(x){return re.test(x);})){cc.classList.add('bad');dlgErr('Check the Cc address.');cc.focus();return;}
+    DLG.busy=true;busyBtn(send,true,'Sending…');
+    call('officeQuoteEmail',S.token,q.no,q.tv,{to:a.join(', '),cc:b.join(', '),note:document.getElementById('mno').value}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      toast(q.no+' sent to '+(r&&Array.isArray(r.to)?r.to.join(', '):a.join(', '))+'.'+(r&&r.was==='Draft'&&r.status==='Sent'?' Now Sent.':''));quoteLoad(q.no);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(send,false);
+      var k=code(m).split('|');if(k[0]==='BADINPUT'&&k[1]==='to')to.classList.add('bad');if(k[0]==='BADINPUT'&&k[1]==='cc')cc.classList.add('bad');
+      if(k[0]==='STALE')return quoteStale(q);dlgErr(errText(m));if(k[0]==='NOTFOUND'||k[0]==='QSTATE')quoteLoad(q.no);
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)(to.value?send:to).focus();},30);
 }
 
 /* ======================= start ======================= */
