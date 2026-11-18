@@ -9,4 +9,6 @@ TEL;TYPE=WORK,VOICE:+8801805834820
 EMAIL;TYPE=INTERNET,WORK:junait@coreaccesseng.com
 URL:https://www.coreaccesseng.com
 ADR;TYPE=WORK:;;H/39\, Block-E\, Zakir Hussain Road\, Mohammadpur;Dhaka;;1207;Bangladesh
+item1.ADR;TYPE=WORK:;;Dag No. 2307\, Gobindapur\, Moynar Tek\, Post Office: Uzampur-1230\, Police Station: Uttarkhan;Dhaka;;1230;Bangladesh
+item1.X-ABLabel:Yard / Workshop
 END:VCARD
