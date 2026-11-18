@@ -52,8 +52,20 @@
 // CodeRabbit CLI review (17 Nov, W2 + D1): register writes go history first (oDocTx_: a failed register write adds a
 //   "Not applied" entry, so no change is ever left without its history); detail edits send the old title / owner (STALE
 //   if someone changed them meanwhile); a remade PDF never bins the new PDF / Doc itself.
+// W3 (17 Nov): SC > Quotes. officeQuoteList / officeQuoteGet (any SC level), officeQuoteTerm + officeQuoteEmail (SC Staff+ or
+//   Director, gate in the lock), officeQuotePdf. Reuses QT1 qtSave_ (terms), QF5 qf5Pdf_ (PDF), QF3 emailQuote. tv = terms version
+//   (hash) -> STALE; PDF reused only when made here for the same tv (OQP:<no> in Script Properties). Wraps user_ (log = office login).
+// W4 (18 Nov): SC > New / edit quote. officeQuoteForm, officeCustomerAdd, officeSiteAdd, officeQuoteSave (SC Staff+ or Director,
+//   gate in the lock; the panel's saveQuoteFull reused). 7 columns, "/ month" unit = Unit + Billing Monthly + Months 1 (no new
+//   column). Codes: DUP|id|what, QOLD|n (old-format lines), SLOW, SAVEFAIL|text. officeScopeItemsAdd (editor, run once).
+// D2 (18 Nov): signatures + company stamp. officeSigGet / officeSigSave / officeSigRemove (own Staff record or a Director),
+//   officeStampGet / officeStampSave (Directors). Every system PDF: sign block (preparer, signature image, stamp) + the line
+//   "Digitally generated ...". Records OSG:<StaffID> / OSG_STAMP in Script Properties, images in the private Drive folder.
+//   officeSigSeed (editor, run once). Codes: NOSTAFF, BADIMG|type/size/pixels/broken, SLOW.
 // Replaces: doGet (if an earlier file had one — check before install).
-// Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF'), every PDF_SPECS entry + renderInto (D1 c footer), makePdf (D1 c2 folders).
+// Wraps: onOpen (adds the "Web app" menu), selfTestAllParts_ (adds 'OF'), every PDF_SPECS entry + renderInto (D1 c footer), makePdf (D1 c2 folders),
+//   PDF_SPECS.Quote again (W4: price grid in the 7 columns), every PDF_SPECS entry + makePdf + uiGetDb_ + UI_ACTIONS_.pdf again (D2),
+//   BLOCKS_ (adds osign).
 // ============================================================================
 
 var OFFICE_ROLES_ = ['Admin', 'Accounts', 'Viewer', 'Yard', 'Field']; // old W1 roles (read + menu only)
@@ -65,6 +77,8 @@ var OFFICE_DB_ID_ = '130OrVMdQ2tjCa_FQac2ebbWcbWzgW6l4VX5sfNWrKCw';
 var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200, maxSess: 5, maxPerMin: 30 };
 var OFFICE_KDF_ = 'pbkdf2-sha256';
 var OFFICE_ENV_ = null; // self-tests put an in-memory env here
+var OLK_ = { s: 0, ls: null, np: false }; // s = script lock held by this execution (depth); ls = tests' LockService; np = panel PDF action
+function oLs_() { return OLK_.ls || LockService; }
 
 function officeEnv_() {
   var P = PropertiesService.getScriptProperties();
@@ -85,7 +99,7 @@ function officeEnv_() {
     cget: function (k) { var v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; },
     cput: function (k, o, sec) { CacheService.getScriptCache().put(k, JSON.stringify(o), Math.max(1, Math.min(21600, Math.ceil(sec)))); },
     cdel: function (k) { CacheService.getScriptCache().remove(k); },
-    lock: function (fn) { var l = LockService.getScriptLock(); l.waitLock(10000); try { return fn(); } finally { l.releaseLock(); } },
+    lock: function (fn) { if (OLK_.s) return fn(); var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); } OLK_.s++; try { return fn(); } finally { OLK_.s--; l.releaseLock(); } },
     who: function () { return { active: Session.getActiveUser().getEmail() || '', effective: Session.getEffectiveUser().getEmail() || '' }; },
     triggerIds: function () { return ScriptApp.getProjectTriggers().map(function (x) { return String(x.getUniqueId()); }); },
     db: function () { // the CAE Ops DB (the bound sheet; by id if a web call has no active sheet)
@@ -95,6 +109,22 @@ function officeEnv_() {
   };
 }
 function oEnv_() { return OFFICE_ENV_ || officeEnv_(); }
+// CR14: the sheet panel's withLock (document lock) also takes the script lock first, so a panel write (e.g. job from a quote)
+// and a web-app write (script lock; a web call has no document lock) never run at the same time. Order: script, then document.
+if (typeof withLock === 'function' && !withLock.officeLk_) {
+  var OLK_withLock0_ = withLock;
+  withLock = function (fn) {
+    if (OLK_.s || OLK_.np || (typeof LockService === 'undefined' && !OLK_.ls)) return OLK_withLock0_(fn); // a PDF (10-30 s) does not block the web app
+    var l = oLs_().getScriptLock(); l.waitLock(30000); OLK_.s++;
+    try { return OLK_withLock0_(fn); } finally { OLK_.s--; l.releaseLock(); }
+  };
+  withLock.officeLk_ = OLK_withLock0_;
+}
+if (typeof uiDo === 'function' && !uiDo.officeLk_) {
+  var OLK_uiDo0_ = uiDo;
+  uiDo = function (action, args) { var k = OLK_.np; OLK_.np = action === 'pdf' || action === 'quotePdf'; try { return OLK_uiDo0_(action, args); } finally { OLK_.np = k; } };
+  uiDo.officeLk_ = OLK_uiDo0_;
+}
 function oEmail_(e) { var s = typeof e === 'string' ? e : ''; return s.length > 254 ? '' : s.trim().toLowerCase(); } // strings only; huge input never reaches the regex
 function oEmailOk_(e) { return e.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 function oHash_(env, salt, pw) { var h = salt + '|' + pw; for (var i = 0; i < OFFICE_CFG_.iters; i++) h = env.sha(salt + h); return h; } // old v1, verify only
@@ -202,7 +232,7 @@ function oParseAccess_(s) {
   if (!Object.keys(o).length) throw new Error('Access is empty' + help);
   return o;
 }
-function oPublic_(L) { var a = oAcc_(L); return { email: L.email, name: L.name, depts: a, level: OFFICE_LVL_[oLevel_(a)] || '', money: oCanSeeMoney_(a) }; }
+function oPublic_(L) { var a = oAcc_(L); return { email: L.email, name: L.name, depts: a, level: OFFICE_LVL_[oLevel_(a)] || '', money: oCanSeeMoney_(a), staff: String(L.staff || '') }; }
 function oFail_(code) { throw new Error(code); }
 
 // ----------------------------------------------------------------- web app entry
@@ -413,7 +443,7 @@ function officeUsersList(token) {
     var rows = env.keys().filter(function (k) { return k.indexOf('OL:') === 0; }).map(function (k) { return env.get(k); })
       .filter(function (L) { return L && typeof L.email === 'string'; }).map(function (L) {
         var on = L.status === 'Active';
-        return { name: String(L.name || ''), email: L.email, depts: oAcc_(L), status: on ? 'Enabled' : 'Blocked', last: +L.last || 0, sessions: on ? (live[L.email] || 0) : 0, staff: String(L.staff || '') };
+        return { name: String(L.name || ''), email: L.email, depts: oAcc_(L), status: on ? 'Enabled' : 'Blocked', last: +L.last || 0, sessions: on ? (live[L.email] || 0) : 0, staff: String(L.staff || ''), sig: !!L.staff && !!oSgRec_(env, 'OSG:' + String(L.staff)) };
       }).sort(function (a, b) { return a.email < b.email ? -1 : 1; });
     return { me: me.email, rows: rows };
   }, true);
@@ -576,9 +606,14 @@ function menuOfficeMigrate() {
   var ui = SpreadsheetApp.getUi(), n = oMigrate_(oEnv_());
   ui.alert('Logins moved to departments + level: ' + n + (n ? '. Those logins sign in again once.' : ' (all done already).'));
 }
+// the live web app (deployment edited in place, same link). ScriptApp.getService().getUrl() gave an old, dead deployment link.
+var OFFICE_EXEC_URL_ = 'https://script.google.com/macros/s/AKfycbzuf7yk0kLHC7sN_QISNnn58ioXMHIZzss_BPAoOM5VahN0E0UG645NLcGsAlkUvBfrag/exec';
 function menuOfficeLink() {
-  var url = ScriptApp.getService().getUrl();
-  SpreadsheetApp.getUi().alert('Web app link', url || 'Not deployed yet: Deploy › New deployment › Web app (execute as me, access Anyone).', SpreadsheetApp.getUi().ButtonSet.OK);
+  var u = OFFICE_EXEC_URL_, h = HtmlService.createHtmlOutput('<div style="font:14px Arial,sans-serif">' +
+    '<p><a href="' + u + '" target="_blank" rel="noopener" style="font-size:16px;font-weight:bold">Open the Core Access web app</a></p>' +
+    '<p style="font-size:12px;color:#555">If Google says it cannot open the file: open the link in an Incognito / Private window (several Google accounts signed in).</p>' +
+    '<p style="font-size:11px;color:#777;word-break:break-all">' + u + '</p></div>').setWidth(480).setHeight(190);
+  SpreadsheetApp.getUi().showModalDialog(h, 'Web app');
 }
 
 // Editor › run officeKdfBench: time of one password check at the current work factor (aim ≈ 0.5–1 s).
@@ -1032,10 +1067,951 @@ function menuOfficePdfDry() { var r = officePdfMoveDry(); SpreadsheetApp.getUi()
 function menuOfficePdfApply() { var ui = SpreadsheetApp.getUi(); if (ui.alert('Move the PDFs into the new folders?', 'Year folders + job folders. Links in the sheet stay the same. Safe to repeat.', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
   var r = officePdfMoveApply(); ui.alert('PDF folders', r.moves.length + ' moved, ' + r.left.length + ' left, ' + r.links.ok + ' links OK' + (r.links.bad.length ? ', ' + r.links.bad.length + ' to check' : '') + '.', ui.ButtonSet.OK); }
 
+// ----------------------------------------------------------------- W3 (17 Nov): SC > Quotes (list, view, terms, PDF, email)
+// Reuses QT1 (terms: Terms tab by QuoteType + per-quote QuoteTerms rows, saved by qtSave_), QF5 (quote PDF, one file per quote)
+// and QF3 (email). Any SC level reads; SC Staff (L2) / Head or Director changes the terms and emails. tv = a terms
+// version (hash of everything the terms view shows) -> STALE when it changed meanwhile. Clause text: {{Token}} in the sheet
+// = {Token} on the page. Codes: QLOCKED (job / not Draft-Sent), QSTATE|status, TOFILL|n, STALE, NOTFOUND, BADINPUT|field, BUSY.
+var OQ_NEED_ = { dept: 'SC', level: 1 }, OQ_WRITE_ = { dept: 'SC', level: 2 };
+var OQ_TOK_ = { AdvancePct: 'AdvancePct', PaymentDays: 'PaymentDays', ValidityDays: 'ValidityDays', LateInterestPct: 'LateInterest', MinMonths: 'MinMonths', NoticeDays: 'NoticeDays', PartPeriodRule: 'PartPeriod' };
+var OQ_LIM_ = { AdvancePct: [0, 100], PaymentDays: [1, 365], ValidityDays: [1, 365], LateInterestPct: [0, 10], MinMonths: [1, 60], NoticeDays: [0, 90] };
+var OQ_FIXED_ = { PeriodDays: 'Hire month (days)', BillingSchedule: 'Billing schedule' };
+var OQ_PH_ = /\[(?!to fill in Settings\]|verify with accountant\])[^\]"]*\]/g; // as makePdf counts them (any length, newlines, empty too)
+var OQ_CLOSED_ = ['Lost', 'Expired', 'Cancelled'];
+var OQ_ACT_ = ''; // the office login acting now (log + UpdatedBy), else the Google user
+var OQ_user0_ = user_;
+user_ = function () { return OQ_ACT_ || OQ_user0_(); };
+function oQNo_(v) { return typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9\/._-]{0,39}$/.test(v) ? v : ''; }
+function oQRow_(db, no) { var n = oQNo_(no); var q = n ? find(db.rows('Quotes'), 'QuoteNo', n) : null; if (!q) oFail_('NOTFOUND'); return q; }
+function oQDn_(v) { try { return dayNum(v); } catch (e) { return null; } }
+function oQDay_(n) { return n == null ? '' : oDay_(fromDay(n)); }
+function oQHash_(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h + 1; }
+function oQType_(q) { return String(q.QuoteType || 'Rental'); }
+function oQOv_(db, no) { return qtRows_(db, no).slice().sort(function (a, b) { return num(a.SortOrder) - num(b.SortOrder); }); }
+function oQJob_(db, no) { return find(db.rows('Jobs'), 'QuoteNo', no); }
+function oQLocked_(db, q) { return oQJob_(db, q.QuoteNo) ? 'JOB' : ['Draft', 'Sent'].indexOf(String(q.Status)) < 0 ? 'STATUS' : ''; }
+function oQLines_(db, no) { return db.rows('QuoteLines').filter(function (l) { return String(l.QuoteNo) === String(no); }).sort(function (a, b) { return num(a.LineNo) - num(b.LineNo); }); }
+function oQTv_(db, q) { // everything the terms view + email depend on (not the PDF link)
+  var no = q.QuoteNo, cu = find(db.rows('Customers'), 'CustID', q.CustID) || {}, type = oQType_(q), j = oQJob_(db, no);
+  var st = ['AdvancePct', 'MinHireMonths', 'PaymentDaysDefault', 'QuoteValidityDays', 'LateInterestPctMonth', 'OffHireNoticeDays', 'PartPeriodRule', 'HirePeriodDays'].map(function (k) { return String(S(db, k, '')); });
+  var f = ['Rev', 'Status', 'QuoteType', 'CustID', 'SiteID', 'QuoteDate', 'PreparedBy', 'AdvancePct', 'MinMonths', 'PaymentDays', 'ValidityDays', 'NoticeDays', 'LateInterestPct', 'PartPeriodRule', 'VATPct', 'ATPct', 'AITPct'].map(function (k) { var v = q[k]; return v instanceof Date ? v.getTime() : String(v == null ? '' : v); });
+  var ov = oQOv_(db, no).map(function (o) { return [o.Action, o.ClauseID, o.Section, o.ClauseNo, o.Title, o.Text, o.SortOrder].map(String).join('\u0001'); });
+  var base = QT_termsFor0_(db, type).map(function (r) { return [r.ClauseID, r.Section, r.ClauseNo, r.Title, r.Text, r.SortOrder].map(String).join('\u0001'); });
+  var ln = oQLines_(db, no).map(function (l) { return [l.LineNo, l.ItemCode, l.Description, l.Unit, l.Qty, l.Months, l.Billing, l.Rate, l.Optional, l.Selected].map(String).join('\u0001'); });
+  return oQHash_(JSON.stringify([f, String(cu.PaymentDays == null ? '' : cu.PaymentDays), j ? String(j.JobNo) : '', st, ov, base, ln]));
+}
+function oQTok_(s) { return String(s == null ? '' : s).replace(/\{\{(\w{1,31})\}\}/g, '{$1}'); } // sheet -> page
+function oQUntok_(s, keys) { // page -> sheet; any other { } is refused
+  var bad = false, out = String(s).replace(/\{([A-Za-z]\w{0,30})\}/g, function (m, k) { if (keys.indexOf(k) < 0) { bad = true; return m; } return '{{' + k + '}}'; });
+  if (bad || /[{}]/.test(out.replace(/\{\{[A-Za-z]\w{0,30}\}\}/g, ''))) return null;
+  return out;
+}
+function oQClauseText_(v) { // one clause: 1..1000 chars, no control chars, at least one letter / digit; newlines kept as spaces
+  if (typeof v !== 'string' || v.length > 4000) return '';
+  var s = v.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').replace(/\p{Cf}/gu, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').replace(/[ \t]+/g, ' ').trim();
+  return s.length <= 1000 && /[\p{L}\p{N}]/u.test(s) ? s : '';
+}
+function oQCell_(v) { var s = String(v == null ? '' : v).trim(); return s ? "'" + s : ''; } // always text in the sheet (no formula, no date / number guess)
+function oQFill_(s) { var m = String(s).match(OQ_PH_); return m ? m.length : 0; }
+// the terms as the page shows them + what qtSave_ needs to write them back
+function oQTerms_(db, q, C) { // C (list only): {base: {type: rows}, ov: {no: rows}} read once for all quotes, no tokens
+  var no = q.QuoteNo, type = oQType_(q), std = qtStd_(db, q), tok = C ? {} : quoteTokens(db, q), by = {};
+  var base = C ? (C.base[type] = C.base[type] || QT_termsFor0_(db, type)) : QT_termsFor0_(db, type);
+  var ov = C ? (C.ov[String(no)] || []).slice().sort(function (a, b) { return num(a.SortOrder) - num(b.SortOrder); }) : oQOv_(db, no);
+  ov = ov.filter(function (o) { return o.Action === 'Remove' || !blank(o.Text) && String(o.Text).trim() !== ''; }); // a blank Replace / Add row = standard (QT1 refuses empty wording)
+  ov.forEach(function (o) { if (o.Action !== 'Add' && !blank(o.ClauseID)) by[String(o.ClauseID)] = o; });
+  var vars = qtFieldsFor_(type).map(function (f) {
+    var k = f[0], cur = qtCustom_(f, q, std), lim = OQ_LIM_[k];
+    var v = { k: OQ_TOK_[k], field: k, label: f[1], unit: f[3] === 'rule' ? '' : f[2].trim(), kind: f[3] === 'rule' ? 'pick' : 'num', std: qtShow_(f, std[k][0]),
+      from: /^customer/.test(std[k][1]) ? 'Customer' : 'Company settings', value: cur === '' ? null : cur, tok: String(tok[OQ_TOK_[k]] == null ? '' : tok[OQ_TOK_[k]]) };
+    if (v.kind === 'pick') v.opts = QT_RULES_.slice(); else { v.min = lim[0]; v.max = lim[1]; }
+    return v;
+  });
+  var keys = vars.map(function (v) { return v.k; }), seen = {};
+  Object.keys(tok).forEach(function (k) { if (keys.indexOf(k) < 0 && /^[A-Za-z]\w{0,30}$/.test(k)) { vars.push({ k: k, label: OQ_FIXED_[k] || k, unit: '', kind: 'fixed', std: '', from: 'Company settings', value: null, tok: String(tok[k]) }); keys.push(k); } });
+  if (!C) base.concat(ov).forEach(function (r) { String(r.Text || '').replace(/\{\{([A-Za-z]\w{0,30})\}\}/g, function (m, k) { // a token the PDF does not know stays as it is
+    if (keys.indexOf(k) < 0) { vars.push({ k: k, label: k, unit: '', kind: 'fixed', std: '', from: 'Company settings', value: null, tok: m }); keys.push(k); } return m; }); });
+  var secs = [], sOf = {}, special = qtSections_(base, []).special;
+  base.forEach(function (r) {
+    var s = String(r.Section);
+    if (!seen[s]) { seen[s] = 1; sOf[s] = secs.length; secs.push({ no: s, t: String(r.SectionTitle || ''), cl: [] }); }
+    var o = by[String(r.ClauseID)], st = !o ? 'std' : o.Action === 'Remove' ? 'removed' : 'changed';
+    secs[sOf[s]].cl.push({ id: String(r.ClauseID), no: String(r.ClauseNo), title: String(r.Title || ''), text: oQTok_(st === 'changed' ? o.Text : r.Text), std: oQTok_(r.Text), st: st });
+  });
+  var nBase = secs.length, added = ov.filter(function (o) { return o.Action === 'Add'; });
+  added.forEach(function (o, i) {
+    var s = seen[String(o.Section)] ? String(o.Section) : special;
+    if (sOf[s] == null) { sOf[s] = secs.length; secs.push({ no: s, t: QT_SPECIAL_, cl: [], special: true }); }
+    secs[sOf[s]].cl.push({ id: 'A' + i, no: String(o.ClauseNo), title: String(o.Title || ''), text: oQTok_(o.Text), std: '', st: 'added' });
+  });
+  var fill = 0, changed = ov.length;
+  vars.forEach(function (v) { if (v.kind !== 'fixed' && v.value !== null) changed++; });
+  secs.forEach(function (s) { s.cl.forEach(function (c) { if (c.st !== 'removed') fill += oQFill_(c.text); }); });
+  return { view: { set: type, vars: vars, secs: secs }, fill: fill, changed: changed, keys: keys, nBase: nBase, base: base, by: by, added: added, special: special, std: std, ov: ov };
+}
+// PDF version = hash of the quote PDF spec (everything printed: lines, terms, customer, site, company, footer) + [ ] left in it
+function oQPdfVer_(db, no) {
+  var sp = PDF_SPECS.Quote(db, no), j = JSON.stringify({ b: sp.blocks, c: sp.docCtl || '', f: sp.file || '' });
+  var left = (JSON.stringify(sp.blocks).match(/\[[^\]"]*\]/g) || []).filter(function (x) { return !/^\[(to fill in Settings|verify with accountant)\]$/.test(x); }).length;
+  return { v: oQHash_(j), left: left };
+}
+function oQFid_(u) { var m = String(u || '').match(/\/d\/([\w-]{6,})/) || String(u || '').match(/[?&]id=([\w-]{6,})/); return m ? m[1] : String(u || ''); }
+// the stored PDF is current unless it was made here (OQP:<no> = {v, f}) and the quote changed since. A PDF made elsewhere
+// (sheet panel: QF5 remakes it on every save) is trusted.
+function oQPdfFresh_(env, q, ver, okNi) { // okNi: a PDF made without the images (export fallback) counts as current
+  if (blank(q.PDF)) return '';
+  var p = env.get('OQP:' + q.QuoteNo);
+  if (!p || p.f !== oQFid_(q.PDF)) return String(q.PDF);
+  if (p.v !== ver) return '';
+  return p.ni && !okNi && env.now() - (+p.at || 0) > 600000 * Math.pow(2, Math.min(+p.k || 0, 7)) ? '' : String(q.PDF); // CR4: tried again with images after 10 min, 20, 40 ... (max ~21 h)
+}
+// CR7: an edit here makes a PDF from elsewhere (panel, no OQP record) out of date: the next Open / Save & make PDF makes a new one
+var OQ_SENT_ = false; // CR15: set once Gmail has taken the message (QF3 send)
+if (typeof qf3Mail_ === 'function' && !qf3Mail_.officeMk_) {
+  var OQ_mail0_ = qf3Mail_;
+  qf3Mail_ = function () {
+    var m = OQ_mail0_.apply(this, arguments); if (!m || typeof m.send !== 'function') return m;
+    var w = Object.create(m); w.send = function () { var r = m.send.apply(m, arguments); OQ_SENT_ = true; return r; }; return w;
+  };
+  qf3Mail_.officeMk_ = OQ_mail0_;
+}
+function oQPdfStale_(env, db, no) {
+  var q = find(db.rows('Quotes'), 'QuoteNo', no); if (!q || blank(q.PDF)) return;
+  var p = env.get('OQP:' + no); if (!p || p.f !== oQFid_(q.PDF)) env.put('OQP:' + no, { v: 0, f: oQFid_(q.PDF) });
+}
+// CR10: a Sent quote whose edited lines were saved but whose Rev +1 / Draft was not written: completed on the next action
+// CR15: an email that went out while its recording failed (OQES nr) is recorded here: Sent + SentAt + Log.
+function oQRevFix_(env, db, no) {
+  var k = 'OQRV:' + no, p = env.get(k), rk = 'OQES:' + no, rc = env.get(rk), q = (p || rc) ? find(db.rows('Quotes'), 'QuoteNo', no) : null;
+  if (p) {
+    if (q && String(q.Status) === 'Sent' && num(q.Rev) < num(p.rev) && env.now() - (+p.at || 0) < 864e5) {
+      uiPutRow_(db, 'Quotes', q, { Rev: num(p.rev), Status: 'Draft' }); oQPdfStale_(env, db, no);
+      try { log_(db, 'Quote revised', no, 'Rev ' + num(p.rev) + ' (edited in the web app; completed)'); } catch (e) { /* log only */ }
+    }
+    env.del(k);
+  }
+  if (rc && rc.nr && !rc.done) {
+    if (q && (blank(q.Status) || String(q.Status) === 'Draft')) {
+      var pt = { Status: 'Sent' }; if (db.headers('Quotes').indexOf('SentAt') >= 0) pt.SentAt = new Date(+rc.at || env.now());
+      uiPutRow_(db, 'Quotes', q, pt);
+      try { log_(db, 'Quote emailed', no, 'recorded later (the send went out, its recording had failed)' + (rc.by ? ' · ' + rc.by : '')); } catch (e) { /* log only */ }
+    }
+    rc.done = 1; env.put(rk, rc);
+  }
+  if (rc && env.now() - (+rc.at || 0) > 600000 && (!rc.nr || rc.done)) env.del(rk); // receipts are kept 10 min only
+}
+function oQView_(db, env, q, L) {
+  var a = oAcc_(L), M = oCanSeeMoney_(a), no = q.QuoteNo, cu = find(db.rows('Customers'), 'CustID', q.CustID) || {}, site = blank(q.SiteID) ? null : find(db.rows('Sites'), 'SiteID', q.SiteID);
+  var T = oQTerms_(db, q), tv = oQTv_(db, q), job = oQJob_(db, no), items = {}, t = M ? quoteTotals(db, no) : null, pv = oQPdfVer_(db, no);
+  db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  var stf = blank(q.PreparedBy) ? null : find(db.rows('Staff'), 'StaffID', q.PreparedBy), d0 = oQDn_(q.QuoteDate);
+  var vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : num(S(db, 'QuoteValidityDays', 30));
+  var lines = oQLines_(db, no).map(function (l, i) {
+    var it = items[String(l.ItemCode)] || {}, dim = typeof qfDimTxt_ === 'function' ? qfDimTxt_(l) : '';
+    var o = { n: num(l.LineNo) || i + 1, desc: String(l.Description || it.Name || ''), size: dim || String(it.Size == null ? '' : it.Size), unit: String(l.Unit || ''), qty: num(l.Qty),
+      months: blank(l.Months) ? '' : num(l.Months), billing: String(l.Billing || ''), optional: l.Optional === 'Yes', selected: l.Selected === 'Yes' };
+    if (M) { o.rate = num(l.Rate); o.amount = lineAmt(l); }
+    return o;
+  });
+  return {
+    no: no, rev: num(q.Rev), date: oQDay_(d0), type: oQType_(q), status: String(q.Status || 'Draft'),
+    cust: String(cu.Name || q.CustID || ''), contact: String(q.Attention || cu.ContactPerson || ''), phone: String(cu.Phone || ''), email: String(cu.Email || ''),
+    project: site && !blank(site.Project) ? String(site.Project) : String(q.Subject || ''), site: site ? String(site.Address || '') : '', subject: String(q.Subject || ''),
+    job: job ? String(job.JobNo) : '', preparedBy: stf ? String(stf.Name || '') : String(q.PreparedBy || ''), valid: d0 == null ? '' : oQDay_(d0 + vd),
+    pdf: oQPdfFresh_(env, q, pv.v, true) || (oQLocked_(db, q) ? String(q.PDF || '') : ''), myEmail: String(L.email), tv: tv, money: M, can: oQCan_(a), locked: oQLocked_(db, q), lines: lines,
+    tot: t ? { sub: t.subtotal, vatPct: r2(num(t.vatPct) * 100), vat: t.vat, atPct: r2(num(t.atPct) * 100), at: t.at || 0, aitPct: r2(num(t.aitPct) * 100), ait: t.ait || 0,
+      total: t.total, advPct: r2(num(t.advancePct) * 100), advance: t.advance, words: typeof qf4Words_ === 'function' ? qf4Words_(t.total) : takaWords(t.total) } : null,
+    terms: T.view, fill: T.fill, changed: T.changed
+  };
+}
+function oQCan_(a) { return oIsDir_(a) || (a.SC || 0) >= 2; }
+function officeQuoteList(token) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var cus = {}, sites = {}, jobs = {};
+  db.rows('Customers').forEach(function (c) { cus[String(c.CustID)] = c; });
+  db.rows('Sites').forEach(function (s) { sites[String(s.SiteID)] = s; });
+  db.rows('Jobs').forEach(function (j) { if (!blank(j.QuoteNo) && !jobs[String(j.QuoteNo)]) jobs[String(j.QuoteNo)] = String(j.JobNo); });
+  var C = { base: {}, ov: {} };
+  if (db.hasTab('QuoteTerms')) db.rows('QuoteTerms').forEach(function (o) { var k = String(o.QuoteNo); (C.ov[k] = C.ov[k] || []).push(o); });
+  var rows = db.rows('Quotes').filter(function (q) { return oQNo_(String(q.QuoteNo)); }).map(function (q) {
+    var no = String(q.QuoteNo), s = blank(q.SiteID) ? null : sites[String(q.SiteID)], d0 = oQDn_(q.QuoteDate), T = null;
+    try { T = oQTerms_(db, q, C); } catch (e) { T = { fill: 0, changed: 0 }; }
+    var vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : num(S(db, 'QuoteValidityDays', 30)), o = {
+      no: no, rev: num(q.Rev), date: oQDay_(d0), type: oQType_(q), status: String(q.Status || 'Draft'),
+      cust: String((cus[String(q.CustID)] || {}).Name || q.CustID || ''), project: s && !blank(s.Project) ? String(s.Project) : String(q.Subject || ''),
+      valid: d0 == null ? '' : oQDay_(d0 + vd), job: jobs[no] || '', pdf: !blank(q.PDF), fill: T.fill, changed: T.changed };
+    if (M) { try { o.total = typeof q.Total === 'number' && isFinite(q.Total) ? q.Total : quoteTotals(db, no).total; } catch (e) { o.total = null; } } // Total = sheet formula
+    return o;
+  });
+  return { can: oQCan_(a), money: M, rows: rows };
+}
+function officeQuoteGet(token, no) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  return oQView_(db, env, oQRow_(db, no), L);
+}
+// write: gate before (strangers / viewers never wait) and again inside the lock; the sheet is read fresh inside the lock
+function oQW_(token, fn) {
+  var env = oEnv_(), pre = officeGate_(token, OQ_NEED_);
+  if (!oQCan_(oAcc_(pre))) oFail_('NOACCESS');
+  return env.lock(function () {
+    var L = officeGate_(token, OQ_NEED_);
+    if (!oQCan_(oAcc_(L))) oFail_('NOACCESS');
+    var db = env.db(); if (!db) oFail_('BUSY');
+    var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+    try { return fn(env, db, L); } finally { OQ_ACT_ = prev; }
+  });
+}
+// op = {k:'var', key, value|null} | {k:'clause', id, text | reset | remove | back} | {k:'add', sec (index, -1 = special), text} | {k:'resetAll'}
+function officeQuoteTerm(token, no, tv, op) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    var q = oQRow_(db, no); oQRevFix_(env, db, q.QuoteNo); q = oQRow_(db, no);
+    if (oQLocked_(db, q)) oFail_('QLOCKED');
+    if (typeof tv !== 'number' || tv !== oQTv_(db, q)) oFail_('STALE');
+    var pb = oUncell_(q.PreparedBy).trim(); // D2: the preparer signs the PDF -> only they (or a Director) change the terms
+    if (pb && !oIsDir_(oAcc_(L)) && pb !== String(L.staff || '')) oFail_('QPREP');
+    if (!op || typeof op !== 'object' || Array.isArray(op)) oFail_('BADINPUT|change');
+    var T = oQTerms_(db, q), type = oQType_(q), fields = qtFieldsFor_(type), set = {}, cls = [], add = [];
+    fields.forEach(function (f) { set[f[0]] = qtCustom_(f, q, T.std); });
+    // qtSave_ writes every row of the quote again: texts read back from the sheet get their text mark again (no formula ever)
+    T.base.forEach(function (r) { var o = T.by[String(r.ClauseID)]; if (o) cls.push(o.Action === 'Remove' ? { id: String(r.ClauseID), mode: 'remove' } : { id: String(r.ClauseID), mode: 'edit', text: oQCell_(o.Text) }); });
+    T.ov.filter(function (o) { return o.Action === 'Add'; }).forEach(function (o) { add.push({ section: String(o.Section), title: oQCell_(o.Title), text: oQCell_(o.Text) }); });
+    var stdOf = function (id) { var r = T.base.filter(function (x) { return String(x.ClauseID) === id; })[0]; return r ? String(r.Text).trim() : null; };
+    var txt = function (s) { var c = oQClauseText_(s); if (!c) oFail_('BADINPUT|wording'); var u = oQUntok_(c, T.keys); if (u === null) oFail_('BADINPUT|wording'); return u; };
+    var cid = function () { var id = typeof op.id === 'string' ? op.id : ''; if (/^A\d{1,3}$/.test(id) && +id.slice(1) < add.length) return { added: +id.slice(1) };
+      if (id && T.base.some(function (r) { return String(r.ClauseID) === id; })) return { base: id }; oFail_('NOTFOUND'); };
+    var mine = function (id) { for (var i = 0; i < cls.length; i++) if (cls[i].id === id) return i; return -1; };
+    if (op.k === 'var') {
+      var f = fields.filter(function (x) { return OQ_TOK_[x[0]] === op.key; })[0]; if (!f) oFail_('BADINPUT|field');
+      if (op.value === null) set[f[0]] = '';
+      else if (f[3] === 'rule') { if (QT_RULES_.indexOf(op.value) < 0) oFail_('BADINPUT|' + f[1]); set[f[0]] = op.value; }
+      else { var lim = OQ_LIM_[f[0]], n = op.value; if (typeof n !== 'number' || !isFinite(n) || n < lim[0] || n > lim[1] || (f[3] === 'int' && n !== Math.floor(n)) || Math.abs(Math.round(n * 100) - n * 100) > 1e-6) oFail_('BADINPUT|' + f[1]); set[f[0]] = String(n); }
+    } else if (op.k === 'clause') {
+      var w = cid(), i = w.base ? mine(w.base) : -1, cur = w.base ? (i < 0 ? 'std' : cls[i].mode) : 'added';
+      if (op.reset === true) { if (w.added != null) oFail_('BADINPUT|clause'); if (i >= 0) cls.splice(i, 1); }
+      else if (op.remove === true) { if (w.added != null) add.splice(w.added, 1); else if (i >= 0) cls[i] = { id: w.base, mode: 'remove' }; else cls.push({ id: w.base, mode: 'remove' }); }
+      else if (op.back === true) { if (cur !== 'remove') oFail_('BADINPUT|clause'); cls.splice(i, 1); }
+      else { if (cur === 'remove') oFail_('BADINPUT|clause'); var t2 = txt(op.text);
+        if (w.added != null) add[w.added].text = oQCell_(t2);
+        else if (t2 === stdOf(w.base)) { if (i >= 0) cls.splice(i, 1); } // same as the standard = standard
+        else if (i >= 0) cls[i].text = oQCell_(t2); else cls.push({ id: w.base, mode: 'edit', text: oQCell_(t2) }); }
+    } else if (op.k === 'add') {
+      if (add.length >= 40) oFail_('BADINPUT|clause');
+      var si = op.sec, sec = si === -1 ? T.special : (typeof si === 'number' && si >= 0 && si === Math.floor(si) && si < T.view.secs.length ? T.view.secs[si].no : null);
+      if (sec === null) oFail_('BADINPUT|section');
+      add.push({ section: sec, title: '', text: oQCell_(txt(op.text)) });
+    } else if (op.k === 'resetAll') { Object.keys(set).forEach(function (k) { set[k] = ''; }); cls = []; add = []; }
+    else oFail_('BADINPUT|change');
+    // qtSave_ deletes this quote's QuoteTerms rows and writes them again: if the sheet fails in between, the old rows go back
+    var keep = T.ov.map(function (o) { var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
+    var hd = db.headers('Quotes'), h0 = {}; // CR16: qtSave_ writes the quote row first; on a failure it goes back too
+    qtFieldsFor_(oQType_(q)).forEach(function (f) { if (hd.indexOf(f[0]) >= 0) h0[f[0]] = q[f[0]] == null ? '' : q[f[0]]; });
+    try { qtSave_(db, { quoteNo: q.QuoteNo, settings: set, clauses: cls, added: add }); }
+    catch (e) {
+      try { var d2 = env.db() || db; uiPutRow_(d2, 'Quotes', oQRow_(d2, q.QuoteNo), h0); } catch (e1) { /* the error below says try again */ }
+      try { var d3 = env.db() || db; if (keep.length && !qtRows_(d3, q.QuoteNo).length) d3.insert('QuoteTerms', keep); } catch (e2) { /* the error below says try again */ }
+      oFail_('BUSY');
+    }
+    oQPdfStale_(env, env.db() || db, q.QuoteNo);
+    var fresh = env.db() || db; // the sheet as it is now (a row cache can still hold the text marks)
+    return oQView_(fresh, env, oQRow_(fresh, no), L);
+  });
+}
+// PDF: the stored one while it is current; a locked quote (job, Accepted / Lost ...) never gets a new one; only SC Staff+ make one.
+// Made outside the script lock (a PDF takes ~10 s); one make per quote at a time (BUSY, flag set under the lock).
+function oQPdfMake_(env, db, q) {
+  var key = 'OQPB:' + q.QuoteNo, tok = env.rand().slice(0, 24); // CR12: a lease in Script Properties with an owner token
+  env.lock(function () { var l = env.get(key); if (l && +l.u > env.now()) oFail_('BUSY'); env.put(key, { t: tok, u: env.now() + 360000 }); oQRevFix_(env, db, q.QuoteNo); });
+  try {
+    var v = oQPdfVer_(db, q.QuoteNo).v; OSG_FELL_ = false; // CR8: the fingerprint of the spec this PDF is made from
+    var r = qf5Pdf_(db, q.QuoteNo), f = oQFid_(r.url);
+    var p0 = env.get('OQP:' + q.QuoteNo), k = p0 && p0.ni ? (+p0.k || 0) + 1 : 0;
+    env.put('OQP:' + q.QuoteNo, OSG_FELL_ ? { v: v, f: f, ni: 1, at: env.now(), k: k } : { v: v, f: f }); // CR4: made without the images
+    return String(r.url);
+  } finally {
+    OSG_FELL_ = false;
+    var rel = function () { var l = env.get(key); if (l && l.t === tok) env.del(key); };
+    try { env.lock(rel); } catch (e) { try { rel(); } catch (e2) { /* the lease runs out by itself */ } }
+  }
+}
+function oQPdfUse_(env, db, q, L) { // -> {url, made}
+  var stored = String(q.PDF || ''), fresh = oQPdfFresh_(env, q, oQPdfVer_(db, q.QuoteNo).v);
+  if (fresh) return { url: fresh, made: false };
+  if (stored && (oQLocked_(db, q) || !oQCan_(oAcc_(L)))) return { url: stored, made: false };
+  if (!oQCan_(oAcc_(L))) oFail_('NOPDF');
+  var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+  try { return { url: oQPdfMake_(env, db, q), made: true }; } finally { OQ_ACT_ = prev; }
+}
+function officeQuotePdf(token, no) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  return oQPdfUse_(env, db, oQRow_(db, no), L);
+}
+// o = {to, cc, note}. Checks first (nothing sent on a refusal), a fresh PDF, then QF3 sends + Draft -> Sent + Log.
+function officeQuoteEmail(token, no, tv, o) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), L0 = L;
+  if (!oQCan_(oAcc_(L0))) oFail_('NOACCESS');
+  o = o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+  var list = function (s, what) { if (s != null && typeof s !== 'string') oFail_('BADINPUT|' + what); var a = qf3List_(String(s || '').slice(0, 2000)).map(function (x) { return x.toLowerCase(); });
+    if (a.length > 10 || !a.every(function (x) { return x.length <= 120 && QF3_RE_.test(x); })) oFail_('BADINPUT|' + what); return a; };
+  var to = list(o.to, 'to'), cc = list(o.cc, 'cc'), note = o.note == null ? '' : o.note;
+  if (!to.length) oFail_('BADINPUT|to');
+  if (typeof note !== 'string' || note.length > 2000) oFail_('BADINPUT|message');
+  note = note.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim();
+  var check = function (db, env3) {
+    var q = oQRow_(db, no);
+    if (env3) { // CR15: durable receipt when the recording of a send failed (10 min); then pending fixes
+      var rc = env3.get('OQES:' + q.QuoteNo);
+      var held = env3.cget('OQE:' + q.QuoteNo) || (rc && env3.now() - (+rc.at || 0) < 600000);
+      oQRevFix_(env3, db, q.QuoteNo); q = oQRow_(db, no);
+      if (held) oFail_('SENTNOW'); // a second click / another person a moment ago (an unrecorded send is recorded first)
+    }
+    if (OQ_CLOSED_.indexOf(String(q.Status)) >= 0) oFail_('QSTATE|' + String(q.Status));
+    if (typeof tv !== 'number' || tv !== oQTv_(db, q)) oFail_('STALE');
+    var n = oQPdfVer_(db, q.QuoteNo).left; if (n && q.Status !== 'Accepted') oFail_('TOFILL|' + n); // as the PDF counts them
+    return q;
+  };
+  var db0 = env.db(); if (!db0) oFail_('BUSY');
+  oQPdfUse_(env, db0, check(db0, null), L0);
+  return oQW_(token, function (env2, db, L) {
+    var q = check(db, env2), d = qf3Draft_(db, q.QuoteNo), sid = 'CO', ss = qf3Signers_(db).map(function (s) { return s.id; });
+    var day = Math.floor((env2.now() + 216e5) / 864e5), mk = 'OQM:' + L.email, sent = env2.get(mk); // CR18: Dhaka day, Script Properties
+    if (!sent || sent.d !== day) sent = { d: day, n: 0 };
+    if (!oQPdfFresh_(env2, q, oQPdfVer_(db, q.QuoteNo).v, true) && !(oQLocked_(db, q) && !blank(q.PDF))) oFail_('STALE'); // changed while the PDF was made
+    if (sent.n >= 30) oFail_('LIMIT'); // per login per day (Gmail quota)
+    if (!blank(q.PreparedBy) && ss.indexOf(String(q.PreparedBy)) >= 0) sid = String(q.PreparedBy); else if (L.staff && ss.indexOf(String(L.staff)) >= 0) sid = String(L.staff);
+    var body = d.body, cut = body.indexOf('\n\n');
+    if (qtHas_(q, 'ValidityDays')) body = body.replace(/valid for \d+ days/, 'valid for ' + num(q.ValidityDays) + ' days'); // QF3 says the company default
+    if (note) body = cut > 0 ? body.slice(0, cut) + '\n\n' + note + body.slice(cut) : note + '\n\n' + body;
+    var was = String(q.Status || 'Draft');
+    OQ_SENT_ = false;
+    try { UI_ACTIONS_.emailQuote(db, { quoteNo: q.QuoteNo, to: to.join(', '), cc: cc.join(', '), subject: d.subject, body: body, signAs: sid }); }
+    catch (e) {
+      if (!OQ_SENT_) throw e; // Gmail did not take it: nothing went out
+      env2.put('OQES:' + q.QuoteNo, { at: env2.now(), nr: 1, by: L.email }); env2.cput('OQE:' + q.QuoteNo, 1, 60); env2.put(mk, { d: day, n: sent.n + 1 });
+      try { Logger.log('Quote ' + q.QuoteNo + ' emailed, recording failed: ' + (e && e.message)); } catch (x) { /* no log */ }
+      oFail_('SENTNOREC');
+    } finally { OQ_SENT_ = false; }
+    env2.cput('OQE:' + q.QuoteNo, 1, 60); env2.put(mk, { d: day, n: sent.n + 1 });
+    var d3 = env2.db() || db, q2 = oQRow_(d3, no);
+    return { to: to, status: String(q2.Status), was: was };
+  });
+}
+
+// ----------------------------------------------------------------- W4 new / edit quote (SC Staff+ or Director)
+// officeQuoteForm(token, no)   everything the screen needs in one read: customers, projects, items (rates only with money
+//                              clearance), sets (KitParts), staff, company rates, today and, for an edit, the quote + ev
+//                              (= hash of the quote row + lines the form shows; officeQuoteSave says STALE when it changed).
+// officeCustomerAdd(token, c)  registered at once. Same name (case, spaces, punctuation, Ltd / Co / PLC ... ignored), same
+//                              phone (last 10 digits) or same email as a customer already there -> DUP|<CustID>|name|phone|email.
+// officeSiteAdd(token, s)      same customer + project name + address as one already there -> DUP|<SiteID>|project.
+// officeQuoteSave(token, d)    everything checked first, then the panel's own save (UI_ACTIONS_.saveQuoteFull: QF1b measures,
+//                              QF4 rates, type guard) inside the script lock. The 7 columns: # Description Size Qty Unit Rate
+//                              Amount; Amount = Qty x Rate. No new column: a "<unit> / month" line is stored as Unit (in Lists >
+//                              Unit) + Billing Monthly + Months 1 (= one month's hire, as Months > 0 is the monthly flag
+//                              everywhere and hire billing counts the months from the job dates); every other line One-off,
+//                              Months blank. Lump sum = Qty 1, lot. Lines of the old format (Months other than 1, Milestone,
+//                              stages) -> QOLD (edit those in the sheet panel). A Sent quote edited here becomes Rev n+1 and
+//                              Draft (as Revise in the panel); its next PDF replaces the old one (QF5). Kept from the quote
+//                              row on an edit: VAT / AT / AIT, YourRef, Notes, hire months. PDF (if asked) after the lock.
+// Quote PDF: the price grid prints the same 7 columns; Size = the QF1b measure, else Items.Size.
+// officeScopeItemsAdd (editor only, run once after install): the 5 Project scope Items rows (user OK 18 Nov).
+var OQE_TYPES_ = ['Rental', 'Sale', 'Project'];
+var OQE_MAXL_ = 200; // lines on one quote
+var OQE_SCOPES_ = [['SV-EXT', 'External scaffold'], ['SV-INT', 'Internal scaffold'], ['SV-MOB', 'Mobile scaffold'], ['SV-ALU', 'Aluminium mobile scaffold'], ['SV-TWR', 'Tower scaffold']];
+var OQE_SCOPE_CAT_ = 'Project scope';
+var OQE_RATE_ = { n: 60, sec: 600 }; // writes per login per 10 min (customers, projects, quotes)
+function oQeYes_(v) { return String(v) === 'Yes'; }
+function oQeActive_(it) { var s = String(it.Status == null ? '' : it.Status).trim(); return s === '' || s === 'Active'; }
+function oQeUnit_(u) { var s = String(u == null ? '' : u).trim(), m = s.match(/^(.*?)\s*\/\s*month$/i); return m ? { u: m[1].trim(), mo: true } : { u: s, mo: false }; }
+function oQeKey_(v) {
+  var s = oUncell_(v).normalize('NFC').toLowerCase().replace(/&/g, ' and ').replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ').trim();
+  var k = (' ' + s + ' ').replace(/ (the|ltd|limited|co|company|plc|pvt|private|inc|llc|corp|corporation)(?= )/g, ' ').replace(/\s+/g, '');
+  return k || s.replace(/\s+/g, '');
+}
+function oQePhones_(v) { return oUncell_(v).split(/[,;\/]/).map(function (p) { var d = p.replace(/\D/g, ''); return d.length >= 7 ? d.slice(-10) : ''; }).filter(function (x) { return x; }); }
+function oQeMails_(v) { return oUncell_(v).toLowerCase().split(/[,;\s]+/).filter(function (x) { return /^[^@]+@[^@]+$/.test(x); }); }
+function oQeTxt_(v, max, what, need) { // one line of text: '' allowed unless need; any other shape / no letter or digit / too long -> BADINPUT
+  if (v == null || (typeof v === 'string' && !v.trim())) { if (need) oFail_('BADINPUT|' + what); return ''; }
+  if (typeof v !== 'string') oFail_('BADINPUT|' + what);
+  var s = oText_(v, max); if (!s) oFail_('BADINPUT|' + what); return s;
+}
+function oQeDesc_(v, what) { // description: up to 500 chars, newlines kept (max 12 lines), each line cleaned like oText_
+  if (typeof v !== 'string' || v.length > 2000) oFail_('BADINPUT|' + what);
+  var parts = v.replace(/\r\n?/g, '\n').split('\n').map(function (x) { return x.trim() ? oText_(x, 500) : ''; });
+  if (v.replace(/\r\n?/g, '\n').split('\n').some(function (x, i) { return x.trim() && !parts[i]; })) oFail_('BADINPUT|' + what);
+  var s = parts.join('\n').replace(/\n{2,}/g, '\n').trim();
+  if (!s || s.length > 500 || s.split('\n').length > 12) oFail_('BADINPUT|' + what);
+  return s;
+}
+function oQeNum_(v, lo, hi, dp, what) { if (typeof v !== 'number' || !isFinite(v) || v < lo || v > hi || Math.abs(Math.round(v * Math.pow(10, dp)) - v * Math.pow(10, dp)) > 1e-6) oFail_('BADINPUT|' + what); return v; }
+function oQeRate_(env, L) { // a flood of writes from one login is refused (SLOW); counted under the script lock
+  var k = 'OQEW:' + L.email, c = env.cget(k), now = env.now();
+  if (!c || now - c.t > OQE_RATE_.sec * 1000) c = { t: now, n: 0 };
+  if (c.n >= OQE_RATE_.n) oFail_('SLOW');
+  c.n++; env.cput(k, c, OQE_RATE_.sec);
+}
+function oQeCustOut_(c) { return { id: String(c.CustID), name: oUncell_(c.Name), contact: oUncell_(c.ContactPerson), phone: oUncell_(c.Phone), email: oUncell_(c.Email), address: oUncell_(c.Address) }; }
+function oQeSiteOut_(s) { return { id: String(s.SiteID), cust: String(s.CustID), project: oUncell_(s.Project), address: oUncell_(s.Address) }; }
+function oQeDupCust_(db, f) { // -> [row, 'name' | 'phone' | 'email'] or null
+  var k = oQeKey_(f.name), ph = oQePhones_(f.phone), em = oQeMails_(f.email), hit = null;
+  db.rows('Customers').some(function (r) {
+    if (blank(r.CustID)) return false;
+    var w = k && oQeKey_(r.Name) === k ? 'name' : ph.length && oQePhones_(r.Phone).some(function (p) { return ph.indexOf(p) >= 0; }) ? 'phone'
+      : em.length && oQeMails_(r.Email).some(function (e) { return em.indexOf(e) >= 0; }) ? 'email' : '';
+    if (w) hit = [r, w];
+    return !!w;
+  });
+  return hit;
+}
+function oQeDupSite_(db, cust, project, address) {
+  var p = oQeKey_(project), a = oQeKey_(address);
+  return db.rows('Sites').filter(function (s) { return !blank(s.SiteID) && String(s.CustID) === cust && oQeKey_(s.Project) === p && oQeKey_(s.Address) === a; })[0] || null;
+}
+function oQeOldLine_(l) { var m = blank(l.Months) ? 0 : num(l.Months); return String(l.Billing) === 'Milestone' || (m !== 0 && m !== 1); }
+function oQeOld_(db, no) { // lines the 7 columns can't show without changing the total -> edit in the sheet panel
+  var n = oQLines_(db, no).filter(oQeOldLine_).length;
+  if (!n && typeof milestoneRows === 'function' && milestoneRows(db, no).length) n = 1;
+  if (n) oFail_('QOLD|' + n);
+}
+function oQeEv_(db, q) {
+  var L = oQLines_(db, q.QuoteNo).map(function (l) { return [l.ItemCode, l.Description, l.Unit, l.Qty, l.Months, l.Billing, l.Rate, l.Optional, l.Selected, l.DimL, l.DimW, l.DimH, l.DimN, l.RateBasis].map(function (x) { return x instanceof Date ? x.getTime() : String(x == null ? '' : x); }); });
+  var h = ['Rev', 'Status', 'QuoteType', 'CustID', 'SiteID', 'QuoteDate', 'AdvancePct', 'VATPct', 'Attention', 'Subject', 'PreparedBy', 'ValidityDays', 'YourRef', 'Notes'].map(function (k) { var x = q[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); });
+  return oQHash_(JSON.stringify([h, L]));
+}
+function oQeSizeOf_(l, items) { var d = typeof qfDimTxt_ === 'function' ? qfDimTxt_(l) : '', it = items[String(l.ItemCode)]; return d || (it && !blank(it.Size) ? String(it.Size) : ''); }
+function oQeSet_(db, q) { // company rates (a new quote) or the quote's own (an edit), in %
+  var p = function (k, d) { return r2(num(q && !blank(q[k]) ? q[k] : S(db, k, d)) * 100); };
+  return { vat: p('VATPct', 0.15), at: p('ATPct', 0), ait: p('AITPct', 0), adv: r2(num(S(db, 'AdvancePct', 0.5)) * 100), validDays: num(S(db, 'QuoteValidityDays', 30)) };
+}
+function officeQuoteForm(token, no) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L);
+  if (!oQCan_(a)) oFail_('NOACCESS');
+  var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
+  var M = oCanSeeMoney_(a), q = null, items = {};
+  if (no != null && no !== '') { q = oQRow_(db, no); if (oQLocked_(db, q)) oFail_('QLOCKED'); oQeOld_(db, q.QuoteNo); }
+  db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  var list = db.rows('Items').filter(function (i) { return !blank(i.ItemCode) && oQeActive_(i); }).map(function (i) {
+    var o = { code: String(i.ItemCode), name: oUncell_(i.Name || i.ItemCode), cat: String(i.Category == null ? '' : i.Category).trim() || 'Other', size: blank(i.Size) ? '' : String(i.Size),
+      unit: String(i.Unit || 'pc'), forSale: oQeYes_(i.ForSale), forHire: oQeYes_(i.ForHire), isSet: oQeYes_(i.IsSet) };
+    if (M) { o.sale = num(i.SalePrice) > 0 ? num(i.SalePrice) : null; o.hire = num(i.HireRateMonth) > 0 ? num(i.HireRateMonth) : null; }
+    return o;
+  });
+  var kits = {};
+  list.forEach(function (i) { if (i.isSet && typeof kitParts_ === 'function') { try { kits[i.code] = kitParts_(db, i.code).map(function (p) { return [p.item, p.qty]; }); } catch (e) { /* a set without parts: no kit */ } } });
+  var units = uiList_(db, 'Unit').map(String);
+  var out = { money: M, today: oDayOf_(env.now()), myStaff: String(L.staff || ''), set: oQeSet_(db, q), units: units, items: list, kits: kits,
+    customers: db.rows('Customers').filter(function (c) { return !blank(c.CustID); }).map(oQeCustOut_),
+    sites: db.rows('Sites').filter(function (s) { return !blank(s.SiteID); }).map(oQeSiteOut_),
+    staff: db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name); }).map(function (s) { return { id: String(s.StaffID), name: oUncell_(s.Name) }; }), quote: null };
+  if (q) {
+    var d0 = oQDn_(q.QuoteDate), vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : out.set.validDays;
+    out.quote = { no: String(q.QuoteNo), rev: num(q.Rev), status: String(q.Status || 'Draft'), type: oQType_(q) === 'Service' ? 'Project' : oQType_(q), cust: String(q.CustID || ''), site: String(q.SiteID || ''),
+      attention: oUncell_(q.Attention), subject: oUncell_(q.Subject), date: oQDay_(d0), valid: d0 == null ? '' : oQDay_(d0 + vd), prep: String(q.PreparedBy || ''), adv: r2(num(q.AdvancePct) * 100), ev: oQeEv_(db, q), svc: oQType_(q) === 'Service',
+      lines: oQLines_(db, q.QuoteNo).map(function (l) {
+        var mo = num(l.Months) > 0, lump = String(l.RateBasis) === 'Lump sum', dim = !blank(l.DimL) || !blank(l.DimH);
+        var o = { code: String(l.ItemCode || ''), desc: oUncell_(l.Description), size: oQeSizeOf_(l, items), qty: num(l.Qty), unit: String(l.Unit || '') + (mo ? ' / month' : ''),
+          opt: l.Optional === 'Yes', chosen: l.Optional === 'Yes' && l.Selected === 'Yes', basis: lump ? 'lump' : 'unit', dim: dim && !lump ? { L: blank(l.DimL) ? '' : num(l.DimL), W: blank(l.DimW) ? '' : num(l.DimW), H: blank(l.DimH) ? '' : num(l.DimH), N: blank(l.DimN) ? '' : num(l.DimN) } : null };
+        if (M) o.rate = num(l.Rate);
+        return o;
+      }) };
+  }
+  return out;
+}
+function officeCustomerAdd(token, c) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    c = c && typeof c === 'object' && !Array.isArray(c) ? c : {};
+    var f = { name: oQeTxt_(c.name, 120, 'name', true), contact: oQeTxt_(c.contact, 80, 'contact'), phone: oQeTxt_(c.phone, 40, 'phone'), email: oQeTxt_(c.email, 160, 'email'), address: oQeTxt_(c.address, 200, 'address') };
+    oQeRate_(env, L); // every try counts (a flood of refused tries too)
+    if (f.phone && (!/\d/.test(f.phone) || /[^\d\s+\-\/,().]/.test(f.phone) || !/^[\d+(]/.test(f.phone))) oFail_('BADINPUT|phone'); // +880... is kept as text by cellVal_
+    if (f.email) { if (/(^|[,;]\s*)[=+\-@]/.test(f.email)) oFail_('BADINPUT|email'); try { f.email = qfEmail_(f.email); } catch (e) { oFail_('BADINPUT|email'); } if (f.email.length > 160) oFail_('BADINPUT|email'); }
+    var dup = oQeDupCust_(db, f); if (dup) oFail_('DUP|' + dup[0].CustID + '|' + dup[1]);
+    var cp; try { cp = qfCustPlan_(db, { mode: 'new', fields: { name: oCell_(f.name), contact: oCell_(f.contact), phone: f.phone, email: f.email, address: oCell_(f.address) } }); }
+    catch (e) { oFail_('BADINPUT|details'); }
+    qfReadyUp_(db);
+    var w = qfCustWrite_(db, cp);
+    return oQeCustOut_(must(env.db() || db, 'Customers', 'CustID', w.id));
+  });
+}
+function officeSiteAdd(token, s) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    s = s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+    var cust = typeof s.cust === 'string' && s.cust ? find(db.rows('Customers'), 'CustID', s.cust) : null;
+    if (!cust) oFail_('BADINPUT|customer');
+    oQeRate_(env, L);
+    var f = { project: oQeTxt_(s.project, 120, 'project', true), address: oQeTxt_(s.address, 200, 'address') };
+    var dup = oQeDupSite_(db, String(cust.CustID), f.project, f.address); if (dup) oFail_('DUP|' + dup.SiteID + '|project');
+    var sp; try { sp = qfSitePlan_(db, { mode: 'new', fields: { project: oCell_(f.project), address: oCell_(f.address) } }, { row: cust, patch: {} }); }
+    catch (e) { oFail_('BADINPUT|details'); }
+    qfReadyUp_(db);
+    var w = qfSiteWrite_(db, sp, String(cust.CustID));
+    return oQeSiteOut_(must(env.db() || db, 'Sites', 'SiteID', w.id));
+  });
+}
+// d = {no, ev, type, cust, site, attention, subject, date, valid, prep, adv, pdf, lines: [{code, desc, qty, unit, rate, opt, basis, dim}]}
+function oQeArgs_(db, d, q, env) {
+  if (OQE_TYPES_.indexOf(d.type) < 0) oFail_('BADINPUT|type');
+  var cu = typeof d.cust === 'string' && d.cust ? find(db.rows('Customers'), 'CustID', d.cust) : null; if (!cu) oFail_('BADINPUT|customer');
+  var si = typeof d.site === 'string' && d.site ? find(db.rows('Sites'), 'SiteID', d.site) : null; if (!si || String(si.CustID) !== String(cu.CustID)) oFail_('BADINPUT|project');
+  var now = oQDn_(new Date(env.now())), dd = oDayOk_(d.date) ? oQDn_(oDayCell_(d.date)) : null, dv = oDayOk_(d.valid) ? oQDn_(oDayCell_(d.valid)) : null;
+  if (dd == null || dd < oQDn_(new Date(2020, 0, 1)) || (now != null && dd > now + 366)) oFail_('BADINPUT|date');
+  if (dv == null || dv - dd < 1 || dv - dd > 365) oFail_('BADINPUT|valid until');
+  var prep = d.prep == null || d.prep === '' ? '' : (typeof d.prep === 'string' && find(db.rows('Staff'), 'StaffID', d.prep) ? d.prep : oFail_('BADINPUT|prepared by'));
+  var adv = oQeNum_(d.adv, 0, 100, 2, 'advance');
+  var att = oQeTxt_(d.attention, 120, 'attention'), sub = oQeTxt_(d.subject, 200, 'subject');
+  if (!Array.isArray(d.lines) || !d.lines.length || d.lines.length > OQE_MAXL_) oFail_('BADINPUT|lines');
+  var type = d.type === 'Project' && q && oQType_(q) === 'Service' ? 'Service' : d.type; // an old Service quote keeps its type + terms (one-off lines only)
+  var units = uiList_(db, 'Unit').map(String), items = {}, mine = {};
+  db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  if (q) oQLines_(db, q.QuoteNo).forEach(function (l) { mine[String(l.ItemCode)] = 1; });
+  var lines = d.lines.map(function (l, i) {
+    var n = 'line ' + (i + 1) + ' ';
+    if (!l || typeof l !== 'object' || Array.isArray(l)) oFail_('BADINPUT|' + n.trim());
+    var code = l.code == null || l.code === '' ? '' : (typeof l.code === 'string' && Object.prototype.hasOwnProperty.call(items, l.code) && (oQeActive_(items[l.code]) || mine[l.code] === 1) ? l.code : oFail_('BADINPUT|' + n + 'item'));
+    var desc = oQeDesc_(l.desc, n + 'description'), lump = l.basis === 'lump';
+    if (l.basis != null && l.basis !== 'lump' && l.basis !== 'unit') oFail_('BADINPUT|' + n + 'rate basis');
+    var u = typeof l.unit === 'string' && l.unit.length <= 40 ? oQeUnit_(l.unit) : oFail_('BADINPUT|' + n + 'unit');
+    if (lump) u.u = 'lot';
+    if (units.indexOf(u.u) < 0 || (u.mo && (type === 'Sale' || type === 'Service'))) oFail_('BADINPUT|' + n + 'unit');
+    var qty = lump ? 1 : oQeNum_(l.qty, 0.001, 1e7, 3, n + 'qty'); if (!(qty > 0)) oFail_('BADINPUT|' + n + 'qty');
+    var rate = oQeNum_(l.rate, 0, 1e9, 2, n + 'rate');
+    if (l.opt != null && typeof l.opt !== 'boolean') oFail_('BADINPUT|' + n + 'optional');
+    if (l.chosen != null && typeof l.chosen !== 'boolean') oFail_('BADINPUT|' + n + 'optional');
+    if (qty * rate > 1e12) oFail_('BADINPUT|' + n + 'amount'); // an optional line the client chose (chosen) stays in the total
+    var o = { ItemCode: code, Description: oCell_(desc), Unit: u.u, Qty: qty, Rate: rate, Billing: u.mo ? 'Monthly' : 'One-off', Months: u.mo ? 1 : '',
+      Optional: l.opt === true ? 'Yes' : 'No', Selected: l.opt === true && l.chosen !== true ? 'No' : 'Yes', DimL: '', DimW: '', DimH: '', DimN: '', RateBasis: lump ? 'Lump sum' : '' };
+    if (l.dim != null && !lump) {
+      if (typeof l.dim !== 'object' || Array.isArray(l.dim)) oFail_('BADINPUT|' + n + 'size');
+      var dn = function (k, whole) { var v = l.dim[k]; if (v === '' || v == null) return ''; return oQeNum_(v, 0.001, whole ? 1000 : 10000, whole ? 0 : 3, n + 'size'); };
+      o.DimL = dn('L'); o.DimW = dn('W'); o.DimH = dn('H'); o.DimN = dn('N', true);
+      if (o.DimL === '' || o.DimH === '') { if (o.DimL !== '' || o.DimW !== '' || o.DimH !== '' || o.DimN !== '') oFail_('BADINPUT|' + n + 'size'); }
+      else o.RateBasis = 'Per unit';
+      if (o.RateBasis && !(qfDim_(o, i).qty > 0 && qfDim_(o, i).qty <= 1e7 && qfDim_(o, i).qty * rate <= 1e12)) oFail_('BADINPUT|' + n + 'size');
+      if (o.RateBasis && units.indexOf(qfDim_(o, i).unit) < 0) oFail_('BADINPUT|' + n + 'unit');
+    }
+    return o;
+  });
+  if (!att && !blank(cu.ContactPerson)) att = oUncell_(cu.ContactPerson).trim() + (blank(cu.Designation) ? '' : ', ' + oUncell_(cu.Designation).trim()); // here, as text (qfSaveQuoteFull_ would copy it raw)
+  var h = { QuoteType: type, QuoteDate: oDayCell_(d.date), CustID: String(cu.CustID), SiteID: String(si.SiteID), Attention: oCell_(att), Subject: oCell_(sub), AdvancePct: Math.round(adv * 1e4) / 1e6, PreparedBy: prep };
+  if (q) { // kept as they are on an edit (the screen does not show them)
+    ['YourRef', 'Notes'].forEach(function (k) { if (!blank(q[k])) h[k] = oCell_(oUncell_(q[k])); });
+    if (!blank(q.HireMonths)) h.HireMonths = num(q.HireMonths);
+    if (!blank(q.MinMonths) && (type === 'Rental' || type === 'Project')) h.MinMonths = num(q.MinMonths);
+    ['VATPct'].concat(typeof QF4_COLS_ !== 'undefined' ? QF4_COLS_ : []).forEach(function (k) { if (!blank(q[k])) h[k] = num(q[k]); });
+  }
+  return { a: { quoteNo: q ? String(q.QuoteNo) : '', header: h, lines: lines, customer: { mode: 'existing', id: String(cu.CustID) }, site: { mode: 'existing', id: String(si.SiteID) } }, days: dv - dd };
+}
+function officeQuoteSave(token, d) {
+  officeGate_(token, OQ_NEED_);
+  if (!d || typeof d !== 'object' || Array.isArray(d)) oFail_('BADINPUT|quote');
+  var res = oQW_(token, function (env, db, L) {
+    if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
+    var no = d.no == null || d.no === '' ? '' : d.no, q = no ? oQRow_(db, no) : null;
+    if (q) { oQRevFix_(env, db, q.QuoteNo); q = oQRow_(db, no); }
+    if (q) { if (oQLocked_(db, q)) oFail_('QLOCKED'); if (typeof d.ev !== 'number' || d.ev !== oQeEv_(db, q)) oFail_('STALE'); oQeOld_(db, q.QuoteNo); }
+    oQeRate_(env, L);
+    if (!oIsDir_(oAcc_(L)) && !(d.prep == null || d.prep === '' || (typeof d.prep === 'string' && !!L.staff && d.prep === String(L.staff)))) oFail_('BADINPUT|prepared by'); // D2: own name only
+    var x = oQeArgs_(db, d, q, env), was = q ? String(q.Status || 'Draft') : '', ty0 = q ? oQType_(q) : '';
+    var r, rk = q ? 'OQRV:' + String(q.QuoteNo) : '';
+    if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
+    try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
+    catch (e) { if (rk) env.del(rk); var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
+    var ref = String(r.ref), d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
+    if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }
+    var changed = !q || oQeEv_(d2, q2) !== d.ev || ('ValidityDays' in p); // a save that changed nothing makes no new Rev
+    if (q && changed) oQPdfStale_(env, d2, ref); else if (rk) env.del(rk); // CR7 first, before any other write; CR10 record kept only for a change
+    if (q && ty0 !== String(x.a.header.QuoteType)) { // CR11: another type = its standard terms (this quote's changes dropped)
+      uiDelRows_(d2, 'QuoteTerms', qtRows_(d2, ref));
+      ['PaymentDays', 'NoticeDays', 'LateInterestPct', 'PartPeriodRule'].forEach(function (k) { if (d2.headers('Quotes').indexOf(k) >= 0 && !blank(q2[k])) p[k] = ''; });
+    }
+    if (was === 'Sent' && changed) { p.Rev = num(q2.Rev) + 1; p.Status = 'Draft'; } // CR10: the OQRV record above is kept until this is written
+    if (Object.keys(p).length) uiPutRow_(d2, 'Quotes', q2, p);
+    if (p.Rev != null) { try { log_(d2, 'Quote revised', ref, 'Rev ' + p.Rev + ' (edited in the web app)'); } catch (e) { /* log only */ } env.del('OQRV:' + ref); }
+    var q3 = must(env.db() || d2, 'Quotes', 'QuoteNo', ref);
+    return { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
+  });
+  if (d.pdf === true) {
+    try { var L2 = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db(); res.pdf = String(oQPdfUse_(env, db, oQRow_(db, res.no), L2).url || ''); }
+    catch (e) { res.pdf = ''; res.pdfErr = String(e && e.message || e).split('|')[0].slice(0, 40); }
+  }
+  return res;
+}
+// Quote PDF price grid: # Description Size Qty Unit Rate Amount (the same 7 columns as the screen)
+function oQePdfGrid_(db, no, spec) {
+  var g = null, note = null;
+  (spec.blocks || []).forEach(function (b) { if (!g && b.t === 'grid' && b.cols && b.cols[1] && b.cols[1].h === 'Description') g = b; if (!note && b.t === 'p' && typeof b.text === 'string' && /^Amount = /.test(b.text)) note = b; });
+  if (!g) return spec;
+  var items = {}, lines = oQLines_(db, no).filter(function (l) { return l.Selected === 'Yes' || l.Optional === 'Yes'; }), more = false;
+  db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  g.cols = [{ h: 'No.', w: 24, al: 'C' }, { h: 'Description', w: 160 }, { h: 'Size', w: 70 }, { h: 'Qty', w: 36, al: 'R' }, { h: 'Unit', w: 50 }, { h: 'Rate (BDT)', w: 57, al: 'R' }, { h: 'Amount (BDT)', w: 85, al: 'R' }];
+  g.rows = lines.map(function (l, i) {
+    var amt = lineAmt(l), off = l.Selected !== 'Yes', m = blank(l.Months) ? 0 : num(l.Months), ms = typeof isMilestone === 'function' && isMilestone(l);
+    var u = dash(l.Unit) + (ms ? ' (stages)' : m > 0 ? ' / month' : '') + (m > 1 && !ms ? ' × ' + qtyTxt(m) : '');
+    if (m > 1 && !ms) more = true;
+    return [String(i + 1), (l.Optional === 'Yes' ? 'Optional: ' : '') + dash(l.Description), oQeSizeOf_(l, items) || '—', qtyTxt(l.Qty), u, tk(l.Rate), off ? '(' + tk(amt) + ')' : tk(amt)];
+  });
+  if (note) note.text = note.text.replace(/^Amount = [^.]*\./, 'Amount = Qty × Rate' + (more ? ' (× months where shown)' : '') + '.');
+  return spec;
+}
+// inside the D1 footer wrapper (docCtl is added after the grid, the officeCtl_ marker stays). The self-tests of the earlier
+// layers (PDF.gs P24, QF1b G26) check their own grid, so they run with the W4 grid off; O266 / O267 check the W4 grid.
+var OQE_GRID_ = true;
+if (typeof PDF_SPECS === 'object' && PDF_SPECS && typeof PDF_SPECS.Quote === 'function') {
+  var OQE_spec0_ = PDF_SPECS.Quote.officeCtl_ || PDF_SPECS.Quote;
+  PDF_SPECS.Quote = oCtlWrap_('Quote', function (db, no) { var sp = OQE_spec0_.apply(this, arguments); if (!OQE_GRID_) return sp; try { return oQePdfGrid_(db, no, sp); } catch (e) { return sp; } });
+}
+function oQeNoGrid_(f) { return typeof f !== 'function' ? f : function () { var k = OQE_GRID_; OQE_GRID_ = false; try { return f.apply(this, arguments); } finally { OQE_GRID_ = k; } }; }
+if (typeof selfTestPdf === 'function') selfTestPdf = oQeNoGrid_(selfTestPdf);
+if (typeof selfTestQF1b === 'function') selfTestQF1b = oQeNoGrid_(selfTestQF1b);
+function oQeScopeAdd_(db) {
+  var h = db.headers('Items'), have = {}, add = [];
+  db.rows('Items').forEach(function (i) { have[String(i.ItemCode)] = 1; });
+  OQE_SCOPES_.forEach(function (s) {
+    if (have[s[0]]) return;
+    var r = {}, v = { ItemCode: s[0], Name: s[1], Category: OQE_SCOPE_CAT_, Unit: 'm²', StockTracked: 'No', ForSale: 'No', ForHire: 'No', IsSet: 'No', Status: 'Active' };
+    Object.keys(v).forEach(function (k) { if (h.indexOf(k) >= 0) r[k] = v[k]; });
+    add.push(r);
+  });
+  if (add.length) { db.insert('Items', add); log_(db, 'Items added', add.map(function (r) { return r.ItemCode; }).join(', '), 'W4 project scopes'); }
+  return add.length;
+}
+function officeScopeItemsAdd() { var env = oEnv_(), n = env.lock(function () { return oQeScopeAdd_(env.db()); }); Logger.log('Project scope items added: ' + n); return n; }
+
+// ----------------------------------------------------------------- D2 (18 Nov): signatures + company stamp on every system PDF
+// Rules (user, 18 Nov): signer = the preparer. Commercial documents (quote, proforma, invoice, debit / credit note, PO) are
+// signed by PreparedBy automatically (quote: its PreparedBy; proforma: its quote's; invoice / note / PO have no PreparedBy
+// column -> the name picked when the PDF is made, else unsigned). Other documents (challans, transfer notes): optional, the
+// person making the PDF picks a name or leaves it unsigned. Every PDF: company stamp + the line OSG_LINE_. No signature on
+// file -> name + title + an empty sign line (never refused). A Staff row that is not Active never signs with an image.
+// Store: private Drive folder "Signatures (directors)" (OSG_FOLDER_, owner only). Script Properties OSG:<StaffID> and
+// OSG_STAMP = {f: file id, by, at, n: bytes, m: mime}. Images never go to other users' browsers: lists say on file yes / no;
+// the image itself only to that person or a Director. Uploads: PNG / JPEG only (checked by their bytes, not the name),
+// <= 1 MB, 16..8000 px a side, <= 25 megapixels; the old system-made file is binned on replace (seed files are left in the folder).
+// officeSigSeed (editor, run once, safe to repeat): the 4 director signatures + the MOU stamp.
+var OSG_FOLDER_ = '1QywJPfmepRZsiE5Ay6UPrvzdFuWVyBAr';
+// 18 Nov (user): STF-002 + STF-004 = the signatures of the MOU soft copy (were Signature_3 ... Jamal_Uddin.png + ..._HD_black.png)
+var OSG_SEED_ = [['STF-002', '1mXoXkAwuOT78-W-2liOmqwRMSvolwy7n'], ['STF-004', '1hbcIkXI5bK-gaaHRFgQkYYFd2fEzRGIf'],
+  ['STF-005', '12UKYwC05dagdVlkFsE-qK34gVO2RtTFo'], ['STF-006', '1w7Qr_8zJ6TCWJ7RjpexSAMFdlLana7PP']];
+var OSG_STAMP_SEED_ = '1-UaQigrHwvVFfn3SFv8MOGiDJlkJpYns';
+var OSG_MAX_ = 1048576, OSG_PER_HOUR_ = 20;
+var OSG_COMM_ = { Quote: 1, PI: 1, Invoice: 1, Note: 1, PO: 1 };
+var OSG_LINE_ = 'Digitally generated by the Core Access Ops system — valid without signature.';
+var OSG_HEAD_ = 'For and on behalf of Core Access Engineering Ltd.';
+var OSG_DRV_ = null, OSG_PICK_ = null, OSG_NOIMG_ = false, OSG_IMGUSED_ = false, OSG_FELL_ = false; // tests set OSG_DRV_; OSG_PICK_ = signer picked for the PDF being made (StaffID)
+function oSgDrv_() {
+  return OSG_DRV_ || {
+    file: function (id) { try { var f = DriveApp.getFileById(id); return f.isTrashed() ? null : f; } catch (e) { return null; } },
+    info: function (id) { var f = this.file(id); return f ? { size: f.getSize(), mime: f.getMimeType(), name: f.getName() } : null; },
+    blob: function (id) { var f = this.file(id); return f ? f.getBlob() : null; },
+    b64: function (id) { var f = this.file(id); return f && f.getSize() <= 1.5 * OSG_MAX_ ? Utilities.base64Encode(f.getBlob().getBytes()) : null; },
+    add: function (name, mime, bytes) {
+      return DriveApp.getFolderById(OSG_FOLDER_).createFile(Utilities.newBlob(bytes.map(function (x) { return x << 24 >> 24; }), mime, name)).getId();
+    },
+    bin: function (id) { try { DriveApp.getFileById(id).setTrashed(true); return true; } catch (e) { return false; } },
+    decodes: function (bytes, mime) { // CR5: Apps Script converts the picture (a full decode); a broken one throws
+      try { var o = Utilities.newBlob(bytes.map(function (x) { return x << 24 >> 24; }), mime, 'check').getAs(mime === 'image/png' ? 'image/jpeg' : 'image/png'); return !!o && o.getBytes().length > 0; }
+      catch (e) { return false; }
+    }
+  };
+}
+var OSG_B64_ = (function () { var m = {}, a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; for (var i = 0; i < 64; i++) m[a.charAt(i)] = i; return m; })();
+// base64 text -> bytes 0..255, or null. Strict: only the base64 alphabet, padding at the end, length a multiple of 4.
+function oB64Dec_(s) {
+  if (typeof s !== 'string' || s.length % 4 || s.length > Math.ceil(OSG_MAX_ / 3) * 4 + 4 || !/^[A-Za-z0-9+\/]*={0,2}$/.test(s)) return null;
+  var out = [], pad = s.charAt(s.length - 1) === '=' ? (s.charAt(s.length - 2) === '=' ? 2 : 1) : 0;
+  for (var i = 0; i < s.length; i += 4) {
+    var n = (OSG_B64_[s.charAt(i)] << 18) | (OSG_B64_[s.charAt(i + 1)] << 12) | ((OSG_B64_[s.charAt(i + 2)] || 0) << 6) | (OSG_B64_[s.charAt(i + 3)] || 0);
+    out.push(n >>> 16 & 255, n >>> 8 & 255, n & 255);
+  }
+  if (pad) out.length -= pad;
+  return out;
+}
+// bytes -> {mime, w, h} or throws BADIMG|<why>. PNG: signature, IHDR first, IEND last. JPEG: SOI, a frame header (SOF), EOI.
+function oSgImg_(b) {
+  var bad = function (w) { oFail_('BADIMG|' + w); };
+  if (!b || !b.length) bad('type');
+  if (b.length > OSG_MAX_) bad('size');
+  var u32 = function (i) { return ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0; }, w, h, mime;
+  var png = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (png.every(function (x, i) { return b[i] === x; })) {
+    if (b.length < 45 || String.fromCharCode(b[12], b[13], b[14], b[15]) !== 'IHDR' || u32(8) !== 13) bad('broken');
+    var p = 8, idat = false, ty = '';
+    while (p + 12 <= b.length) { // walk the chunks: each length must fit, IDAT present, IEND exactly at the end
+      var n = u32(p); ty = String.fromCharCode(b[p + 4], b[p + 5], b[p + 6], b[p + 7]);
+      if (n > b.length - p - 12) bad('broken');
+      if (ty === 'IDAT') idat = idat || n > 0;
+      p += 12 + n;
+      if (ty === 'IEND') break;
+    }
+    if (ty !== 'IEND' || p !== b.length || !idat) bad('broken');
+    w = u32(16); h = u32(20); mime = 'image/png';
+  } else if (b[0] === 255 && b[1] === 216 && b[2] === 255) {
+    var end = b.length; while (end > 2 && b[end - 1] === 0) end--;
+    if (end < 4 || b[end - 2] !== 255 || b[end - 1] !== 217) bad('broken');
+    var i = 2, sos = false;
+    while (i + 9 < end) {
+      if (b[i] !== 255) bad('broken');
+      var mk = b[i + 1], len = (b[i + 2] << 8) | b[i + 3];
+      if (mk === 255) { i++; continue; }
+      if (len < 2) bad('broken');
+      if (i + 2 + len > end) bad('broken');
+      if ((mk === 192 || mk === 193 || mk === 194) && !w) { if (len < 11) bad('broken'); h = (b[i + 5] << 8) | b[i + 6]; w = (b[i + 7] << 8) | b[i + 8]; }
+      else if (mk >= 195 && mk <= 207 && mk !== 196 && mk !== 200 && mk !== 204) bad('type'); // lossless / arithmetic JPEG: not for Docs
+      if (mk === 218) { sos = true; break; } // scan data starts
+      i += 2 + len;
+    }
+    if (!w || !h || !sos) bad('broken');
+    mime = 'image/jpeg';
+  } else bad('type');
+  if (w < 16 || h < 16 || w > 8000 || h > 8000 || w * h > 25e6) bad('pixels'); // Google Docs takes images up to 25 megapixels
+  return { mime: mime, w: w, h: h };
+}
+function oSgStaff_(db, id) {
+  id = typeof id === 'string' ? id.trim() : '';
+  if (!id || id.length > 40) return null;
+  return db.rows('Staff').filter(function (s) { return oUncell_(s.StaffID).trim() === id; })[0] || null;
+}
+function oSgActive_(s) { return !!s && (!oHas_(s, 'Status') || blank(s.Status) || /^active$/i.test(String(s.Status).trim())); }
+function oSgRec_(env, key) { var r = env.get(key); return r && typeof r.f === 'string' && /^[\w-]{10,80}$/.test(r.f) ? r : null; }
+// Who may see / change the signature of this Staff record: the login linked to it, or a Director.
+function oSgMay_(L, staffId) { return oIsDir_(oAcc_(L)) || (!!L.staff && String(L.staff) === staffId); }
+function oSgSlow_(env, email, read) { // writes 20 an hour, reads 120 an hour per login (cache count: may be a little loose under parallel calls)
+  var k = (read ? 'OSG_R:' : 'OSG_N:') + email, c = env.cget(k) || { n: 0 }, n = (+c.n || 0) + 1;
+  env.cput(k, { n: n }, 3600);
+  if (n > (read ? 6 * OSG_PER_HOUR_ : OSG_PER_HOUR_)) oFail_('SLOW');
+}
+function oSgView_(env, staffId, row, withImg) {
+  var r = oSgRec_(env, 'OSG:' + staffId), d = oSgDrv_(), i = r ? d.info(r.f) : null, o = { staff: staffId, name: row ? oUncell_(row.Name) : '', title: row ? oUncell_(row.Role) : '',
+    on: !!i, at: r && i ? +r.at || 0 : 0, by: r && i ? String(r.by || '') : '', bytes: i ? i.size : 0, img: '' };
+  if (withImg && i && /^image\/(png|jpeg)$/.test(i.mime)) { var b = d.b64(r.f); if (b) o.img = 'data:' + i.mime + ';base64,' + b; }
+  return o;
+}
+function officeSigGet(token, staffId) {
+  var L = officeGate_(token, null), env = oEnv_(); oSgSlow_(env, L.email, true);
+  var db = env.db(), row = oSgStaff_(db, staffId);
+  if (!row) oFail_(oIsDir_(oAcc_(L)) ? 'NOSTAFF' : 'NOACCESS');
+  if (!oSgMay_(L, oUncell_(row.StaffID).trim())) oFail_('NOACCESS');
+  return oSgView_(env, oUncell_(row.StaffID).trim(), row, true);
+}
+// Saves one image (base64 text) as this person's signature (kind 'sig') or the company stamp (kind 'stamp', Directors only).
+function oSgPut_(token, pre, kind, staffId, b64) {
+  var env = oEnv_();
+  oSgSlow_(env, pre.email); // every try counts, refused ones too
+  if (kind === 'stamp' ? !oIsDir_(oAcc_(pre)) : (typeof staffId !== 'string' || !staffId)) oFail_(kind === 'stamp' ? 'NOACCESS' : 'NOSTAFF');
+  if (kind === 'sig' && !oIsDir_(oAcc_(pre)) && String(pre.staff || '') !== staffId.trim()) oFail_('NOACCESS'); // before any work
+  var bytes = oB64Dec_(b64);
+  if (!bytes) oFail_(typeof b64 === 'string' && b64.length > Math.ceil(OSG_MAX_ / 3) * 4 + 4 ? 'BADIMG|size' : 'BADIMG|type');
+  var im = oSgImg_(bytes);
+  if (!oSgDrv_().decodes(bytes, im.mime)) oFail_('BADIMG|broken'); // before anything is written or binned
+  return env.lock(function () {
+    var L = officeSession_(token), now = env.now(), db = env.db(), key, name, row = null;
+    if (kind === 'stamp') { if (!oIsDir_(oAcc_(L))) oFail_('NOACCESS'); key = 'OSG_STAMP'; name = 'CoreAccess_Company_Stamp_' + now; }
+    else {
+      row = oSgStaff_(db, staffId);
+      if (!row) oFail_(oIsDir_(oAcc_(L)) ? 'NOSTAFF' : 'NOACCESS');
+      staffId = oUncell_(row.StaffID).trim();
+      if (!oSgMay_(L, staffId)) oFail_('NOACCESS');
+      key = 'OSG:' + staffId; name = 'Signature_' + staffId.replace(/[^\w-]/g, '') + '_' + now;
+    }
+    var d = oSgDrv_(), old = oSgRec_(env, key), id = d.add(name + (im.mime === 'image/png' ? '.png' : '.jpg'), im.mime, bytes);
+    env.put(key, { f: id, by: L.email, at: now, n: bytes.length, m: im.mime, w: im.w, h: im.h, sys: 1 });
+    if (old && old.sys === 1 && old.f !== id) d.bin(old.f); // seed files (user's own masters) stay in the folder
+    try { log_(db, kind === 'stamp' ? 'Company stamp' : 'Signature', kind === 'stamp' ? '' : staffId, 'saved by ' + L.email + ' (' + bytes.length + ' bytes)'); } catch (e) { /* log only */ }
+    return kind === 'stamp' ? oSgStampView_(env, false) : oSgView_(env, staffId, row, false);
+  });
+}
+function officeSigSave(token, staffId, b64) { var L = officeGate_(token, null); return oSgPut_(token, L, 'sig', staffId, b64); }
+function officeStampSave(token, b64) { var L = officeGate_(token, null); return oSgPut_(token, L, 'stamp', '', b64); }
+function officeSigRemove(token, staffId) {
+  var L = officeGate_(token, null), env = oEnv_();
+  oSgSlow_(env, L.email);
+  if (!oIsDir_(oAcc_(L)) && String(L.staff || '') !== String(staffId || '').trim()) oFail_('NOACCESS');
+  return env.lock(function () {
+    var L = officeSession_(token), db = env.db(), row = oSgStaff_(db, staffId);
+    if (!row) oFail_(oIsDir_(oAcc_(L)) ? 'NOSTAFF' : 'NOACCESS');
+    var id = oUncell_(row.StaffID).trim();
+    if (!oSgMay_(L, id)) oFail_('NOACCESS');
+    var old = oSgRec_(env, 'OSG:' + id);
+    env.put('OSG:' + id, { off: 1, by: L.email, at: env.now() }); // a removed one stays removed (the seed skips it)
+    if (old && old.sys === 1) oSgDrv_().bin(old.f);
+    try { log_(db, 'Signature', id, 'removed by ' + L.email); } catch (e) { /* log only */ }
+    return oSgView_(env, id, row, false);
+  });
+}
+function oSgStampView_(env, withImg) {
+  var r = oSgRec_(env, 'OSG_STAMP'), d = oSgDrv_(), i = r ? d.info(r.f) : null, o = { on: !!i, name: i ? String(i.name) : '', bytes: i ? i.size : 0, at: r && i ? +r.at || 0 : 0, by: r && i ? String(r.by || '') : '', img: '' };
+  if (withImg && i && /^image\/(png|jpeg)$/.test(i.mime)) { var b = d.b64(r.f); if (b) o.img = 'data:' + i.mime + ';base64,' + b; }
+  return o;
+}
+function officeStampGet(token) { var L = officeGate_(token, null), env = oEnv_(); oSgSlow_(env, L.email, true); if (!oIsDir_(oAcc_(L))) oFail_('NOACCESS'); return oSgStampView_(env, true); }
+// Editor, run once (safe to repeat): records for the 4 director signatures + the company stamp (files already in Drive).
+function oSgSeed_(env) {
+  var d = oSgDrv_(), out = [], now = env.now();
+  OSG_SEED_.forEach(function (x) {
+    var cur = env.get('OSG:' + x[0]);
+    if (cur) { out.push(x[0] + (cur.off ? ' removed earlier (left off)' : ' kept')); return; }
+    var i = d.info(x[1]);
+    if (!i) { out.push(x[0] + ' FILE MISSING'); return; }
+    env.put('OSG:' + x[0], { f: x[1], by: 'seed', at: now, n: i.size, m: i.mime }); out.push(x[0] + ' added');
+  });
+  if (env.get('OSG_STAMP')) out.push('stamp kept');
+  else { var s = d.info(OSG_STAMP_SEED_); if (s) { env.put('OSG_STAMP', { f: OSG_STAMP_SEED_, by: 'seed', at: now, n: s.size, m: s.mime }); out.push('stamp added'); } else out.push('stamp FILE MISSING'); }
+  return out.join(', ');
+}
+function officeSigSeed() { var env = oEnv_(), r = env.lock(function () { return oSgSeed_(env); }); Logger.log('Signatures: ' + r); return r; }
+// Editor only: points records the seed made at the current OSG_SEED_ files (a record a person uploaded or removed is left alone).
+function oSgReseed_(env) {
+  var d = oSgDrv_(), out = [], now = env.now();
+  OSG_SEED_.forEach(function (x) {
+    var cur = env.get('OSG:' + x[0]);
+    if (cur && (cur.by !== 'seed' || cur.off || cur.f === x[1])) { out.push(x[0] + ' left'); return; }
+    var i = d.info(x[1]);
+    if (!i) { out.push(x[0] + ' FILE MISSING'); return; }
+    env.put('OSG:' + x[0], { f: x[1], by: 'seed', at: now, n: i.size, m: i.mime }); out.push(x[0] + (cur ? ' replaced' : ' added'));
+  });
+  return out.join(', ');
+}
+function officeSigReseed() { var env = oEnv_(), r = env.lock(function () { return oSgReseed_(env); }); Logger.log('Signatures: ' + r); return r; }
+
+// ---- PDF side. Signer {id, name, title, sig: file id or ''} resolved when the spec is made (the file id is part of the spec,
+// so a new signature gives a new PDF version). Names: StaffID first, else the Staff name (case / spaces ignored), else the
+// text as typed (no title, no image).
+function oSgSigner_(db, who) {
+  var w = oUncell_(who).trim();
+  if (!w) return null;
+  var st = db.rows('Staff'), k = function (v) { return oUncell_(v).trim().replace(/\s+/g, ' ').toLowerCase(); };
+  var m = st.filter(function (x) { return oUncell_(x.StaffID).trim() === w; });
+  if (!m.length) m = st.filter(function (x) { return k(x.Name) && k(x.Name) === k(w); });
+  var s = m[0];
+  if (!s) return { id: '', name: w.slice(0, 80), title: '', sig: '' };
+  var id = oUncell_(s.StaffID).trim(), one = m.length === 1 && st.filter(function (x) { return oUncell_(x.StaffID).trim() === id; }).length === 1;
+  var r = one && oSgActive_(s) ? oSgRec_(oEnv_(), 'OSG:' + id) : null; // two rows with one id / name: name only, no image
+  return { id: id, name: oUncell_(s.Name).trim(), title: oUncell_(s.Role).trim(), sig: r ? r.f : '' };
+}
+function oSgWho_(db, what, spec) {
+  var q;
+  if (what === 'Quote') { q = find(db.rows('Quotes'), 'QuoteNo', spec.id); return q ? q.PreparedBy : ''; }
+  if (what === 'PI') { var p = find(db.rows('Proformas'), 'PINo', spec.id); q = p ? find(db.rows('Quotes'), 'QuoteNo', p.QuoteNo) : null; return q ? q.PreparedBy : ''; }
+  return '';
+}
+function oSgIsOurs_(b) { return !!b && b.t === 'sig' && Array.isArray(b.cols) && b.cols.length && /Core Access/.test(String(b.cols[0].head || '')); }
+function oSgApply_(db, what, s) {
+  if (!s || !Array.isArray(s.blocks)) return s;
+  var env = oEnv_(), st = oSgRec_(env, 'OSG_STAMP'), comm = oHas_(OSG_COMM_, what), pick = typeof OSG_PICK_ === 'string' ? OSG_PICK_ : '';
+  var who = comm ? (oUncell_(oSgWho_(db, what, s)).trim() || pick) : pick;
+  var sg = { t: 'osign', head: OSG_HEAD_, s: oSgSigner_(db, who), role: comm ? (who ? 'Prepared by' : '') : (what === 'Challan' ? 'Issued by' : ''), stamp: st ? st.f : '' };
+  var i = -1; s.blocks.forEach(function (b, j) { if (i < 0 && oSgIsOurs_(b)) i = j; });
+  if (i >= 0) {
+    var rest = s.blocks[i].cols.slice(1);
+    s.blocks.splice.apply(s.blocks, [i, 1, sg].concat(rest.length ? [{ t: 'sig', cols: rest }] : []));
+  } else s.blocks.push(sg);
+  s.blocks.push({ t: 'p', text: OSG_LINE_, size: 7.5, italic: true, color: 'grey', before: 10, after: 0 });
+  return s;
+}
+function oSgWrap_(what, f) {
+  if (typeof f !== 'function' || f.officeSg_) return f;
+  var w = function (db) { var s = f.apply(this, arguments); try { return oSgApply_(db, what, s); } catch (e) { return s; } };
+  w.officeSg_ = f; w.officeCtl_ = f.officeCtl_ || f; // a later layer must wrap the current entry, not .officeCtl_ (that drops D2)
+  return w;
+}
+if (typeof PDF_SPECS === 'object' && PDF_SPECS) Object.keys(PDF_SPECS).forEach(function (k) { PDF_SPECS[k] = oSgWrap_(k, PDF_SPECS[k]); });
+// One image into a paragraph, scaled to fit w x h points (ratio kept). Any error: no image (the PDF is still made).
+function oSgImgInto_(p, fileId, w, h) {
+  if (!fileId || OSG_NOIMG_) return false;
+  OSG_IMGUSED_ = true;
+  try {
+    var bl = oSgDrv_().blob(fileId); if (!bl) return false;
+    var im = p.appendInlineImage(bl), iw = im.getWidth(), ih = im.getHeight(), k = Math.min(w / iw, h / ih, 1);
+    im.setWidth(Math.max(1, Math.round(iw * k))).setHeight(Math.max(1, Math.round(ih * k)));
+    return true;
+  } catch (e) { return false; }
+}
+if (typeof BLOCKS_ === 'object' && BLOCKS_) BLOCKS_.osign = function (body, b) {
+  var s = b.s || null;
+  para_(body, b.head || OSG_HEAD_, { size: 9, bold: true, color: 'teal', before: 6, after: 0 });
+  var tb = body.appendTable([['', '']]); tb.setBorderWidth(0); tb.setColumnWidth(0, 250); tb.setColumnWidth(1, BODY_W - 250);
+  var c0 = tb.getCell(0, 0), c1 = tb.getCell(0, 1);
+  [c0, c1].forEach(function (c) { c.setPaddingTop(2).setPaddingBottom(2).setPaddingLeft(0).setPaddingRight(4); c.setVerticalAlignment(DocumentApp.VerticalAlignment.BOTTOM); });
+  var p0 = c0.getChild(0).asParagraph(), has = oSgImgInto_(p0, s && s.sig, 160, 46);
+  styleP_(p0, '', { before: has ? 4 : 40, after: 0, line: 1 });
+  styleP_(c0.appendParagraph('______________________________'), '______________________________', { size: 9, color: 'grey', after: 1 });
+  styleP_(c0.appendParagraph(s && s.name ? s.name : 'Name: ______________________'), s && s.name ? s.name : 'Name: ______________________', { size: 9.5, bold: !!(s && s.name), after: 0 });
+  var t = s ? [s.title, b.role].filter(function (x) { return !!x; }).join(' · ') : '', tl = t || (s && s.name ? '' : 'Designation: ________________');
+  if (tl) styleP_(c0.appendParagraph(tl), tl, { size: 8.5, color: 'grey', after: 0 });
+  var p1 = c1.getChild(0).asParagraph();
+  if (!oSgImgInto_(p1, b.stamp, 84, 84)) styleP_(p1, '', { after: 0 });
+};
+// makePdf: o.signer (StaffID) = the name picked by whoever makes the PDF (optional documents, or commercial ones without
+// PreparedBy). Panel "Make a PDF" passes it; the Docs list gets the signer names (_signers).
+if (typeof makePdf === 'function' && !makePdf.officeSg_) {
+  var OSG_makePdf0_ = makePdf;
+  makePdf = function (db, what, no, o) {
+    var k = OSG_PICK_, me = this, a = arguments; if (o && oHas_(o, 'signer')) OSG_PICK_ = typeof o.signer === 'string' && o.signer.length <= 40 ? o.signer : null;
+    try {
+      try { return OSG_makePdf0_.apply(me, a); }
+      catch (e) { // an image Docs accepted but the PDF export refused must never stop PDFs: once more without images
+        if (OSG_NOIMG_ || !OSG_IMGUSED_) throw e;
+        OSG_NOIMG_ = true; try { Logger.log('PDF made again without signature / stamp images: ' + e.message); } catch (x) { /* no log */ }
+        try { var r2 = OSG_makePdf0_.apply(me, a); OSG_FELL_ = true; return r2; } finally { OSG_NOIMG_ = false; } // OSG_FELL_: made without images
+      }
+    } finally { OSG_PICK_ = k; OSG_IMGUSED_ = false; }
+  };
+  makePdf.officeSg_ = OSG_makePdf0_; makePdf.officePdf_ = OSG_makePdf0_.officePdf_;
+}
+function oSgSigners_(db) {
+  return db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name) && oSgActive_(s); })
+    .map(function (s) { var id = oUncell_(s.StaffID).trim(); return [id, oUncell_(s.Name).trim() + (oSgRec_(oEnv_(), 'OSG:' + id) ? '' : ' (no signature on file)')]; });
+}
+if (typeof uiGetDb_ === 'function') {
+  var OSG_uiGet0_ = uiGetDb_;
+  uiGetDb_ = function (db, kind, a) { var r = OSG_uiGet0_.apply(this, arguments); if (kind === 'docs' && r && typeof r === 'object') { try { r._signers = oSgSigners_(db); } catch (e) { r._signers = []; } } return r; };
+}
+// The panel's PDF action (QF5 sends quotes through its own PDF step) runs with the picked signer.
+if (typeof UI_ACTIONS_ === 'object' && UI_ACTIONS_ && typeof UI_ACTIONS_.pdf === 'function' && !UI_ACTIONS_.pdf.officeSg_) {
+  var OSG_uiPdf0_ = UI_ACTIONS_.pdf;
+  UI_ACTIONS_.pdf = function (db, a) {
+    var k = OSG_PICK_, g = a && typeof a.signer === 'string' && a.signer.length <= 40 ? a.signer : null;
+    OSG_PICK_ = g; try { return OSG_uiPdf0_.apply(this, arguments); } finally { OSG_PICK_ = k; }
+  };
+  UI_ACTIONS_.pdf.officeSg_ = OSG_uiPdf0_;
+}
+// Editor: live look at the sign block without touching a real record: TEST quote (preparer STF-002) + TEST challan (picked
+// STF-004) from the self-test data, real Settings / Staff / signatures / stamp, saved in PDF > _Samples (test folder).
+function officeSigPdfCheck() {
+  var sdb = oEnv_().db(), db = pdfTestDb_(), out = [], smp = pdfSampleList_(db); // sample challans made before the quote is renamed
+  db.t.Settings = sdb.rows('Settings').map(function (r) { return Object.assign({}, r); });
+  db.t.Staff = sdb.rows('Staff').map(function (r) { return Object.assign({}, r); });
+  var q = find(db.rows('Quotes'), 'QuoteNo', 'CAE/Q/2026/001'), c = find(db.rows('Customers'), 'CustID', q.CustID);
+  c.Name = 'TEST – signature check'; q.QuoteNo = 'CAE/Q/2026/T02'; q.PreparedBy = 'STF-002';
+  db.rows('QuoteLines').forEach(function (l) { if (l.QuoteNo === 'CAE/Q/2026/001') l.QuoteNo = 'CAE/Q/2026/T02'; });
+  var ch = { ChallanNo: smp.filter(function (x) { return x[0] === 'Challan'; })[0][1] }, folder = subFolder_(subFolder_(opsFolder_(sdb), 'PDF'), '_Samples');
+  [['Quote', 'CAE/Q/2026/T02', {}], ['Challan', ch.ChallanNo, { signer: 'STF-004' }]].forEach(function (x) {
+    var r = makePdf(db, x[0], x[1], Object.assign({ folder: folder, noLink: true, noLog: true }, x[2])); out.push('TEST ' + x[0] + ': ' + r.url);
+  });
+  Logger.log(out.join('\n'));
+  return out;
+}
+
+// Editor only (CR5 live check): the real decode check takes a good 16 x 16 PNG and refuses one whose IDAT holds no image.
+// Expected log: "good PNG decodes: true · broken PNG decodes: false". Nothing is written.
+function officeSigImgCheck() {
+  var g = oB64Dec_('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGElEQVR42mNgYGD4TyEeNWDUgFEDhocBAJvM/wFK6ATsAAAAAElFTkSuQmCC');
+  var b = oB64Dec_('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAklEQVR4AewaftIAAAAASUVORK5CYII=');
+  var d = oSgDrv_(), out = 'good PNG decodes: ' + d.decodes(g, oSgImg_(g).mime) + ' · broken PNG decodes: ' + d.decodes(b, oSgImg_(b).mime);
+  Logger.log(out); return out;
+}
+
 // ----------------------------------------------------------------- project-wide gate (web app = execute as me, access Anyone)
 var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // later screens add theirs (each starts with officeGate_)
   'officeUsersList', 'officeStaffList', 'officeUserSave', 'officeUserReset', 'officeUserBlock', 'officeUserSignOutAll',
-  'officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus'];
+  'officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus',
+  'officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail',
+  'officeQuoteForm', 'officeCustomerAdd', 'officeSiteAdd', 'officeQuoteSave',
+  'officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
   onEdit: function (e) { return !!(e && e.range && typeof e.range.getSheet === 'function'); },
@@ -1575,6 +2551,458 @@ function selfTestOffice() {
       eq('O185 no PDF folder at all -> nothing done', oPdfMove_(db2, { base: fd.folder('Empty', null), file: drv.file }, true, NOW).left.join(), 'No PDF folder');
       e3.clock.db = null;
       eq('O156 no sheet: list says not set up, writes NOREG', officeDocList(tD).setup + ':' + err(function () { officeDocStatus(tD, 'CAE-QH-P01', 'Active', 0); }), 'false:NOREG');
+    })();
+    // --- W3 quotes (SC): list, view, terms, PDF, email (QT1 / QF5 / QF3 reused; stubs for Drive + Gmail)
+    if (typeof pdfTestDb_ === 'function') (function () {
+      var e4 = oMemEnv_(); OFFICE_ENV_ = e4; var j = JSON.stringify, keepQ5 = QF5_STUB_, keepQ3 = QF3_STUB_;
+      var add = function (em, acc) { oSaveLogin_(e4, { email: em, name: em.split('@')[0], depts: acc, password: 'GoodPass1' }); return officeLogin(em, 'GoodPass1', false).token; };
+      var db = pdfTestDb_(); upgradeQT(db); db.ensureColumn('Quotes', 'PDF'); e4.clock.db = db;
+      (function () { var i0 = db.insert, u0 = db.update, cut = function (o) { Object.keys(o).forEach(function (k) { if (typeof o[k] === 'string' && o[k].charAt(0) === "'") o[k] = o[k].slice(1); }); return o; }; // a sheet drops one leading quote
+        db.insert = function (t, r) { return i0.call(db, t, Array.isArray(r) ? r.map(cut) : cut(r)); }; db.update = function (t, r, p) { return u0.call(db, t, r, cut(p)); }; })();
+      var Q1 = 'CAE/Q/2026/001', Q2 = 'CAE/Q/2026/002', Q3 = 'CAE/Q/2026/003', Q4 = 'CAE/Q/2026/004';
+      db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Email: 'buyer@client.com' });
+      db.insert('Terms', [{ ClauseID: 'TC-0101', QuoteType: 'Sale', Section: '4', SectionTitle: 'Payment Terms', ClauseNo: '4.1', Title: 'Schedule', Text: '{{AdvancePct}} advance with the order. Payable within {{PaymentDays}} days.', SortOrder: 410, Active: 'Yes' },
+        { ClauseID: 'TC-0102', QuoteType: 'Sale', Section: '5', SectionTitle: 'General', ClauseNo: '5.1', Title: 'Validity', Text: 'Valid for {{ValidityDays}} days.', SortOrder: 510, Active: 'Yes' }]);
+      var tD = add('dir@t.com', oDir_()), tS = add('sales@t.com', { SC: 2, PS: 1 }), tV = add('scview@t.com', { SC: 1 }), tY = add('yard@t.com', { YW: 2, PS: 1 });
+      var sent = [], made = 0, boom = false, mail = { aliases: function () { return []; }, me: function () { return 'ops@test'; }, user: function () { return ''; },
+        name: function (u) { return /^https:\/\/x\/\d+$/.test(u) ? 'PDF ' + u.slice(10) + '.pdf' : ''; },
+        blob: function (u) { if (!/^https:\/\/x\/\d+$/.test(u)) throw new Error('gone'); return { getName: function () { return 'PDF ' + u.slice(10) + '.pdf'; } }; },
+        send: function (to, s, b, o) { if (boom) throw new Error('Service invoked too many times'); sent.push({ to: to, s: s, b: b, o: o }); } };
+      QF5_STUB_ = { make: function (d, w, n) { var u = 'https://x/' + (++made); d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
+        drive: { name: function () { return ''; }, trash: function () {} } };
+      QF3_STUB_ = { mail: mail, now: function () { return new Date(2026, 10, 20, 9, 5); } };
+      try {
+        var G = function (t, no) { return officeQuoteGet(t, no || Q1); }, op = function (t, no, o, tv) { return officeQuoteTerm(t, no, tv === undefined ? G(t, no).tv : tv, o); };
+        var V = function (v, k) { return v.terms.vars.filter(function (x) { return x.k === k; })[0]; }, C = function (v, id) { var o = null; v.terms.secs.forEach(function (s) { s.cl.forEach(function (c) { if (c.id === id) o = c; }); }); return o; };
+        var L1 = officeQuoteList(tV);
+        eq('O196 list: any SC level, 4 quotes, read only for SC View, amounts sent', L1.rows.length + ':' + L1.can + ':' + L1.money + ':' + (typeof L1.rows[0].total), '4:false:true:number');
+        eq('O197 list refused for yard / bad token; Sales can write', [err(function () { officeQuoteList(tY); }), err(function () { officeQuoteList('x'); }), officeQuoteList(tS).can].join(), 'NOACCESS,NOSESSION,true');
+        var v1 = G(tV), r1 = L1.rows.filter(function (r) { return r.no === Q1; })[0];
+        eq('O198 Rental fields (page names) + fixed tokens', v1.terms.vars.map(function (x) { return x.k + (x.kind === 'fixed' ? '*' : ''); }).join(), 'AdvancePct,PaymentDays,ValidityDays,LateInterest,MinMonths,NoticeDays,PartPeriod,PeriodDays*,BillingSchedule*');
+        eq('O199 Sale has no hire fields', G(tV, Q2).terms.vars.filter(function (x) { return x.kind !== 'fixed'; }).length, 4);
+        eq('O200 clause text {Token} on the page, never {{ }}', j(G(tV, Q2).terms.secs).indexOf('{{') < 0 && /\{PaymentDays\}/.test(j(G(tV, Q2).terms.secs)), true);
+        eq('O201 list + view agree on fill / changed (min hire 2 = 1 change, 8 [ ] to fill)', [r1.fill, r1.changed, v1.fill, v1.changed].join(), '8,1,8,1');
+        eq('O202 view: lines (size from Items, optional line), totals + words, dates', v1.lines.length + ':' + v1.lines[3].optional + ':' + v1.tot.vatPct + ':' + /^Taka /.test(v1.tot.words) + ':' + v1.date + ':' + v1.valid, '4:true:15:true:2026-11-20:2026-12-20');
+        eq('O203 tv is a number, same when nothing changed', typeof v1.tv === 'number' && v1.tv > 0 && G(tS).tv === v1.tv, true);
+        var v2 = op(tS, Q1, { k: 'var', key: 'AdvancePct', value: 40 });
+        eq('O204 field change: value, token text, advance, stored 0.4, new tv', [V(v2, 'AdvancePct').value, V(v2, 'AdvancePct').tok, v2.tot.advPct, must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, v2.tv !== v1.tv].join(), '40,40%,40,0.4,true');
+        eq('O205 old tv -> STALE, nothing written', err(function () { officeQuoteTerm(tS, Q1, v1.tv, { k: 'var', key: 'AdvancePct', value: 30 }); }) + ':' + must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, 'STALE:0.4');
+        eq('O206 bad values refused', [err(function () { op(tS, Q1, { k: 'var', key: 'AdvancePct', value: 101 }); }), err(function () { op(tS, Q1, { k: 'var', key: 'PaymentDays', value: 2.5 }); }),
+          err(function () { op(tS, Q1, { k: 'var', key: 'PaymentDays', value: '9' }); }), err(function () { op(tS, Q1, { k: 'var', key: 'Nope', value: 1 }); }), err(function () { op(tS, Q1, { k: 'var', key: 'LateInterest', value: 1.155 }); })].join(),
+          'BADINPUT|Advance with the order,BADINPUT|Invoices payable within,BADINPUT|Invoices payable within,BADINPUT|field,BADINPUT|Late payment interest');
+        eq('O207 1.15 % late interest kept (no float slip)', V(op(tS, Q1, { k: 'var', key: 'LateInterest', value: 1.15 }), 'LateInterest').value, 1.15);
+        var v3 = op(tS, Q1, { k: 'var', key: 'AdvancePct', value: null });
+        eq('O208 back to standard', V(v3, 'AdvancePct').value + ':' + must(db, 'Quotes', 'QuoteNo', Q1).AdvancePct, 'null:0.5');
+        eq('O209 part month pick', must(db, 'Quotes', 'QuoteNo', (op(tS, Q1, { k: 'var', key: 'PartPeriod', value: 'Pro rata' }), Q1)).PartPeriodRule + ':' + err(function () { op(tS, Q1, { k: 'var', key: 'PartPeriod', value: 'Weekly' }); }), 'Pro rata:BADINPUT|Part month');
+        var cl0 = v1.terms.secs[0].cl[0], pc = null; G(tV, Q2).terms.secs.forEach(function (s) { s.cl.forEach(function (c) { if (!pc && /\{PaymentDays\}/.test(c.text)) pc = c; }); });
+        var v4 = op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay within {PaymentDays} days, please.' }), ov = qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; })[0];
+        eq('O210 clause wording: {Field} stored as {{Field}}, shown changed', ov.Action + ':' + ov.Text + ':' + C(v4, pc.id).st + ':' + C(v4, pc.id).text, 'Replace:Pay within {{PaymentDays}} days, please.:changed:Pay within {PaymentDays} days, please.');
+        eq('O211 unknown field, stray brace, empty, too long refused', [err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay {Foo} now' }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay } now' }); }),
+          err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: '  ' }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: new Array(1002).join('a') }); }), err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'Pay {{PaymentDays}}' }); })].join(),
+          'BADINPUT|wording,BADINPUT|wording,BADINPUT|wording,BADINPUT|wording,BADINPUT|wording');
+        op(tS, Q2, { k: 'clause', id: pc.id, text: '=HYPERLINK("x")' });
+        var ins0 = db.insert, seen = []; db.insert = function (t, r) { if (t === 'QuoteTerms') (Array.isArray(r) ? r : [r]).forEach(function (x) { seen.push(x.Text); }); return ins0.call(db, t, r); };
+        op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 21 }); db.insert = ins0;
+        eq('O212 formula-like wording always written with the text mark (also when another change re-writes the rows)', seen.join() + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; })[0].Text, '\'=HYPERLINK("x"):=HYPERLINK("x")');
+        eq('O213 fill in [Description] -> one less to fill', op(tS, Q1, { k: 'clause', id: cl0.id, text: 'Scaffold to the boiler house.' }).fill, 7);
+        var v5 = op(tS, Q2, { k: 'clause', id: pc.id, reset: true });
+        eq('O214 clause back to standard (row gone)', C(v5, pc.id).st + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === pc.id; }).length, 'std:0');
+        var v6 = op(tS, Q2, { k: 'clause', id: pc.id, remove: true });
+        eq('O215 remove: shown struck, PDF leaves it out; edit / reset-twice rules', C(v6, pc.id).st + ':' + (j(PDF_SPECS.Quote(db, Q2).blocks).indexOf('Payable within') < 0) + ':' + (j(PDF_SPECS.Quote(db, Q2).blocks).indexOf('Valid for') >= 0) + ':' + err(function () { op(tS, Q2, { k: 'clause', id: pc.id, text: 'x y' }); }), 'removed:true:true:BADINPUT|clause');
+        eq('O216 put back; back on a normal clause refused', C(op(tS, Q2, { k: 'clause', id: pc.id, back: true }), pc.id).st + ':' + err(function () { op(tS, Q2, { k: 'clause', id: pc.id, back: true }); }), 'std:BADINPUT|clause');
+        var v7 = op(tS, Q1, { k: 'add', sec: -1, text: 'Night work at 1.5 x the day rate.' }), v8 = op(tS, Q1, { k: 'add', sec: 0, text: 'Extra scope line.' });
+        var sp = v8.terms.secs[v8.terms.secs.length - 1];
+        eq('O217 add: special section at the end + clause in section 1 (ids A0, A1)', sp.t + ':' + sp.cl.map(function (c) { return c.id + '=' + c.st; }).join() + ':' + v8.terms.secs[0].cl.filter(function (c) { return c.st === 'added'; }).map(function (c) { return c.id; }).join(), 'Special Conditions:A1=added:A0');
+        eq('O218 special condition prints in the PDF', j(PDF_SPECS.Quote(db, Q1).blocks).indexOf('Night work at 1.5') >= 0, true);
+        var aid = sp.cl[0].id, v9 = op(tS, Q1, { k: 'clause', id: aid, text: 'Night work at 2 x the day rate.' });
+        eq('O219 added clause: edit, reset refused, delete', C(v9, aid).text + ':' + err(function () { op(tS, Q1, { k: 'clause', id: aid, reset: true }); }) + ':' + j(op(tS, Q1, { k: 'clause', id: aid, remove: true }).terms).indexOf('Night work') , 'Night work at 2 x the day rate.:BADINPUT|clause:-1');
+        eq('O220 unknown clause / section / change refused', [err(function () { op(tS, Q1, { k: 'clause', id: 'TC-9999', remove: true }); }), err(function () { op(tS, Q1, { k: 'clause', id: 'A9', remove: true }); }), err(function () { op(tS, Q1, { k: 'add', sec: 99, text: 'x y' }); }),
+          err(function () { op(tS, Q1, { k: 'drop' }); }), err(function () { op(tS, Q1, null); }), err(function () { op(tS, Q1, [1]); })].join(), 'NOTFOUND,NOTFOUND,BADINPUT|section,BADINPUT|change,BADINPUT|change,BADINPUT|change');
+        var vR = op(tS, Q1, { k: 'resetAll' });
+        eq('O221 all to standard (min hire 2 -> standard 1, rows gone)', vR.changed + ':' + qtRows_(db, Q1).length + ':' + must(db, 'Quotes', 'QuoteNo', Q1).MinMonths, '0:0:1');
+        eq('O222 SC View / yard / bad token cannot change terms; Director can', [err(function () { op(tV, Q1, { k: 'resetAll' }); }), err(function () { officeQuoteTerm(tY, Q1, 1, { k: 'resetAll' }); }), err(function () { officeQuoteTerm('x', Q1, 1, { k: 'resetAll' }); }), op(tD, Q1, { k: 'resetAll' }).changed].join(), 'NOACCESS,NOACCESS,NOSESSION,0');
+        eq('O223 unknown / junk quote numbers', [err(function () { G(tV, 'CAE/Q/2026/999'); }), err(function () { G(tV, { a: 1 }); }), err(function () { G(tV, '../../x'); }), err(function () { officeQuoteTerm(tS, 'nope', 1, { k: 'resetAll' }); })].join(), 'NOTFOUND,NOTFOUND,NOTFOUND,NOTFOUND');
+        eq('O224 tv must be the number shown (string / missing = STALE)', [err(function () { officeQuoteTerm(tS, Q1, String(G(tS).tv), { k: 'resetAll' }); }), err(function () { officeQuoteTerm(tS, Q1, undefined, { k: 'resetAll' }); })].join(), 'STALE,STALE');
+        // PDF: the stored one while current; locked quotes never remade; SC View never makes one
+        eq('O225a SC View: no PDF yet -> NOPDF (makes nothing)', err(function () { officeQuotePdf(tV, Q2); }) + ':' + made, 'NOPDF:0');
+        var p1 = officeQuotePdf(tS, Q2), p2 = officeQuotePdf(tV, Q2), vp = G(tV, Q2);
+        eq('O225 PDF made once, then the same link (View too); view sends it', p1.made + ':' + p2.made + ':' + (p1.url === p2.url) + ':' + (vp.pdf === p1.url) + ':' + made, 'true:false:true:true:1');
+        op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 20 });
+        eq('O226 a terms change -> view has no PDF; View gets the old one, Staff makes a new one', G(tV, Q2).pdf + ':' + officeQuotePdf(tV, Q2).made + ':' + officeQuotePdf(tS, Q2).made + ':' + made, ':false:true:2');
+        db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Name: 'Test Client Renamed' });
+        eq('O227 anything printed changes the PDF version (customer renamed) -> made again', officeQuotePdf(tS, Q2).made + ':' + made, 'true:3');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: 'https://x/77' });
+        eq('O227b a PDF made elsewhere (panel remakes on every save) is trusted', officeQuotePdf(tS, Q2).url + ':' + made, 'https://x/77:3');
+        e4.put('OQPB:x', 1); e4.put('OQPB:' + Q3, { t: 'other', u: e4.now() + 60000 }); db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { PDF: '' });
+        eq('O228 one PDF make per quote at a time', err(function () { officeQuotePdf(tS, Q3); }), 'BUSY');
+        var lz = e4.get('OQPB:' + Q3).t; e4.put('OQPB:' + Q3, { t: 'other', u: e4.now() - 1 }); var mz = made, pz = officeQuotePdf(tS, Q3);
+        eq('O324 PDF lease: a run-out lease is taken over; the new one is removed after the make (owner token)', [lz, pz.made, made - mz, e4.get('OQPB:' + Q3)].join('|'), 'other|true|1|');
+        // email
+        var A = function (no, o) { return Object.assign({ to: 'buyer@client.com', cc: '', note: '' }, o || {}); }, ns = sent.length;
+        eq('O229 [to fill] left -> TOFILL, nothing sent', err(function () { officeQuoteEmail(tS, Q1, G(tS).tv, A(Q1)); }) + ':' + (sent.length - ns), 'TOFILL|8:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { Status: 'Draft' }); var vq = G(tS, Q2);
+        var m1 = officeQuoteEmail(tS, Q2, vq.tv, A(Q2, { cc: 'Sales@T.com', note: 'As discussed on site today.' })), s1 = sent[sent.length - 1];
+        eq('O230 email: sent with a fresh PDF, Draft -> Sent, note after the greeting, cc', m1.status + ':' + m1.was + ':' + s1.to + ':' + s1.o.cc + ':' + /^Dear [^\n]+,\n\nAs discussed on site today\.\n\nPlease find/.test(s1.b) + ':' + s1.o.attachments[0].getName(), 'Sent:Draft:buyer@client.com:sales@t.com:true:PDF 77.pdf');
+        eq('O231 log says who (office login)', db.rows('Log').filter(function (x) { return x.Action === 'Quote emailed' && x.Ref === Q2; }).map(function (x) { return x.User; }).pop() + ':' + db.rows('Log').filter(function (x) { return x.Action === 'Quote terms'; }).map(function (x) { return x.User; }).pop() + ':' + OQ_ACT_, 'office:sales@t.com:office:sales@t.com:');
+        eq('O232 after sending: view still has the PDF (status change only)', G(tS, Q2).pdf !== '', true);
+        ns = sent.length;
+        eq('O233 refusals send nothing', [err(function () { officeQuoteEmail(tS, Q2, 1, A(Q2)); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: 'not-an-email' })); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: '' })); }),
+          err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { to: new Array(12).join('a@b.co,') })); }), err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { note: new Array(2002).join('n') })); }),
+          err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2, { cc: ['x'] })); }), err(function () { officeQuoteEmail(tV, Q2, G(tV, Q2).tv, A(Q2)); }), err(function () { officeQuoteEmail(tY, Q2, 1, A(Q2)); })].join() + ':' + (sent.length - ns),
+          'STALE,BADINPUT|to,BADINPUT|to,BADINPUT|to,BADINPUT|message,BADINPUT|cc,NOACCESS,NOACCESS:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q4), { Status: 'Lost' });
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { Status: 'Expired' });
+        eq('O234 Lost / Expired: not sent (QSTATE), terms locked (QLOCKED)', [err(function () { officeQuoteEmail(tS, Q4, G(tS, Q4).tv, A(Q4)); }), err(function () { officeQuoteEmail(tS, Q3, G(tS, Q3).tv, A(Q3)); }), err(function () { op(tS, Q4, { k: 'resetAll' }); }), G(tS, Q4).locked].join() + ':' + (sent.length - ns), 'QSTATE|Lost,QSTATE|Expired,QLOCKED,STATUS:0');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { Status: 'Sent' }); db.insert('Jobs', { JobNo: 'CAE/J/2026/009', QuoteNo: Q3, Status: 'Active' });
+        eq('O235 quote with a job: terms locked (JOB), list shows the job', G(tS, Q3).locked + ':' + err(function () { op(tS, Q3, { k: 'resetAll' }); }) + ':' + officeQuoteList(tS).rows.filter(function (r) { return r.no === Q3; })[0].job, 'JOB:QLOCKED:CAE/J/2026/009');
+        eq('O236a a second send within a minute -> SENTNOW', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }), 'SENTNOW');
+        e4.cdel('OQE:' + Q2); boom = true; ns = sent.length; var st2 = must(db, 'Quotes', 'QuoteNo', Q2).Status;
+        eq('O236 Gmail error: message says nothing was sent, status unchanged', /nothing was sent/.test(err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); })) + ':' + (must(db, 'Quotes', 'QuoteNo', Q2).Status === st2), 'true:true');
+        boom = false;
+        var dy = Math.floor((e4.now() + 216e5) / 864e5); e4.put('OQM:sales@t.com', { d: dy, n: 30 });
+        eq('O236b 30 emails a day per login -> LIMIT', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }), 'LIMIT');
+        e4.put('OQM:sales@t.com', { d: dy - 1, n: 30 }); ns = sent.length; var mY = officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2));
+        eq('O325 the day count is kept in Script Properties for the whole Dhaka day; a new day starts at 0', [sent.length - ns, JSON.stringify(e4.get("OQM:sales@t.com"))].join("|"), "1|" + JSON.stringify({ d: dy, n: 1 }));
+        // CR2: the preparer is part of the version the sender saw
+        e4.cdel('OQE:' + Q2); var tvP = G(tS, Q2).tv, qP = must(db, 'Quotes', 'QuoteNo', Q2), pb0 = qP.PreparedBy; db.update('Quotes', qP, { PreparedBy: 'STF-777' });
+        eq('O326 another preparer since the view -> STALE, nothing sent', err(function () { officeQuoteEmail(tS, Q2, tvP, A(Q2)); }) + ':' + (sent.length - ns), 'STALE:1');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PreparedBy: pb0 == null ? '' : pb0 });
+        // CR15: Gmail took it, the status / log write failed -> SENTNOREC, durable receipt, no second delivery
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { Status: 'Draft' });
+        var s0m = mail.send, u0m = db.update, failQ = false; mail.send = function () { s0m.apply(mail, arguments); failQ = true; };
+        db.update = function (t) { if (t === 'Quotes' && failQ) { failQ = false; throw new Error('Service Spreadsheets timed out'); } return u0m.apply(db, arguments); };
+        ns = sent.length; var eN = err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }); mail.send = s0m; db.update = u0m;
+        var stN = must(db, 'Quotes', 'QuoteNo', Q2).Status; e4.clock.now += 120000; var eN2 = err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); });
+        eq('O336 the next try records the send that went out: Sent + a log line, and refuses a second delivery', [stN, must(db, 'Quotes', 'QuoteNo', Q2).Status, /recorded later/.test(j(db.rows('Log').slice(-2))), e4.get('OQES:' + Q2).done].join('|'), 'Draft|Sent|true|1');
+        eq('O327 delivered but not recorded: SENTNOREC, counted, a resend within 10 min refused', [eN, eN2, sent.length - ns, e4.get('OQM:sales@t.com').n, e4.get('OQES:' + Q2).nr].join('|'), 'SENTNOREC|SENTNOW|1|2|1');
+        e4.clock.now += 600000; e4.cdel('OQE:' + Q2);
+        // CR4 / CR8: fingerprint of the spec that was rendered; a PDF made without images is tried again later
+        var q5k = qf5Pdf_, mk5 = made; qf5Pdf_ = function () { var r = q5k.apply(this, arguments); OSG_FELL_ = true; return r; };
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: '' }); var f1p;
+        try { f1p = officeQuotePdf(tS, Q2); } finally { qf5Pdf_ = q5k; }
+        var ni = e4.get('OQP:' + Q2).ni, f2p = officeQuotePdf(tS, Q2); e4.clock.now += 660000; var f3p = officeQuotePdf(tS, Q2);
+        eq('O328 PDF made without the images: current for 10 min, then made again (with images)', [f1p.made, ni, f2p.made, f3p.made, made - mk5, e4.get('OQP:' + Q2).ni].join('|'), 'true|1|false|true|2|');
+        qf5Pdf_ = function () { db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Name: 'Renamed During Export' }); return q5k.apply(this, arguments); };
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: '' }); var mk6 = made;
+        try { officeQuotePdf(tS, Q2); } finally { qf5Pdf_ = q5k; }
+        eq('O329 something printed changed during the export -> the next Open makes it again', [officeQuotePdf(tS, Q2).made, made - mk6].join('|'), 'true|2');
+        // CR7: a PDF from the sheet panel (no OQP record) is out of date after a terms change here
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: 'https://x/88' }); var mk7 = made, t7 = officeQuotePdf(tS, Q2).url;
+        op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 22 });
+        eq('O330 panel PDF trusted until a change here, then made again', [t7, officeQuotePdf(tS, Q2).made, made - mk7].join('|'), 'https://x/88|true|1');
+        // locked quote keeps its PDF (Q3 has a job now)
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q3), { PDF: 'https://x/55' }); e4.put('OQP:' + Q3, { v: 1, f: 'https://x/55' }); var m0 = made;
+        eq('O239 locked quote: stored PDF opened / emailed, never made again', officeQuotePdf(tS, Q3).url + ':' + G(tS, Q3).pdf + ':' + (made - m0), 'https://x/55:https://x/55:0');
+        // a failing sheet write in the middle of qtSave_ puts the old rows back
+        op(tS, Q2, { k: 'add', sec: -1, text: 'Keep me.' }); var n0 = qtRows_(db, Q2).length, i1 = db.insert;
+        var once = 1; db.insert = function (t, r) { if (t === 'QuoteTerms' && once) { once = 0; throw new Error('Service Spreadsheets timed out'); } return i1.call(db, t, r); };
+        var eB = err(function () { op(tS, Q2, { k: 'add', sec: -1, text: 'Lost?' }); }); db.insert = i1;
+        eq('O240 sheet error mid-save -> BUSY, old clause rows back', eB + ':' + (qtRows_(db, Q2).length === n0) + ':' + qtRows_(db, Q2).some(function (o) { return o.Text === 'Keep me.'; }), 'BUSY:true:true');
+        op(tS, Q2, { k: 'var', key: 'PaymentDays', value: 9 }); once = 1; db.insert = function (t, r) { if (t === 'QuoteTerms' && once) { once = 0; throw new Error('Service Spreadsheets timed out'); } return i1.call(db, t, r); };
+        var eP = err(function () { op(tS, Q2, { k: 'var', key: 'PaymentDays', value: 14 }); }); db.insert = i1;
+        eq('O335 sheet error after the quote row was written -> BUSY, PaymentDays back to 9, the old view still saves', [eP, must(db, 'Quotes', 'QuoteNo', Q2).PaymentDays, op(tS, Q2, { k: 'var', key: 'PaymentDays', value: 14 }) ? must(db, 'Quotes', 'QuoteNo', Q2).PaymentDays : 'x'].join('|'), 'BUSY|9|14');
+        op(tS, Q2, { k: 'var', key: 'PaymentDays', value: null });
+        // placeholders counted as the PDF counts them (long, newline, empty)
+        op(tS, Q2, { k: 'clause', id: 'TC-0102', text: 'Valid at [' + new Array(91).join('s') + '] and [] for {ValidityDays} days.' });
+        eq('O241 long / empty [ ] count like the PDF -> TOFILL|2', err(function () { officeQuoteEmail(tS, Q2, G(tS, Q2).tv, A(Q2)); }) + ':' + G(tS, Q2).fill, 'TOFILL|2:2');
+        eq('O242 wording back to the standard text = standard (no row)', C(op(tS, Q2, { k: 'clause', id: 'TC-0102', text: 'Valid for {ValidityDays} days.' }), 'TC-0102').st + ':' + qtRows_(db, Q2).filter(function (o) { return o.ClauseID === 'TC-0102'; }).length, 'std:0');
+        db.insert('QuoteTerms', { QuoteNo: Q2, ClauseID: 'TC-0102', Action: 'Replace', Section: '5', ClauseNo: '5.1', Text: '', SortOrder: 510 });
+        eq('O243 a blank Replace row (hand-made) does not block changes', V(op(tS, Q2, { k: 'var', key: 'AdvancePct', value: 45 }), 'AdvancePct').value, 45);
+        var ins2 = db.insert, all = []; db.insert = function (t, r) { if (t === 'QuoteTerms') (Array.isArray(r) ? r : [r]).forEach(function (x) { all.push(x.Text); }); return ins2.call(db, t, r); };
+        op(tS, Q2, { k: 'var', key: 'AdvancePct', value: 46 }); db.insert = ins2;
+        eq('O244 every clause text written with the text mark', all.filter(function (x) { return !/^'/.test(x); }).join('|') + ':' + all.length, ':1');
+        db.ensureColumn('Quotes', 'Total'); db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q4), { Total: 1234.5 });
+        eq('O245 list uses the sheet Total when there is one', officeQuoteList(tS).rows.filter(function (r) { return r.no === Q4; })[0].total, 1234.5);
+        eq('O237 W3 calls are on the web API list', ['officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail'].every(function (n) { return OFFICE_WEB_API_.indexOf(n) >= 0; }), true);
+        eq('O238 user_ is the Google user again outside a web call', OQ_ACT_ === '' && user_() === OQ_user0_(), true);
+        var QU = [Q1, Q2, Q3, Q4].filter(function (n) { return !oQLocked_(db, oQRow_(db, n)); })[0] || Q1;
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', QU), { PreparedBy: 'STF-0777' });
+        eq('O323 D2: terms of a quote someone else prepared: QPREP for Sales, a Director may', [err(function () { op(tS, QU, { k: 'var', key: 'PaymentDays', value: 9 }); }), err(function () { op(tD, QU, { k: 'var', key: 'PaymentDays', value: 9 }); })].join(','), 'QPREP,no error');
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', QU), { PreparedBy: '' });
+      } finally { QF5_STUB_ = keepQ5; QF3_STUB_ = keepQ3; }
+    })();
+    // --- W4 new / edit quote (SC Staff+): form, new customer / project, save (panel save reused), PDF grid of 7 columns
+    if (typeof pdfTestDb_ === 'function') (function () {
+      var e5 = oMemEnv_(); OFFICE_ENV_ = e5; var keepQ5 = QF5_STUB_;
+      var add = function (em, acc) { oSaveLogin_(e5, { email: em, name: em.split('@')[0], depts: acc, password: 'GoodPass1' }); return officeLogin(em, 'GoodPass1', false).token; };
+      var db = pdfTestDb_(); upgradeQT(db); db.ensureColumn('Quotes', 'PDF'); if (typeof upgradeO7 === 'function') { try { upgradeO7(db); } catch (x) { /* sets optional */ } }
+      e5.clock.db = db; e5.clock.now = new Date(2026, 10, 20, 10, 0).getTime();
+      db.insert('Staff', { StaffID: 'STF-0001', Name: 'Jamal Uddin' });
+      var sq = find(db.rows('Sequences'), 'SeqKey', 'Q-2026'); if (sq) db.update('Sequences', sq, { LastNo: 4 }); else nextIds(db, 'Q', 4, new Date(2026, 10, 20));
+      db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Email: 'buyer@client.com' });
+      var Q2 = 'CAE/Q/2026/002', Q4 = 'CAE/Q/2026/004', made = 0, boom = false;
+      QF5_STUB_ = { make: function (d, w, n) { if (boom) throw new Error('Drive is down'); var u = 'https://x/' + (++made); d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
+        drive: { name: function () { return ''; }, trash: function () {} } };
+      var tD = add('dir4@t.com', oDir_()), tS = (function () { var t = add('sales4@t.com', { SC: 2 }), L = e5.get('OL:sales4@t.com'); L.staff = 'STF-0001'; e5.put('OL:sales4@t.com', L); return t; })(), tV = add('scv4@t.com', { SC: 1 }), tY = add('yard4@t.com', { YW: 2, PS: 1 }), tA = add('acc4@t.com', { AC: 2, PR: 2, SC: 1 });
+      var j = JSON.stringify, n0 = function () { return db.rows('Quotes').length; };
+      var ql = function (no) { return db.rows('QuoteLines').filter(function (l) { return l.QuoteNo === no; }).sort(function (a, b) { return a.LineNo - b.LineNo; }); };
+      var base = function (o) { return Object.assign({ type: 'Rental', cust: 'CUST-0001', site: 'SITE-0001', attention: '', subject: '', date: '2026-11-20', valid: '2026-12-20', prep: 'STF-0001', adv: 50,
+        lines: [{ code: 'RL-STD-20', desc: 'Ringlock standard 2.0 m', qty: 100, unit: 'pc / month', rate: 90 }, { code: '', desc: 'Transport', qty: 2, unit: 'trip', rate: 5000 }] }, o || {}); };
+      var bad = function (t, o) { return err(function () { officeQuoteSave(t, base(o)); }); };
+      var L1 = function (o) { return base({ lines: [Object.assign({ code: '', desc: 'Item', qty: 1, unit: 'pc', rate: 10 }, o)] }); };
+      try {
+        eq('O250 W4 calls are on the web API list; the scope set-up is not', ['officeQuoteForm', 'officeCustomerAdd', 'officeSiteAdd', 'officeQuoteSave'].every(function (n) { return OFFICE_WEB_API_.indexOf(n) >= 0; }) && OFFICE_WEB_API_.indexOf('officeScopeItemsAdd') < 0, true);
+        eq('O251 form: SC View / Accounts (SC View) / Yard / no session refused', [err(function () { officeQuoteForm(tV, ''); }), err(function () { officeQuoteForm(tA, ''); }), err(function () { officeQuoteForm(tY, ''); }), err(function () { officeQuoteForm('nope', ''); })].join(','), 'NOACCESS,NOACCESS,NOACCESS,NOSESSION');
+        var F = officeQuoteForm(tS, '');
+        eq('O252 new form: customers, projects, items with rates, units, company rates, no quote', [F.money, F.customers.length, F.sites[0].id, F.items.some(function (i) { return i.code === 'RL-STD-20' && i.hire === 90; }), F.units.indexOf('pc') >= 0, F.set.vat, F.set.adv, F.set.validDays, F.quote, F.today].join('|'), 'true|1|SITE-0001|true|true|15|50|30||2026-11-20');
+        eq('O253 old-format quotes (months 2, milestone) refused for edit: QOLD', [err(function () { officeQuoteForm(tS, 'CAE/Q/2026/001'); }), err(function () { officeQuoteForm(tS, 'CAE/Q/2026/003'); })].join(','), 'QOLD|2,QOLD|2');
+        var F4 = officeQuoteForm(tS, Q4);
+        eq('O254 edit form: old Service quote opens as Project, lines in the 7 columns, ev', [F4.quote.type, F4.quote.lines.length, F4.quote.lines[0].unit, F4.quote.lines[0].rate, typeof F4.quote.ev, F4.quote.adv].join('|'), 'Project|1|visit|6000|number|50');
+        // new customer / project
+        var c1 = officeCustomerAdd(tS, { name: '  New  Builders Ltd ', contact: 'Mr. Karim', phone: '01811-222333', email: 'Karim@NB.test', address: 'Gulshan' });
+        eq('O255 new customer registered at once', [/^CUST-\d+$/.test(c1.id), c1.name, c1.email, c1.phone, must(db, 'Customers', 'CustID', c1.id).Status].join('|'), 'true|New Builders Ltd|Karim@NB.test|01811-222333|Active');
+        eq('O256 duplicates refused with the existing id: name (Ltd / case / dots), phone, email', [err(function () { officeCustomerAdd(tS, { name: 'NEW BUILDERS LIMITED.' }); }), err(function () { officeCustomerAdd(tS, { name: 'Other Co', phone: '+880 1811 222333' }); }),
+          err(function () { officeCustomerAdd(tS, { name: 'Third', email: 'buyer@CLIENT.com' }); }), err(function () { officeCustomerAdd(tS, { name: 'the test client' }); })].join(','), 'DUP|' + c1.id + '|name,DUP|' + c1.id + '|phone,DUP|CUST-0001|email,DUP|CUST-0001|name');
+        eq('O257 bad customer input refused', [err(function () { officeCustomerAdd(tS, { name: '  ' }); }), err(function () { officeCustomerAdd(tS, { name: new Array(200).join('a') }); }), err(function () { officeCustomerAdd(tS, { name: 'X1', phone: 'call me' }); }),
+          err(function () { officeCustomerAdd(tS, { name: 'X2', email: 'x@' }); }), err(function () { officeCustomerAdd(tS, 'str'); }), err(function () { officeCustomerAdd(tS, { name: ['a'] }); }), err(function () { officeCustomerAdd(tV, { name: 'Viewer Co' }); })].join(','),
+          'BADINPUT|name,BADINPUT|name,BADINPUT|phone,BADINPUT|email,BADINPUT|name,BADINPUT|name,NOACCESS');
+        var c2 = officeCustomerAdd(tS, { name: '=HYPERLINK("x")' });
+        eq('O258 formula-like name stored as text', String(must(db, 'Customers', 'CustID', c2.id).Name).charAt(0), "'");
+        var s1 = officeSiteAdd(tS, { cust: c1.id, project: 'Tower B façade', address: 'Plot 9, Gulshan' });
+        eq('O259 new project for the customer; same project + address again -> DUP with its id', [/^SITE-\d+$/.test(s1.id), s1.cust, err(function () { officeSiteAdd(tS, { cust: c1.id, project: 'tower b FAÇADE', address: 'plot 9 gulshan' }); })].join('|'), 'true|' + c1.id + '|DUP|' + s1.id + '|project');
+        eq('O260 project: same name for another customer is fine; bad input refused', [!!officeSiteAdd(tS, { cust: 'CUST-0001', project: 'Tower B façade', address: 'Plot 9, Gulshan' }).id, err(function () { officeSiteAdd(tS, { cust: 'CUST-9999', project: 'P' }); }),
+          err(function () { officeSiteAdd(tS, { cust: c1.id, project: '' }); }), err(function () { officeSiteAdd(tY, { cust: c1.id, project: 'Y' }); })].join(','), 'true,BADINPUT|customer,BADINPUT|project,NOACCESS');
+        // save new Rental
+        var r1 = officeQuoteSave(tS, base({ attention: 'Mr. X', subject: '-Hire' })), q1 = must(db, 'Quotes', 'QuoteNo', r1.no), l1 = ql(r1.no);
+        eq('O261 new Rental saved as Draft Rev 0; "/ month" = Unit pc + Monthly + Months 1, one-off = blank months', [r1.rev, r1.status, l1.length, l1[0].Unit, l1[0].Billing, l1[0].Months, l1[1].Unit, l1[1].Billing, l1[1].Months, q1.AdvancePct, q1.PreparedBy].join('|'), '0|Draft|2|pc|Monthly|1|trip|One-off||0.5|STF-0001');
+        var t1 = quoteTotals(db, r1.no);
+        eq('O262 totals = Qty x Rate (one month of hire) + VAT', [t1.subtotal, t1.total].join('|'), '19000|21850');
+        eq('O263 valid until -> ValidityDays (30 = standard, blank); formula-like subject stored as text', [q1.ValidityDays === '' || q1.ValidityDays == null, String(q1.Subject).charAt(0), q1.Attention].join('|'), "true|'|Mr. X");
+        var r2 = officeQuoteSave(tS, base({ valid: '2026-12-05' }));
+        eq('O264 15 days valid -> ValidityDays 15', must(db, 'Quotes', 'QuoteNo', r2.no).ValidityDays, 15);
+        // Project: measure + lump sum + optional
+        var r3 = officeQuoteSave(tS, base({ type: 'Project', lines: [{ code: '', desc: 'External scaffold\nsupply, erect, hire, dismantle', qty: 999, unit: 'm² / month', rate: 95, dim: { L: 20, W: '', H: 12, N: '' } },
+          { code: '', desc: 'Design', qty: 5, unit: 'pc', rate: 25000, basis: 'lump' }, { code: '', desc: 'Night work', qty: 1, unit: 'lot', rate: 7000, opt: true }] })), l3 = ql(r3.no);
+        eq('O265 measured line: server works out 240 m², monthly; lump sum = 1 lot; optional not in total', [l3[0].Qty, l3[0].Unit, l3[0].Months, l3[0].DimL, l3[0].RateBasis, l3[0].Description.split('\n').length, l3[1].Qty, l3[1].Unit, l3[1].RateBasis, l3[2].Optional + l3[2].Selected, quoteTotals(db, r3.no).subtotal].join('|'), '240|m²|1|20|Per unit|2|1|lot|Lump sum|YesNo|47800');
+        var g3 = PDF_SPECS.Quote(db, r3.no).blocks.filter(function (b) { return b.t === 'grid'; })[0];
+        eq('O266 PDF grid = the 7 columns (width as before), size + "/ month" in their own columns', [g3.cols.map(function (c) { return c.h; }).join(','), g3.cols.reduce(function (s, c) { return s + c.w; }, 0), g3.rows[0][2], g3.rows[0][4], g3.rows[0][1].indexOf('L 20') < 0, g3.rows[2][6]].join('|'),
+          'No.,Description,Size,Qty,Unit,Rate (BDT),Amount (BDT)|482|L 20 m × H 12 m = 240 m²|m² / month|true|(7,000.00)');
+        var g1 = PDF_SPECS.Quote(db, 'CAE/Q/2026/001').blocks, gr1 = g1.filter(function (b) { return b.t === 'grid'; })[0];
+        eq('O267 old quote PDF (months 2) still totals the same and says x months', [gr1.rows[0][4], gr1.rows[0][6], j(g1).indexOf('Amount = Qty × Rate (× months where shown)') >= 0, gr1.rows[0][2]].join('|'), 'pc / month × 2|10,000.00|true|—');
+        // edit
+        var F2 = officeQuoteForm(tS, Q2), e2 = F2.quote.lines.map(function (l) { return Object.assign({}, l); }); e2[0].qty = 30;
+        var r4 = officeQuoteSave(tS, base({ no: Q2, ev: F2.quote.ev, type: 'Sale', lines: e2 })), q4 = must(db, 'Quotes', 'QuoteNo', Q2);
+        eq('O268 edit a Sent quote: same number, Rev 1, Draft; Notes / VAT kept; qty saved', [r4.no, r4.rev, r4.status, r4.was, q4.Notes, q4.VATPct, ql(Q2)[0].Qty, ql(Q2).length].join('|'), Q2 + '|1|Draft|Sent|Include AIT|0.15|30|2');
+        eq('O269 same form sent again -> STALE (nothing changed)', [bad(tS, { no: Q2, ev: F2.quote.ev, type: 'Sale', lines: e2 }), ql(Q2)[0].Qty].join('|'), 'STALE|30');
+        var F2b = officeQuoteForm(tS, Q2), r5 = officeQuoteSave(tS, base({ no: Q2, ev: F2b.quote.ev, type: 'Sale', lines: F2b.quote.lines }));
+        eq('O270 edit a Draft: Rev stays 1; the log names the office login', [r5.rev, r5.status, j(db.rows('Log').slice(-3)).indexOf('office:sales4@t.com') >= 0].join('|'), '1|Draft|true');
+        eq('O271 ev must be a number; old-format quote save refused', [bad(tS, { no: Q2, ev: String(F2b.quote.ev) }), bad(tS, { no: 'CAE/Q/2026/001', ev: 1 })].join(','), 'STALE,STALE');
+        // CR11: another type -> this quote's term changes go back to standard
+        var qT = officeQuoteSave(tS, L1()).no; db.insert('QuoteTerms', [{ QuoteNo: qT, ClauseID: 'X1', Action: 'Replace', Text: 'Custom.' }]); db.update('Quotes', must(db, 'Quotes', 'QuoteNo', qT), { PaymentDays: 7 });
+        var FT = officeQuoteForm(tS, qT).quote; officeQuoteSave(tS, base({ no: qT, ev: FT.ev, lines: [{ code: '', desc: 'Item', qty: 3, unit: 'pc', rate: 10 }] }));
+        var kT = qtRows_(db, qT).length + ':' + must(db, 'Quotes', 'QuoteNo', qT).PaymentDays; FT = officeQuoteForm(tS, qT).quote;
+        officeQuoteSave(tS, base({ no: qT, ev: FT.ev, type: 'Sale', lines: [{ code: '', desc: 'Item', qty: 3, unit: 'pc', rate: 10 }] }));
+        eq('O332 same type keeps the term changes; Rental -> Sale drops them (standard Sale terms)', [kT, qtRows_(db, qT).length, must(db, 'Quotes', 'QuoteNo', qT).PaymentDays].join('|'), '1:7|0|');
+        // CR10: lines saved but the Rev +1 write failed -> completed on the next action
+        var qR = officeQuoteSave(tS, L1()).no; db.update('Quotes', must(db, 'Quotes', 'QuoteNo', qR), { Status: 'Sent' });
+        var FR = officeQuoteForm(tS, qR).quote, u0r = db.update, failR = 1, l2 = [{ code: '', desc: 'Item', qty: 2, unit: 'pc', rate: 10 }];
+        db.update = function (t, r, p) { if (t === 'Quotes' && p && p.Rev != null && failR) { failR = 0; throw new Error('Service Spreadsheets timed out'); } return u0r.apply(db, arguments); };
+        var eR = err(function () { officeQuoteSave(tS, base({ no: qR, ev: FR.ev, lines: l2 })); }); db.update = u0r;
+        var pR = e5.get('OQRV:' + qR).rev, r0 = must(db, 'Quotes', 'QuoteNo', qR).Rev + ':' + must(db, 'Quotes', 'QuoteNo', qR).Status, eR2 = bad(tS, { no: qR, ev: FR.ev, lines: l2 }), qR2 = must(db, 'Quotes', 'QuoteNo', qR);
+        eq('O333 Rev +1 not written: kept as pending, done on the next save (then STALE: open the latest)', [/timed out/.test(eR), pR, r0, eR2, qR2.Rev, qR2.Status, e5.get('OQRV:' + qR), ql(qR)[0].Qty].join('|'), 'true|1|0:Sent|STALE|1|Draft||2');
+        // CR14: the panel's withLock also takes the script lock; inside a web-app lock it does not take it again
+        var lk = [], fk = { getScriptLock: function () { return { waitLock: function () { lk.push('s+'); }, releaseLock: function () { lk.push('s-'); } }; }, getDocumentLock: function () { return { waitLock: function () { lk.push('d+'); }, releaseLock: function () { lk.push('d-'); } }; } };
+        var ls0 = OLK_.ls; OLK_.ls = fk;
+        var sw0 = uiDo.officeLk_ || (uiDo.officeRaw_ || {}).officeLk_;
+        try { withLock(function () { lk.push('in:' + OLK_.s); }); officeEnv_().lock(function () { withLock(function () { lk.push('in2:' + OLK_.s); }); });
+          OLK_.np = true; withLock(function () { lk.push('np:' + OLK_.s); }); OLK_.np = false; } finally { OLK_.ls = ls0; OLK_.np = false; }
+        eq('O334 panel writes hold the script lock around the panel\'s own (document) lock; nested calls take nothing twice; a panel PDF does not', [lk.join(' '), OLK_.s, typeof sw0].join('|'), 's+ in:1 s- s+ in2:1 s- np:0|0|function');
+        // refusals: nothing written
+        var nq = n0();
+        eq('O272 bad header input', [bad(tS, { type: 'Service' }), bad(tS, { cust: 'CUST-0999' }), bad(tS, { site: s1.id }), bad(tS, { date: '2026-02-30' }), bad(tS, { valid: '2026-11-19' }), bad(tS, { valid: '2028-01-01' }),
+          bad(tS, { adv: 101 }), bad(tS, { adv: '50' }), bad(tS, { adv: 33.333 }), bad(tS, { prep: 'STF-0999' }), bad(tS, { attention: { x: 1 } }), bad(tS, { date: '2019-12-31' })].join(','),
+          'BADINPUT|type,BADINPUT|customer,BADINPUT|project,BADINPUT|date,BADINPUT|valid until,BADINPUT|valid until,BADINPUT|advance,BADINPUT|advance,BADINPUT|advance,BADINPUT|prepared by,BADINPUT|attention,BADINPUT|date');
+        var many = []; for (var k = 0; k < 201; k++) many.push({ code: '', desc: 'x' + k, qty: 1, unit: 'pc', rate: 1 });
+        eq('O273 bad lines', [bad(tS, { lines: [] }), bad(tS, { lines: many }), bad(tS, { lines: 'x' }), bad(tS, { lines: [null] }), err(function () { officeQuoteSave(tS, L1({ unit: 'bags' })); }), err(function () { officeQuoteSave(tS, base({ type: 'Sale', lines: [{ desc: 'x', qty: 1, unit: 'pc / month', rate: 1 }] })); }),
+          err(function () { officeQuoteSave(tS, L1({ qty: 0 })); }), err(function () { officeQuoteSave(tS, L1({ qty: -1 })); }), err(function () { officeQuoteSave(tS, L1({ qty: '5' })); }), err(function () { officeQuoteSave(tS, L1({ rate: -5 })); }), err(function () { officeQuoteSave(tS, L1({ rate: 1.234 })); }),
+          err(function () { officeQuoteSave(tS, L1({ code: 'NOPE' })); }), err(function () { officeQuoteSave(tS, L1({ code: '__proto__' })); }), err(function () { officeQuoteSave(tS, L1({ desc: '  ' })); }), err(function () { officeQuoteSave(tS, L1({ desc: new Array(600).join('a') })); }), err(function () { officeQuoteSave(tS, L1({ opt: 'yes' })); }),
+          err(function () { officeQuoteSave(tS, L1({ dim: { L: 20, H: '' } })); }), err(function () { officeQuoteSave(tS, L1({ dim: { L: 20, H: 3, N: 1.5 } })); }), err(function () { officeQuoteSave(tS, L1({ basis: 'free' })); }), err(function () { officeQuoteSave(tS, L1({ qty: NaN })); }), err(function () { officeQuoteSave(tS, L1({ rate: Infinity })); })].join(','),
+          'BADINPUT|lines,BADINPUT|lines,BADINPUT|lines,BADINPUT|line 1,BADINPUT|line 1 unit,BADINPUT|line 1 unit,BADINPUT|line 1 qty,BADINPUT|line 1 qty,BADINPUT|line 1 qty,BADINPUT|line 1 rate,BADINPUT|line 1 rate,BADINPUT|line 1 item,BADINPUT|line 1 item,BADINPUT|line 1 description,BADINPUT|line 1 description,BADINPUT|line 1 optional,BADINPUT|line 1 size,BADINPUT|line 1 size,BADINPUT|line 1 rate basis,BADINPUT|line 1 qty,BADINPUT|line 1 rate');
+        eq('O274 no access: SC View, Accounts (SC View), Yard, stranger; bad shapes', [bad(tV), bad(tA), bad(tY), bad('x'), err(function () { officeQuoteSave(tS, 'x'); }), err(function () { officeQuoteSave(tS, [1]); }), err(function () { officeQuoteSave(tS, base({ no: 'NO SUCH' })); })].join(','),
+          'NOACCESS,NOACCESS,NOACCESS,NOSESSION,BADINPUT|quote,BADINPUT|quote,NOTFOUND');
+        eq('O275 nothing written by any refusal', n0(), nq);
+        db.insert('Staff', { StaffID: 'STF-0009', Name: 'Other Person' });
+        eq('O322 D2: a non-Director names only themselves as preparer (they sign the PDF); a Director anyone', [bad(tS, { prep: 'STF-0009' }), n0() === nq, err(function () { officeQuoteSave(tS, base({ prep: '' })); }), err(function () { officeQuoteSave(tD, base({ prep: 'STF-0009' })); })].join(','), 'BADINPUT|prepared by,true,no error,no error');
+        // locked
+        db.insert('Jobs', { JobNo: 'CAE/J/2026/009', QuoteNo: Q4 });
+        var F4b = F4.quote;
+        eq('O276 a quote with a job: form + save QLOCKED; Accepted too', [err(function () { officeQuoteForm(tS, Q4); }), bad(tS, { no: Q4, ev: F4b.ev, type: 'Project', lines: F4b.lines }),
+          (db.update('Quotes', must(db, 'Quotes', 'QuoteNo', r2.no), { Status: 'Accepted' }), err(function () { officeQuoteForm(tS, r2.no); }))].join(','), 'QLOCKED,QLOCKED,QLOCKED');
+        // PDF with the save
+        var r6 = officeQuoteSave(tS, base({ pdf: true }));
+        boom = true; var r7 = officeQuoteSave(tS, base({ pdf: true })); boom = false;
+        eq('O277 Save & make PDF: link back; a PDF failure keeps the saved quote', [/^https:\/\/x\/\d+$/.test(r6.pdf), r7.pdf, !!r7.pdfErr, !!find(db.rows('Quotes'), 'QuoteNo', r7.no)].join('|'), 'true||true|true');
+        // flood
+        e5.cput('OQEW:sales4@t.com', { t: e5.clock.now, n: OQE_RATE_.n }, 600);
+        eq('O278 too many writes from one login in 10 min -> SLOW; a Director is counted separately', [bad(tS), !!officeQuoteSave(tD, base()).no].join('|'), 'SLOW|true');
+        e5.clock.now += 601000;
+        eq('O279 the count starts again after 10 min', !!officeQuoteSave(tS, base()).no, true);
+        // scope items
+        eq('O280 project scopes: 5 Items rows once (Category Project scope, no stock, not for hire / sale)', [oQeScopeAdd_(db), oQeScopeAdd_(db), must(db, 'Items', 'ItemCode', 'SV-ALU').Category, must(db, 'Items', 'ItemCode', 'SV-ALU').StockTracked, must(db, 'Items', 'ItemCode', 'SV-ALU').ForHire, must(db, 'Items', 'ItemCode', 'SV-TWR').Name].join('|'), '5|0|Project scope|No|No|Tower scaffold');
+        var F5 = officeQuoteForm(tS, '');
+        eq('O281 form lists the scopes; inactive items are left out; sets come with their parts', [F5.items.filter(function (i) { return i.cat === 'Project scope'; }).length,
+          (db.update('Items', must(db, 'Items', 'ItemCode', 'SV-INT'), { Status: 'Inactive' }), officeQuoteForm(tS, '').items.some(function (i) { return i.code === 'SV-INT'; })),
+          db.hasTab('KitParts') ? Object.keys(F5.kits).length >= 0 : true].join('|'), '5|false|true');
+        eq('O282 the monthly flag: hire billing sees the "/ month" line only', ql(r1.no).filter(function (l) { return num(l.Months) > 0; }).map(function (l) { return l.ItemCode; }).join(','), 'RL-STD-20');
+        // review fixes
+        var c3 = officeCustomerAdd(tS, { name: 'Formula Contact Co', contact: '=IMPORTXML("http://x/"&A1,"//a")', phone: '+880 1911-777888' });
+        var s3 = officeSiteAdd(tS, { cust: c3.id, project: 'P3' }), r8 = officeQuoteSave(tS, base({ cust: c3.id, site: s3.id }));
+        eq('O284 blank attention filled from the contact as text; +880 phone accepted', [String(must(db, 'Quotes', 'QuoteNo', r8.no).Attention).charAt(0), c3.phone].join('|'), "'|+880 1911-777888");
+        eq('O285 email / phone that could be formulas refused', [err(function () { officeCustomerAdd(tS, { name: 'E1', email: '=A1@b.co' }); }), err(function () { officeCustomerAdd(tS, { name: 'E2', email: 'a@b.co, -x+1@b.co' }); }), err(function () { officeCustomerAdd(tS, { name: 'E3', phone: '-1234567' }); })].join(','), 'BADINPUT|email,BADINPUT|email,BADINPUT|phone');
+        var qS = officeQuoteSave(tS, base()).no; db.update('Quotes', must(db, 'Quotes', 'QuoteNo', qS), { Status: 'Sent' });
+        var FS = officeQuoteForm(tS, qS).quote, rS = officeQuoteSave(tS, base({ no: qS, ev: FS.ev, lines: FS.lines, attention: FS.attention, subject: FS.subject, valid: FS.valid, date: FS.date }));
+        eq('O286 a Sent quote saved without changes stays Sent, same Rev', [rS.rev, rS.status, rS.changed].join('|'), '0|Sent|false');
+        db.update('QuoteLines', ql(qS)[1], { Optional: 'Yes', Selected: 'Yes' });
+        var FO = officeQuoteForm(tS, qS).quote, rO = officeQuoteSave(tS, base({ no: qS, ev: FO.ev, lines: FO.lines, attention: FO.attention, subject: FO.subject, valid: FO.valid }));
+        eq('O287 an optional line the client chose keeps Optional + Selected', [FO.lines[1].opt, FO.lines[1].chosen, ql(qS)[1].Optional, ql(qS)[1].Selected].join('|'), 'true|true|Yes|Yes');
+        db.insert('Quotes', { QuoteNo: 'CAE/Q/2026/090', Rev: 0, QuoteType: 'Service', QuoteDate: toDate('20-Nov-2026'), CustID: 'CUST-0001', SiteID: 'SITE-0001', AdvancePct: 0.5, VATPct: 0.15, Status: 'Draft' });
+        db.insert('QuoteLines', { LineID: 'QL-0901', QuoteNo: 'CAE/Q/2026/090', LineNo: 1, Description: 'Inspection', Unit: 'visit', Qty: 2, Rate: 100, Optional: 'No', Selected: 'Yes' });
+        var FV = officeQuoteForm(tS, 'CAE/Q/2026/090').quote, rV = officeQuoteSave(tS, base({ no: 'CAE/Q/2026/090', ev: FV.ev, type: 'Project', lines: FV.lines }));
+        eq('O288 an old Service quote opens as Project and stays Service', [FV.type, FV.svc, must(db, 'Quotes', 'QuoteNo', 'CAE/Q/2026/090').QuoteType].join('|'), 'Project|true|Service');
+        var FV2 = officeQuoteForm(tS, 'CAE/Q/2026/090').quote;
+        eq('O293 a kept Service quote takes no "/ month" line', err(function () { officeQuoteSave(tS, base({ no: 'CAE/Q/2026/090', ev: FV2.ev, type: 'Project', lines: [{ desc: 'Hire', qty: 1, unit: 'm² / month', rate: 1 }] })); }), 'BADINPUT|line 1 unit');
+        eq('O289 huge measure / amount refused', [err(function () { officeQuoteSave(tS, L1({ dim: { L: 10000, H: 10000, N: 1000 }, unit: 'm²' })); }), err(function () { officeQuoteSave(tS, L1({ qty: 1e7, rate: 1e9 })); })].join(','), 'BADINPUT|line 1 size,BADINPUT|line 1 amount');
+        eq('O290 Bengali names that differ only in vowel signs are not duplicates', [oQeKey_('কলা') === oQeKey_('কালো'), oQeKey_('ABC Ltd.') === oQeKey_('abc')].join('|'), 'false|true');
+        db.update('Items', must(db, 'Items', 'ItemCode', 'SV-TRANS'), { Status: 'Inactive' });
+        eq('O291 an inactive item is refused on a new line, kept on a quote that has it', [err(function () { officeQuoteSave(tS, L1({ code: 'SV-TRANS' })); }), (function () { var F9 = officeQuoteForm(tS, Q2).quote; return officeQuoteSave(tS, base({ no: Q2, ev: F9.ev, type: 'Sale', lines: F9.lines })).no; })()].join(','), 'BADINPUT|line 1 item,' + Q2);
+        e5.cdel('OQEW:sales4@t.com'); for (var z = 0; z < OQE_RATE_.n; z++) err(function () { officeCustomerAdd(tS, { name: 'NEW BUILDERS' }); });
+        eq('O292 refused tries count too (SLOW after 60 duplicates)', err(function () { officeCustomerAdd(tS, { name: 'Fresh Name' }); }), 'SLOW');
+        eq('O283 user_ is the Google user again outside a web call', OQ_ACT_ === '' && user_() === OQ_user0_(), true);
+      } finally { QF5_STUB_ = keepQ5; }
+    })();
+    // --- D2 signatures + company stamp: uploads (own / Director), checks by bytes, PDF sign block on every kind
+    if (typeof pdfTestDb_ === 'function') (function () {
+      var e6 = oMemEnv_(); OFFICE_ENV_ = e6; var keepDrv = OSG_DRV_, keepPick = OSG_PICK_;
+      var A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      var enc = function (b) { var s = ''; for (var i = 0; i < b.length; i += 3) { var n = (b[i] << 16) | ((b[i + 1] || 0) << 8) | (b[i + 2] || 0); s += A.charAt(n >>> 18 & 63) + A.charAt(n >>> 12 & 63) + (i + 1 < b.length ? A.charAt(n >>> 6 & 63) : '=') + (i + 2 < b.length ? A.charAt(n & 63) : '='); } return s; };
+      var be = function (n) { return [n >>> 24 & 255, n >>> 16 & 255, n >>> 8 & 255, n & 255]; };
+      var png = function (w, h, pad) { var d = [120, 1]; for (var i = 0; i < (pad || 0); i++) d.push(0); return [137, 80, 78, 71, 13, 10, 26, 10].concat(be(13), [73, 72, 68, 82], be(w), be(h), [8, 6, 0, 0, 0], [1, 2, 3, 4], be(d.length), [73, 68, 65, 84], d, [5, 6, 7, 8], be(0), [73, 69, 78, 68], [174, 66, 96, 130]); };
+      var jpg = function (w, h, eoi, sof) { return [255, 216, 255, 224, 0, 4, 1, 2, 255, sof || 192, 0, 17, 8, h >> 8, h & 255, w >> 8, w & 255, 3, 1, 34, 0, 2, 17, 1, 3, 17, 1, 255, 218, 0, 8, 1, 1, 0, 0, 63, 0, 9, 9, 9].concat(eoi === false ? [1, 2] : [255, 217]); };
+      var files = {}, fid = 0, made = [], undec = [];
+      var put = function (id, bytes, mime, name, w, h) { files[id] = { b: bytes, m: mime, n: name, w: w || 600, h: h || 200, bin: false }; return id; };
+      OSG_DRV_ = {
+        info: function (id) { var f = files[id]; return f && !f.bin ? { size: f.b.length, mime: f.m, name: f.n } : null; },
+        blob: function (id) { var f = files[id]; if (f && f.boom) throw new Error('drive down'); return f && !f.bin ? { id: id, w: f.w, h: f.h } : null; },
+        b64: function (id) { var f = files[id]; return f && !f.bin ? enc(f.b) : null; },
+        add: function (name, mime, bytes) { var id = 'FILE-' + ('00000' + (++fid)).slice(-6); made.push(id); return put(id, bytes, mime, name); },
+        bin: function (id) { if (files[id]) files[id].bin = true; return true; },
+        decodes: function (b) { return !undec.some(function (u) { return u.length === b.length && u.every(function (x, i) { return x === b[i]; }); }); }
+      };
+      OSG_SEED_.forEach(function (x) { put(x[1], png(800, 300), 'image/png', 'seed ' + x[0]); });
+      put(OSG_STAMP_SEED_, png(500, 500), 'image/png', 'CoreAccess_Company_Stamp.png');
+      var db = pdfTestDb_(); e6.clock.db = db; e6.clock.now = new Date(2026, 10, 20, 10, 0).getTime();
+      db.insert('Staff', [{ StaffID: 'STF-002', Name: 'Jamal Uddin', Role: 'Contracts & Technical Director', Status: 'Active' }, { StaffID: 'STF-004', Name: 'Md. Mohosin Miah', Role: 'Managing Director' }, { StaffID: 'STF-005', Name: 'Mohammad Junait', Role: 'Chairman' },
+        { StaffID: 'STF-101', Name: 'Sales Person', Role: 'Sales Engineer' }, { StaffID: 'STF-102', Name: 'Left Person', Role: 'Engineer', Status: 'Left' }, { StaffID: 'STF-103', Name: 'Other Person', Role: 'Site Engineer' }]);
+      var add = function (em, acc, staff) { oSaveLogin_(e6, { email: em, name: em.split('@')[0], depts: acc, password: 'GoodPass1' }); if (staff) { var L = e6.get('OL:' + em); L.staff = staff; e6.put('OL:' + em, L); } return officeLogin(em, 'GoodPass1', false).token; };
+      var tD = add('dir6@t.com', oDir_(), 'STF-002'), tS = add('sales6@t.com', { SC: 2 }, 'STF-101'), tN = add('none6@t.com', { SC: 2 }), tO = add('other6@t.com', { PS: 2 }, 'STF-103');
+      var clr = function () { Object.keys(e6.cache).forEach(function (k) { if (/^OSG_/.test(k)) delete e6.cache[k]; }); };
+      var j = JSON.stringify, cnt = function () { return j([Object.keys(files).length, e6.keys().filter(function (k) { return /^OSG/.test(k) && k.indexOf('OSG_N:') < 0; }).sort().map(function (k) { return k + j(e6.get(k)); })]); };
+      var P = enc(png(400, 150)), lists = PDF_SPECS && typeof pdfSampleList_ === 'function' ? pdfSampleList_(db) : [], no = function (k) { var x = lists.filter(function (y) { return y[0] === k; })[0]; return x ? x[1] : ''; };
+      var sp = function (k, n) { return PDF_SPECS[k](db, n || no(k)); }, os = function (s) { return s.blocks.filter(function (b) { return b.t === 'osign'; }); };
+      try {
+        eq('O294 D2 calls are on the web API list; the seed is not', ['officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'].every(function (n) { return OFFICE_WEB_API_.indexOf(n) >= 0; }) && OFFICE_WEB_API_.indexOf('officeSigSeed') < 0, true);
+        var miss = OSG_SEED_[3][1]; files[miss].bin = true;
+        eq('O295 seed: signatures + stamp added once; a missing file is listed', [oSgSeed_(e6), (files[miss].bin = false, oSgSeed_(e6)), oSgSeed_(e6)].join(' / '),
+          'STF-002 added, STF-004 added, STF-005 added, STF-006 FILE MISSING, stamp added / STF-002 kept, STF-004 kept, STF-005 kept, STF-006 added, stamp kept / STF-002 kept, STF-004 kept, STF-005 kept, STF-006 kept, stamp kept');
+        var g1 = officeSigGet(tD, 'STF-004');
+        eq('O296 get: a Director sees anyone\'s (image as a data URL); own signature; others refused', [g1.on, /^data:image\/png;base64,[A-Za-z0-9+\/]+=*$/.test(g1.img), g1.name, officeSigGet(tS, 'STF-101').on,
+          err(function () { officeSigGet(tS, 'STF-004'); }), err(function () { officeSigGet(tN, 'STF-101'); }), err(function () { officeSigGet(tD, 'STF-999'); }), err(function () { officeSigGet(tS, 'STF-999'); }),
+          err(function () { officeSigGet('x', 'STF-101'); }), err(function () { officeSigGet(tD, { a: 1 }); }), err(function () { officeSigGet(tD, '__proto__'); })].join(','),
+          'true,true,Md. Mohosin Miah,false,NOACCESS,NOACCESS,NOSTAFF,NOACCESS,NOSESSION,NOSTAFF,NOSTAFF');
+        var s1 = officeSigSave(tS, 'STF-101', P), f1 = made[0];
+        eq('O297 own upload: PNG saved in the folder, record says on file; no image in the save reply', [s1.on, s1.bytes, files[f1].m, /^Signature_STF-101_\d+\.png$/.test(files[f1].n), s1.img, e6.get('OSG:STF-101').by].join('|'), 'true|' + png(400, 150).length + '|image/png|true||sales6@t.com');
+        officeSigSave(tS, 'STF-101', enc(jpg(300, 120)));
+        eq('O298 replace: the old system file is binned; a JPEG is stored as JPEG', [files[f1].bin, files[made[1]].m, /\.jpg$/.test(files[made[1]].n)].join('|'), 'true|image/jpeg|true');
+        officeSigSave(tD, 'STF-004', P);
+        clr(); var k5 = j(e6.get('OSG:STF-101')), f5 = e6.get('OSG:STF-101').f, ub = png(401, 150); undec.push(ub); var m5 = made.length;
+        eq('O331 a picture that does not decode: BADIMG|broken, the old signature + file kept, nothing new in Drive', [err(function () { officeSigSave(tS, 'STF-101', enc(ub)); }), j(e6.get('OSG:STF-101')) === k5, files[f5].bin, made.length - m5].join('|'), 'BADIMG|broken|true|false|0');
+        clr();
+        eq('O299 a Director replaces a seeded signature: the seed file stays in the folder', [files[OSG_SEED_[1][1]].bin, e6.get('OSG:STF-004').f === made[2]].join('|'), 'false|true');
+        var c0 = cnt(), big = png(800, 300, OSG_MAX_);
+        var B = function (t, s, d) { return err(function () { officeSigSave(t, s, d); }); };
+        eq('O300 bad uploads refused, nothing written', [B(tS, 'STF-101', 'not base64!'), B(tS, 'STF-101', enc([60, 115, 118, 103, 32, 111, 110, 108, 111, 97, 100, 61, 34, 120, 34, 62])), B(tS, 'STF-101', enc([71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0])),
+          B(tS, 'STF-101', enc([37, 80, 68, 70, 45, 49, 46, 52])), B(tS, 'STF-101', enc(jpg(300, 120, false))), B(tS, 'STF-101', enc(png(400, 150).slice(0, 40))), B(tS, 'STF-101', enc(big)), B(tS, 'STF-101', new Array(2e6).join('A')),
+          B(tS, 'STF-101', enc(png(8, 8))), B(tS, 'STF-101', enc(png(9000, 100))), B(tS, 'STF-101', enc(png(6000, 6000))), B(tS, 'STF-101', enc(png(100, 100).slice(0, 33).concat(png(100, 100).slice(-12)))), B(tS, 'STF-101', enc(jpg(100, 100, true, 195))),
+          B(tS, 'STF-101', enc([255, 216, 255, 192, 0, 17, 8, 0, 100, 0, 100, 255, 217])), B(tS, 'STF-101', 12345), B(tS, 'STF-101', { a: 1 }), B(tS, 'STF-101', ''), B(tS, 'STF-101', 'QUJD=A==')].join(','),
+          'BADIMG|type,BADIMG|type,BADIMG|type,BADIMG|type,BADIMG|broken,BADIMG|broken,BADIMG|size,BADIMG|size,BADIMG|pixels,BADIMG|pixels,BADIMG|pixels,BADIMG|broken,BADIMG|type,BADIMG|broken,BADIMG|type,BADIMG|type,BADIMG|type,BADIMG|type');
+        clr();
+        eq('O301 someone else\'s signature by a non-Director; no Staff link; unknown staff; stamp by a non-Director -> refused, nothing written',
+          [B(tS, 'STF-004', P), B(tO, 'STF-101', P), B(tN, 'STF-101', P), B(tD, 'STF-999', P), B(tN, '', P), err(function () { officeStampSave(tS, P); }), err(function () { officeStampGet(tS); }), err(function () { officeSigRemove(tS, 'STF-004'); }), cnt() === c0].join(','),
+          'NOACCESS,NOACCESS,NOACCESS,NOSTAFF,NOSTAFF,NOACCESS,NOACCESS,NOACCESS,true');
+        clr();
+        var st = officeStampSave(tD, P);
+        eq('O302 stamp: Director replaces it; the MOU stamp file is kept; get shows the image', [st.on, files[OSG_STAMP_SEED_].bin, e6.get('OSG_STAMP').f === made[made.length - 1], /^data:image\/png/.test(officeStampGet(tD).img)].join('|'), 'true|false|true|true');
+        clr();
+        var keepF = e6.get('OSG:STF-101').f, rm = officeSigRemove(tS, 'STF-101');
+        eq('O303 remove own: record gone, system file binned; seeded one removed by a Director: file kept', [rm.on, !!oSgRec_(e6, 'OSG:STF-101'), files[keepF].bin, (officeSigRemove(tD, 'STF-005'), files[OSG_SEED_[2][1]].bin), !!oSgRec_(e6, 'OSG:STF-005')].join('|'), 'false|false|true|false|false');
+        eq('O318 the seed never brings back a removed signature', [oSgSeed_(e6).indexOf('STF-005 removed earlier (left off)') >= 0, !!oSgRec_(e6, 'OSG:STF-005')].join('|'), 'true|false');
+        clr();
+        var L6 = e6.get('OL:sales6@t.com'); L6.status = 'Blocked'; e6.put('OL:sales6@t.com', L6);
+        eq('O304 a blocked login can not read or upload', [err(function () { officeSigGet(tS, 'STF-101'); }), B(tS, 'STF-101', P)].join(','), 'NOSESSION,NOSESSION');
+        L6.status = 'Active'; e6.put('OL:sales6@t.com', L6);
+        clr(); for (var z2 = 0; z2 < OSG_PER_HOUR_; z2++) B(tS, 'STF-004', P);
+        eq('O321 refused NOACCESS tries count too (someone else\'s signature 20 times -> SLOW, even for own)', B(tS, 'STF-101', P), 'SLOW');
+        e6.cdel('OSG_N:other6@t.com'); for (var z = 0; z < OSG_PER_HOUR_; z++) B(tO, 'STF-103', 'bad');
+        eq('O305 refused tries count: 21st upload in an hour -> SLOW; a new hour starts again', [B(tO, 'STF-103', P), (e6.cdel('OSG_N:other6@t.com'), officeSigSave(tO, 'STF-103', P).on)].join(','), 'SLOW,true');
+        // PDF specs (sample set): quote by its preparer, PI by the quote's, invoice / note / PO by the pick, challan optional
+        var Q = no('Quote'), q = find(db.rows('Quotes'), 'QuoteNo', Q); db.update('Quotes', q, { PreparedBy: 'STF-002' });
+        var sq = sp('Quote'), o1 = os(sq)[0], last = sq.blocks[sq.blocks.length - 1];
+        eq('O306 quote: our sign block = preparer + signature file + stamp; acceptance block kept; digital line last', [os(sq).length, o1.s.name, o1.s.title, o1.s.sig === e6.get('OSG:STF-002').f, o1.role, o1.stamp === e6.get('OSG_STAMP').f,
+          sq.blocks.filter(oSgIsOurs_).length, sq.blocks.some(function (b) { return b.t === 'sig' && b.cols[0].head === 'For the client'; }), last.text === OSG_LINE_, !!sq.docCtl].join('|'),
+          '1|Jamal Uddin|Contracts & Technical Director|true|Prepared by|true|0|true|true|true');
+        var pi = find(db.rows('Proformas'), 'PINo', no('PI')); if (pi) db.update('Proformas', pi, { QuoteNo: Q });
+        OSG_PICK_ = 'STF-004';
+        eq('O307 proforma: its quote\'s preparer wins over a pick', os(sp('PI'))[0].s.id, 'STF-002');
+        eq('O308 invoice / notes / PO: the picked signer', ['Invoice', 'Note', 'PO'].map(function (k) { return os(sp(k))[0].s.name; }).join(','), 'Md. Mohosin Miah,Md. Mohosin Miah,Md. Mohosin Miah');
+        OSG_PICK_ = null;
+        var ch = no('Challan') ? sp('Challan') : null, chs = ch ? ch.blocks.filter(function (b) { return b.t === 'sig'; })[0] : null;
+        eq('O309 no pick: invoice unsigned (empty lines); challan: our block + Driver / Received by kept; PO keeps the supplier side',
+          [j(os(sp('Invoice'))[0].s), os(ch)[0].role, chs.cols.map(function (c) { return c.head; }).join('+'),
+            sp('PO').blocks.filter(function (b) { return b.t === 'sig'; })[0].cols[0].head, ['PI', 'Invoice', 'Note', 'PO', 'Challan'].every(function (k) { var s = sp(k); return s.blocks[s.blocks.length - 1].text === OSG_LINE_; })].join('|'),
+          'null|Issued by|Driver+Received by (client)|Supplier acceptance|true');
+        db.update('Quotes', q, { PreparedBy: 'left person' });
+        var a1 = os(sp('Quote'))[0].s; db.update('Quotes', q, { PreparedBy: 'A. Stranger' }); var a2 = os(sp('Quote'))[0].s;
+        e6.put('OSG:STF-102', { f: made[0], by: 'x', at: 1 });
+        eq('O310 preparer by name (case ignored); a Staff row not Active signs without image; a name not in Staff prints as typed', [a1.id, a1.name, os(sp('Quote', Q))[0].s.sig || '-', a2.name, a2.title || '-', a2.sig || '-'].join('|'), 'STF-102|Left Person|-|A. Stranger|-|-');
+        db.update('Quotes', q, { PreparedBy: 'STF-002' });
+        clr();
+        var v1 = j(sp('Quote').blocks); officeSigSave(tD, 'STF-002', enc(png(500, 160)));
+        eq('O311 a new signature changes the quote PDF spec (the web app makes a new PDF); the same one does not', [v1 !== j(sp('Quote').blocks), j(sp('Quote').blocks) === j(sp('Quote').blocks)].join('|'), 'true|true');
+        // renderer with a fake document
+        var calls = [], P2 = function () { var p = { t: '', imgs: [], setSpacingBefore: function () { return p; }, setSpacingAfter: function () { return p; }, setLineSpacing: function () { return p; }, setAlignment: function () { return p; },
+          setIndentStart: function () { return p; }, setIndentFirstLine: function () { return p; }, editAsText: function () { var t = {}; ['setFontFamily', 'setFontSize', 'setForegroundColor', 'setBold', 'setItalic'].forEach(function (m) { t[m] = function () { return t; }; }); return t; },
+          appendInlineImage: function (bl) { var im = { w: bl.w, h: bl.h, getWidth: function () { return im.w; }, getHeight: function () { return im.h; }, setWidth: function (x) { im.w = x; return im; }, setHeight: function (x) { im.h = x; return im; } }; p.imgs.push(im); calls.push(im); return im; } }; return p; };
+        var paras = [], body = { appendParagraph: function (t) { var p = P2(); p.t = t; paras.push(p); return p; }, appendTable: function () {
+          var mk = function () { var kids = [P2()], c = { getChild: function (i) { return { asParagraph: function () { return kids[i]; } }; }, appendParagraph: function (t) { var p = P2(); p.t = t; kids.push(p); paras.push(p); return p; } };
+            ['setPaddingTop', 'setPaddingBottom', 'setPaddingLeft', 'setPaddingRight', 'setVerticalAlignment'].forEach(function (m) { c[m] = function () { return c; }; }); return c; };
+          var cs = [mk(), mk()], t = { setBorderWidth: function () { return t; }, setColumnWidth: function () { return t; }, getCell: function (r, i) { return cs[i]; } }; return t; } };
+        var ob = os(sp('Quote'))[0];
+        BLOCKS_.osign(body, ob);
+        eq('O312 render: signature fitted in 160 x 46 pt, stamp in 84 x 84 pt, name + title · Prepared by', [calls.length, calls[0].w <= 160 && calls[0].h <= 46, calls[1].w <= 84 && calls[1].h <= 84, paras.some(function (p) { return p.t === 'Jamal Uddin'; }), paras.some(function (p) { return p.t === 'Contracts & Technical Director · Prepared by'; })].join('|'), '2|true|true|true|true');
+        calls.length = 0; paras.length = 0; files[ob.s.sig].boom = true; files[ob.stamp].bin = true;
+        var ok = err(function () { BLOCKS_.osign(body, ob); });
+        BLOCKS_.osign(body, { t: 'osign', s: null, role: '', stamp: '' });
+        eq('O313 render never fails: a broken / binned image -> empty sign line; unsigned -> Name / Designation lines', [ok, calls.length, paras.some(function (p) { return p.t === 'Name: ______________________'; }), paras.some(function (p) { return p.t === 'Designation: ________________'; })].join('|'), 'no error|0|true|true');
+        files[ob.s.sig].boom = false; files[ob.stamp].bin = false;
+        // wrappers + lists
+        eq('O314 every PDF kind is wrapped (D1 marker kept); makePdf keeps the folder marker and restores the pick', [Object.keys(PDF_SPECS).every(function (k) { return !!PDF_SPECS[k].officeSg_ && !!PDF_SPECS[k].officeCtl_; }),
+          !!((makePdf.officeRaw_ || makePdf).officeSg_), !!((makePdf.officeRaw_ || makePdf).officePdf_), typeof BLOCKS_.osign].join('|'), 'true|true|true|function');
+        var seen = [], mk0 = OSG_makePdf0_; OSG_makePdf0_ = function () { seen.push(OSG_PICK_); if (seen.length > 1) throw new Error('x'); return { file: 'f.pdf', url: 'u', doc: '', placeholders: 0 }; };
+        try { var pr = UI_ACTIONS_.pdf(db, { what: 'Challan', no: 'X', signer: 'STF-004' }); err(function () { makePdf(db, 'Challan', 'X', { signer: { a: 1 } }); }); } finally { OSG_makePdf0_ = mk0; }
+        eq('O315 panel PDF passes the picked signer; an odd pick is ignored; the pick is cleared after (also on error)', [seen.join(','), pr.msg, j(OSG_PICK_)].join('|'), 'STF-004,|f.pdf saved.|null');
+        clr();
+        var us = officeUsersList(tD).rows, flag = function (e) { return us.filter(function (r) { return r.email === e; })[0].sig; };
+        eq('O316 users list: on-file flag only (never the image); signer list for the panel: active staff only', [flag('dir6@t.com'), flag('none6@t.com'), j(us).indexOf('base64') < 0, officeMe(tS).staff,
+          j(uiGetDb_(db, 'docs', {})._signers.map(function (x) { return x[0]; })).indexOf('STF-102') < 0, uiGetDb_(db, 'docs', {})._signers.filter(function (x) { return x[0] === 'STF-101'; })[0][1]].join('|'), 'true|false|true|STF-101|true|Sales Person (no signature on file)');
+        db.insert('Staff', { StaffID: 'STF-004', Name: 'Copy Row', Role: 'x' });
+        OSG_PICK_ = 'STF-004'; var dup = os(sp('Invoice'))[0].s; OSG_PICK_ = null;
+        eq('O319 two Staff rows with one StaffID: name only, no image', [dup.name, dup.sig || '-'].join('|'), 'Md. Mohosin Miah|-');
+        var tries = 0, mk1 = OSG_makePdf0_, r9, e9;
+        OSG_makePdf0_ = function () { tries++; if (!OSG_NOIMG_) { OSG_IMGUSED_ = true; throw new Error('export failed'); } return { file: 'ok.pdf' }; };
+        try { r9 = makePdf(db, 'Quote', Q); OSG_makePdf0_ = function () { tries++; throw new Error('no folder'); }; e9 = err(function () { makePdf(db, 'Quote', Q); }); } finally { OSG_makePdf0_ = mk1; }
+        eq('O320 a PDF that fails after an image went in is made again without images; other errors stay errors', [r9.file, tries, e9, OSG_NOIMG_, OSG_IMGUSED_].join('|'), 'ok.pdf|3|no folder|false|false');
+        eq('O317 base64 decoder: round trip; bad shapes refused', [j(oB64Dec_(enc([0, 1, 2, 250, 255]))), j(oB64Dec_('abc')), j(oB64Dec_('ab=c')), j(oB64Dec_('ÿÿÿÿ')), j(oB64Dec_(null)), j(oB64Dec_(''))].join('|'), '[0,1,2,250,255]|null|null|null|null|[]');
+      } finally { OSG_DRV_ = keepDrv; OSG_PICK_ = keepPick; }
     })();
     OFFICE_ENV_ = env;
     var big = new Array(1 << 20).join('a') + '@x', t0 = Date.now();
