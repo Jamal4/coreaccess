@@ -288,6 +288,101 @@ span.tv{cursor:default}
   .ulist{grid-template-columns:1fr}
   .seg button{padding:0 9px}
 }
+/* ---------- W4 new / edit quote ---------- */
+.qe-types{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.qe-type{text-align:left;padding:12px 14px;border-radius:var(--r2);border:1px solid var(--line2);background:var(--bg2);cursor:pointer}
+.qe-type b{display:block;font-size:15px}
+.qe-type small{display:block;color:var(--dim);font-size:12px;margin-top:2px}
+.qe-type.on{border-color:var(--teal);background:var(--tealbg);box-shadow:0 0 0 2px var(--tealbg)}
+.qe-type.on b{color:var(--teal2)}
+.qe-f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
+.qe-f4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 12px}
+.qe-f2 .inp,.qe-f4 .inp{min-width:0}
+.qe-f2 .fld,.qe-f4 .fld{margin-bottom:12px}
+.qe-combo{position:relative}
+.qe-combo .inp{padding-left:40px}
+.qe-chosen{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);margin-top:5px;min-height:18px}
+.qe-chosen b{color:var(--text)}
+.qe-chosen .ok{color:var(--teal2)}
+.qe-tab{width:100%;border-collapse:collapse;font-size:14px}
+.qe-tab th{text-align:left;font-size:12px;color:var(--dim);font-weight:700;padding:6px 4px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.qe-tab td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+.qe-tab th.r,.qe-tab td.r{text-align:right}
+.qe-tab td.ln{color:var(--dim);font-size:12px;padding-top:15px;width:26px}
+.qe-tab .c{width:100%;height:40px;padding:0 10px;border-radius:9px;border:1px solid var(--line2);background:var(--bg2)}
+.qe-tab .c[readonly]{color:var(--muted);background:var(--card)}
+.qe-tab textarea.c{height:40px;min-height:40px;padding:9px 10px;resize:vertical;line-height:1.35;display:block}
+.qe-tab .c:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--tealbg)}
+.qe-tab .c.bad{border-color:var(--red);box-shadow:0 0 0 3px var(--redbg)}
+.qe-tab .c.n{text-align:right;font-variant-numeric:tabular-nums}
+.qe-tab td.d{min-width:220px}
+.qe-tab td.sz{width:150px} .qe-tab td.q{width:86px} .qe-tab td.u{width:120px} .qe-tab td.ra{width:120px}
+.qe-tab td.am{width:120px;padding-top:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.qe-tab td.ac{width:76px;white-space:nowrap;padding-top:9px}
+.qe-tab tr.opt .c{opacity:.7}
+.qe-tab .mini{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;vertical-align:middle}
+.qe-tab .mini:hover{color:var(--teal2);border-color:var(--teal)}
+.qe-tab .mini.del:hover{color:#fda4af;border-color:var(--red)}
+.qe-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.qe-tags span{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--card2);color:var(--muted)}
+.qe-tags span.o{background:var(--amberbg);color:var(--amber)}
+.qe-tags span.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:600}
+.qe-szw{display:flex;gap:4px}
+.qe-szw .c{flex:1;min-width:0}
+.qe-under{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.qe-pick{position:fixed;z-index:25;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow);max-height:340px;overflow:auto;padding:6px 0;width:440px}
+.qe-pick .fam{display:flex;gap:6px;flex-wrap:wrap;padding:4px 10px 8px;border-bottom:1px solid var(--line);position:sticky;top:-6px;background:var(--card)}
+.qe-pick .fam button{height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line2);background:var(--bg2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer}
+.qe-pick .fam button.on{border-color:var(--teal);color:var(--teal2);background:var(--tealbg)}
+.qe-pick .gh{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--dim);padding:8px 12px 3px}
+.qe-pick .op{display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 12px;cursor:pointer}
+.qe-pick .op b{font-weight:600;font-size:14px}
+.qe-pick .op small{display:block;color:var(--dim);font-size:12px}
+.qe-pick .op.on,.qe-pick .op:hover{background:var(--tealbg)}
+.qe-pick .op .pr{float:right;color:var(--muted);font-size:12px;margin-left:8px}
+.qe-pick .none{padding:10px 12px;color:var(--dim);font-size:13px}
+.qe-sticky{position:sticky;bottom:0;z-index:5;margin:14px -4px 0;padding:10px 12px;background:rgba(11,15,18,.94);border-top:1px solid var(--line2);display:flex;gap:10px;align-items:center;flex-wrap:wrap;backdrop-filter:blur(6px)}
+.qe-sticky .sum{font-size:13px;color:var(--muted)}
+.qe-sticky .sum b{color:var(--text);font-size:16px;font-variant-numeric:tabular-nums}
+.qe-sticky .sp{flex:1}
+.qe-revn{margin-bottom:12px}
+.qe-terms{font-size:13px;color:var(--muted)}
+.qe-terms b{color:var(--text)}
+.qe-paste{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+.qe-plist{font-size:13px;margin:6px 0 0;padding-left:18px;color:var(--muted)}
+.qe-plist b{color:var(--text)}
+.qe-dims{display:grid;grid-template-columns:repeat(4,1fr);gap:0 10px}
+.qe-dimout{font-size:14px;color:var(--teal2);font-weight:600;min-height:20px;margin:-4px 0 12px}
+@media (max-width:760px){
+  .qe-types{grid-template-columns:1fr}
+  .qe-f2,.qe-f4{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .qe-f2>.fld:nth-child(-n+2){grid-column:1/-1}
+  .qe-sticky .btn{flex:1 1 140px;padding:0 10px;white-space:nowrap;font-size:14px}
+  .qe-sticky .sum{width:100%}
+  .qe-tab thead{display:none}
+  .qe-tab,.qe-tab tbody{display:block}
+  .qe-tab tr{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.25fr) minmax(0,1fr);gap:6px 8px;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:var(--bg2)}
+  .qe-tab td{display:block;border:0;padding:0;width:auto!important;min-width:0!important}
+  .qe-tab td.ln{display:none}
+  .qe-tab td.d{grid-column:1/-1}
+  .qe-tab td.sz{grid-column:1/-1}
+  .qe-tab td::before{display:block;font-size:11px;color:var(--dim);font-weight:700;margin-bottom:3px}
+  .qe-tab td.d::before{content:attr(data-n)}
+  .qe-tab td.sz::before{content:"Size"} .qe-tab td.q::before{content:"Qty"} .qe-tab td.u::before{content:"Unit"}
+  .qe-tab td.ra::before{content:"Rate"} .qe-tab td.am::before{content:"Amount"}
+  .qe-tab td.am{padding-top:0;text-align:left}
+  .qe-tab td.ac{grid-column:2/-1;text-align:right;padding-top:0}
+  .qe-pick{left:8px!important;right:8px;width:auto!important}
+  .qe-dims{grid-template-columns:1fr 1fr}
+}
+/* D2 signatures + stamp */
+.sgbox{background:#fff;border-radius:10px;min-height:96px;display:flex;align-items:center;justify-content:center;margin:10px 0 4px;padding:8px}
+.sgbox img{max-width:100%;max-height:130px}.sgbox .muted{color:#667;font-size:13px;text-align:center}
+.sgdrop{display:block;border:2px dashed var(--line2);border-radius:10px;padding:12px;text-align:center;color:var(--muted);font-size:13px;margin-top:6px;cursor:pointer}
+.sgdrop input{display:block;margin:8px auto 0;max-width:100%;color:var(--text)}
+.stcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-left:4px solid #ef4444;border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.stcard small{display:block;color:var(--muted)}.sgmini{width:56px;height:56px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#889;flex:none}
+.sgmini img{max-width:52px;max-height:52px}
 </style>
 </head>
 <body>
@@ -522,7 +617,7 @@ var S={token:null,user:null};
 var app=document.getElementById('app');
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on');},3200);}
-function nu(u){u=u||{};return {name:String(u.name||'—'),role:String(u.role||''),email:String(u.email||''),depts:cleanAccess(u.depts)};} /* server user, tidied: a missing field never breaks the page */
+function nu(u){u=u||{};return {name:String(u.name||'—'),role:String(u.role||''),email:String(u.email||''),depts:cleanAccess(u.depts),staff:typeof u.staff==='string'?u.staff.slice(0,40):''};} /* server user, tidied: a missing field never breaks the page */
 function initials(n){return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0];}).join('').toUpperCase();}
 function greet(){var h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening';}
 function code(m){return String(m).replace(/^(Error|Exception):\s*/,'');}
@@ -603,7 +698,7 @@ var DEPTS=[
 var TILES=[
   {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
   {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, terms, email',ic:'doc',l:1,r:1},
-  {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2},
+  {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2,r:1},
   {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1},
   {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1},
   {d:'SC',k:'tenders',t:'Tenders',x:'Submission packs',ic:'award',l:1},
@@ -681,7 +776,7 @@ function viewHome(f){
   f=f||'';
   var a=myAccess(S.user), mine=myTiles(S.user);
   var ds=DEPTS.filter(function(D){return mine.some(function(t){return t.d===D.d;});});
-  var body='<div class="hello"><div><h2>'+greet()+', '+esc(S.user.name.split(' ')[0])+'</h2><p>What would you like to do?</p></div></div>';
+  var body='<div class="hello"><div><h2>'+greet()+', '+esc(S.user.name.split(' ')[0])+'</h2><p>What would you like to do?</p></div>'+(S.user.staff?'<button type="button" class="btn btn-ghost btn-sm" id="mysig">'+ic('edit')+' My signature</button>':'')+'</div>';
   if(ds.length>1){
     body+='<div class="chips" role="group" aria-label="Filter by department"><button type="button" class="chip'+(f?'':' on')+'" data-f="" aria-pressed="'+!f+'">All</button>';
     ds.forEach(function(D){body+='<button type="button" class="chip '+D.c+(f===D.d?' on':'')+'" data-f="'+D.d+'" aria-pressed="'+(f===D.d)+'" title="'+esc(D.n)+'"><i></i>'+D.d+'</button>';});
@@ -697,12 +792,14 @@ function viewHome(f){
     body+='</div></section>';
   });
   shell('Home',body);
+  var ms=document.getElementById('mysig');if(ms)ms.onclick=function(){sigDlg('sig',S.user.staff,S.user.name,null);};
   [].forEach.call(document.querySelectorAll('.chip'),function(c){c.onclick=function(){var v=c.getAttribute('data-f');viewHome(v);var n=document.querySelector('.chip[data-f="'+v+'"]');if(n)n.focus();};});
   [].forEach.call(document.querySelectorAll('.tile'),function(b){b.onclick=function(){
     var k=b.getAttribute('data-k');
     if(k==='users') return viewUsers();
     if(k==='docreg') return viewDocs();
     if(k==='quotes') return viewQuotes();
+    if(k==='newquote') return viewQuoteEdit();
     toast(b.querySelector('b').textContent+' — comes in a later step.');
   };});
 }
@@ -728,8 +825,13 @@ function errText(m){
     case 'QLOCKED': return 'The terms of this quote are locked now (it has a job, or it is no longer Draft / Sent). The quote has been reloaded.';
     case 'QSTATE': return 'This quote is <b>'+esc(k[1]||'closed')+'</b> — nothing was sent.';
     case 'TOFILL': return '<b>'+esc(k[1]||'Some')+'</b> [ ] place(s) in the quote are still to fill (red in the terms). Fill them first.';
+    case 'QPREP': return 'Another person prepared this quote and signs its PDF. Ask them or a Director — or open <b>Edit quote</b> and save it as yours first.';
+    case 'QOLD': return 'This quote has lines in the old format (months / stages). Edit it in the sheet panel.';
+    case 'SLOW': return 'Many saves from this login in a short time. Please wait a few minutes and try again.';
+    case 'SAVEFAIL': return 'The sheet refused the save: '+esc(k.slice(1).join('|')||'unknown reason')+'. Nothing was saved.';
     case 'NOPDF': return 'There is no PDF of this quote yet. Sales staff make it.';
-    case 'SENTNOW': return 'This quote was emailed less than a minute ago. Check before sending it again.';
+    case 'SENTNOW': return 'This quote was emailed a moment ago. Check before sending it again.';
+    case 'SENTNOREC': return 'The email went out, but the system could not record it (status / log). Do not send it again — reload in a minute and check the quote.';
     case 'LIMIT': return 'You have sent many emails today. Please try again tomorrow or ask a Director.';
     case 'WITHDRAWN': return 'This document is <b>withdrawn</b>. Make it active again before revising it.';
     case 'NOREG': return 'The document register is not set up yet. A Director runs <b>Web app › Set up document register</b> in the sheet.';
@@ -800,13 +902,76 @@ function pwDlg(name,pw,note){
   setTimeout(function(){c.focus();},30);
 }
 
+/* ======================= D2 signatures + company stamp (own signature, or a Director for anyone; stamp: Directors) ======================= */
+var SG_IMG=/^data:image\/(png|jpeg);base64,[A-Za-z0-9+\/]+=*$/;
+function sgImg(u,alt){return SG_IMG.test(String(u||''))?'<img alt="'+esc(alt||'Signature')+'" src="'+u+'">':'';}
+function sgKb(n){n=+n||0;return n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';}
+function sgErr(m){
+  var k=code(m).split('|');
+  if(k[0]==='BADIMG') return {type:'Only a PNG or JPG picture can be used (no SVG, PDF or other files).',size:'The picture is over <b>1 MB</b>. Make it smaller and try again.',pixels:'The picture must be between 16 and 8000 pixels on each side.',broken:'This file is damaged or is not a real PNG / JPG.'}[k[1]]||'This picture can\'t be used.';
+  if(k[0]==='NOSTAFF') return 'This login is not linked to a Staff record. Link it with <b>Edit</b> first.';
+  if(k[0]==='SLOW') return 'Many uploads from this login in the last hour. Please try again later.';
+  return errText(m);
+}
+/* kind 'sig' (staff id + name) or 'stamp'; after() runs when something was saved or removed */
+function sigDlg(kind,staff,name,after){
+  var isS=kind==='stamp', own=!isS&&S.user&&S.user.staff===staff, data='', armed=false;
+  var my=openDlg('<h3 id="dlgt">'+(isS?'Company stamp':'Signature — '+esc(name))+'</h3><p class="sub" id="sgs">'+(isS?'Directors only · printed on every outgoing PDF.':own?'Your own signature · printed on the PDFs you prepare.':'For '+esc(name)+' (Director right).')+'</p><div id="derr"></div>'+
+    '<div class="sgbox" id="sgp"><span class="spin"></span></div><p class="sub" id="sgi">&nbsp;</p>'+
+    '<label class="sgdrop">Choose a PNG or JPG · max 1 MB · a transparent or white background works best<input type="file" id="sgf" accept="image/png,image/jpeg"></label>'+
+    '<p class="sub" id="sgm"></p>'+
+    '<div class="dfoot">'+(isS?'':'<button type="button" class="btn btn-danger" id="sgr" hidden>Remove</button>')+'<button type="button" class="btn btn-ghost" id="sgc">Close</button><button type="button" class="btn btn-primary" id="sgo" disabled>Save</button></div>');
+  var $=function(id){return document.getElementById(id);}, ok=$('sgo'), rm=$('sgr');
+  var show=function(r){
+    if(my!==DLG.seq)return;r=r||{};
+    if(!pk)$('sgp').innerHTML=r.on&&sgImg(r.img,isS?'Company stamp':'Signature')||'<span class="muted">'+(r.on?'On file':isS?'No stamp on file — PDFs are made without it':'No signature yet — PDFs show an empty sign line')+'</span>';
+    $('sgi').textContent=r.on?'On file'+(r.name?' · '+r.name:'')+' · '+sgKb(r.bytes)+(r.at?' · added '+fmtWhen(r.at):''):'';
+    if(rm)rm.hidden=!r.on;
+  };
+  var pk=0;
+  var fail=function(m){if(my!==DLG.seq)return;DLG.busy=false;busyBtn(ok,false);if(rm)busyBtn(rm,false);if(srvGate(m))return;dlgErr(sgErr(m));};
+  (isS?call('officeStampGet',S.token):call('officeSigGet',S.token,staff)).then(show,function(m){fail(m);if(my===DLG.seq&&!pk)$('sgp').innerHTML='<span class="muted">—</span>';});
+  $('sgc').onclick=function(){if(!DLG.busy)closeDlg();};
+  $('sgf').onchange=function(){
+    var f=this.files&&this.files[0],m=$('sgm'),me=++pk;data='';ok.disabled=true;dlgErr('');if(!f){m.textContent='';return;}
+    if(!/^image\/(png|jpeg)$/.test(f.type)){m.textContent='';dlgErr(sgErr('BADIMG|type'));this.value='';return;}
+    if(f.size>1048576){m.textContent='';dlgErr(sgErr('BADIMG|size'));this.value='';return;}
+    var rd=new FileReader();
+    rd.onload=function(){if(my!==DLG.seq||me!==pk)return;var u=String(rd.result||'');if(!SG_IMG.test(u.replace(/^data:image\/jpg;/,'data:image/jpeg;'))){dlgErr(sgErr('BADIMG|type'));return;}
+      data=u.slice(u.indexOf(',')+1);$('sgp').innerHTML=sgImg(u,'New picture');m.textContent='Preview only — press Save to keep it.';ok.disabled=false;};
+    rd.onerror=function(){if(my!==DLG.seq||me!==pk)return;dlgErr(sgErr('BADIMG|broken'));};
+    rd.readAsDataURL(f);
+  };
+  ok.onclick=function(){
+    if(DLG.busy||!data)return;DLG.busy=true;busyBtn(ok,true,'Saving…');dlgErr('');
+    (isS?call('officeStampSave',S.token,data):call('officeSigSave',S.token,staff,data)).then(function(){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();toast(isS?'Company stamp saved.':'Signature saved for '+name+'.');if(after)after();},fail);
+  };
+  if(rm)rm.onclick=function(){
+    if(DLG.busy)return;
+    if(!armed){armed=true;rm.textContent='Press again to remove';return;}
+    DLG.busy=true;busyBtn(rm,true,'Removing…');dlgErr('');
+    call('officeSigRemove',S.token,staff).then(function(){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();toast('Signature removed — the next PDFs show an empty sign line.');if(after)after();},fail);
+  };
+  setTimeout(function(){if(my===DLG.seq)$('sgc').focus();},30);
+}
+/* Users & access: the company stamp card (Directors) */
+function stampLoad(){
+  var box=document.getElementById('ustamp');if(!box)return;
+  call('officeStampGet',S.token).then(function(r){
+    if(!document.getElementById('ustamp'))return;r=r||{};
+    box.innerHTML='<div class="stcard"><div class="sgmini">'+(r.on&&sgImg(r.img,'Company stamp')||'—')+'</div><div style="flex:1;min-width:0"><b>Company stamp</b><small>'+(r.on?'On file · '+esc(sgKb(r.bytes))+' · on every outgoing PDF':'No stamp on file')+'</small></div>'+
+      '<button type="button" class="btn btn-ghost btn-sm" id="stamprep">'+ic('edit')+' Replace</button></div>';
+    document.getElementById('stamprep').onclick=function(){sigDlg('stamp','','',stampLoad);};
+  },function(m){if(!document.getElementById('ustamp'))return;if(srvGate(m))return;box.innerHTML='';});
+}
+
 /* ======================= screen: HR › Users & access (Directors) ======================= */
 var US={rows:[],me:'',q:'',f:'all',seq:0,staff:null};
 function nrow(r){
   r=r||{};
   var a=cleanAccess(r.depts)||{}, n=+r.sessions;
   return {name:String(r.name||'—'),email:String(r.email||''),depts:a,enabled:r.status==='Enabled',
-    last:(typeof r.last==='number'&&isFinite(r.last))?r.last:null,sessions:(n>0&&isFinite(n))?Math.floor(n):0,staff:String(r.staff||'')};
+    last:(typeof r.last==='number'&&isFinite(r.last))?r.last:null,sessions:(n>0&&isFinite(n))?Math.floor(n):0,staff:String(r.staff||''),sig:r.sig===true};
 }
 function viewUsers(){
   document.title='Core Access · Users & access';
@@ -816,7 +981,7 @@ function viewUsers(){
     '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="uq" type="search" placeholder="Search name or email" autocomplete="off" aria-label="Search logins"></div>'+
     '<button type="button" class="btn btn-primary btn-sm" id="uadd">'+ic('plus')+' Add login</button></div>'+
     '<div class="chips t-red" id="uf" role="group" aria-label="Show">'+F.map(function(x){return '<button type="button" class="chip'+(x[0]==='all'?' on':'')+'" data-f="'+x[0]+'" aria-pressed="'+(x[0]==='all')+'">'+x[1]+'</button>';}).join('')+'</div>'+
-    '<p class="cnt" id="ucnt">&nbsp;</p><div id="ulist" class="ulist"><div class="empty">Loading logins…</div></div>';
+    '<div id="ustamp"></div><p class="cnt" id="ucnt">&nbsp;</p><div id="ulist" class="ulist"><div class="empty">Loading logins…</div></div>';
   shell('HR · Users & access',body);
   document.getElementById('back').onclick=function(){viewHome();};
   document.getElementById('uadd').onclick=function(){editDlg(null);};
@@ -832,7 +997,7 @@ function viewUsers(){
     US.rows.forEach(function(x){if(x.email===em)r=x;});
     if(r) userAct(b.getAttribute('data-a'),r);
   };
-  usersLoad();
+  usersLoad();stampLoad();
 }
 function usersLoad(){
   var my=++US.seq;
@@ -873,9 +1038,10 @@ function usersDraw(){
       '<div class="meta"><span>Last sign-in</span><b>'+esc(fmtWhen(r.last))+'</b>'+
         '<span>Signed in now</span><b>'+(r.sessions?'<i class="live"></i>Yes · '+r.sessions+' device'+(r.sessions===1?'':'s')+(me?' (incl. this one)':''):'No')+'</b>'+
         '<span>Prices &amp; amounts</span><b>'+(seesMoney(a)?'Sees them':'Hidden')+'</b>'+
-        '<span>Staff record</span><b>'+(r.staff?esc(r.staff):'—')+'</b></div>'+
+        '<span>Staff record</span><b>'+(r.staff?esc(r.staff):'—')+'</b>'+
+        '<span>Signature</span><b>'+(r.staff?(r.sig?'On file':'None'):'— (no Staff record)')+'</b></div>'+
       '<div class="acts">'+
-        B('edit','Edit','edit')+B('reset','Reset password','key')+
+        B('edit','Edit','edit')+B('reset','Reset password','key')+(r.staff?B('sig','Signature','edit'):'')+
         (me?'':(r.enabled?B('block','Block','ban','btn-danger'):B('unblock','Unblock','unlock')))+
         B('out',me?'Sign out my other devices':'Sign out everywhere','logout','',other<1)+
       '</div></article>';
@@ -885,6 +1051,7 @@ function userAct(a,r){
   var n=esc(r.name), done=function(msg){return function(res){toast(msg(res||{}));usersLoad();};};
   var ended=function(x){x=+x.ended||0;return x?' Signed out on '+x+' device'+(x===1?'':'s')+'.':'';};
   if(a==='edit') return editDlg(r);
+  if(a==='sig') return sigDlg('sig',r.staff,r.name,usersLoad);
   if(a==='reset') return askDlg('Reset password for '+n+'?','A new password is made and shown to you once. The old one stops working at once and all of '+n+'\'s sign-ins end'+(r.email===US.me?' (except this one)':'')+'.','Make new password',false,
     function(){return call('officeUserReset',S.token,r.email);},
     function(res){usersLoad();pwDlg(r.name,String(res&&res.password||''),'Old sign-ins ended: '+(+res.ended||0)+'.');});
@@ -908,7 +1075,8 @@ function editDlg(r){
     '<p class="sub">'+(isNew?'A password is made for the new login and shown to you once.':'Changing the access signs this person out everywhere; they sign in again with the new access.')+'</p>'+
     '<div id="derr"></div>'+
     (me?'<div class="msg warn">'+ic('alert')+'<div>This is <b>your own</b> login. You can change the name; another Director must change your access.</div></div>':'')+
-    '<label class="fld"><span>Name</span><input class="inp np" id="fn" maxlength="80" list="stafflist" autocomplete="off" placeholder="Pick from Staff or type" value="'+esc(r?r.name:'')+'"><datalist id="stafflist"></datalist><small id="fst">'+(r&&r.staff?'Staff record '+esc(r.staff):'Not linked to a Staff record')+'</small></label>'+
+    '<label class="fld"><span>Name</span><input class="inp np" id="fn" maxlength="80" autocomplete="off" placeholder="Full name" value="'+esc(r?r.name:'')+'"></label>'+
+    '<label class="fld"><span>Staff record (signature, Prepared by)</span><select class="inp np" id="fsf" disabled><option value="">Loading the Staff list…</option></select><small id="fst">'+(r&&r.staff?'Staff record '+esc(r.staff):'Not linked to a Staff record')+'</small></label>'+
     '<label class="fld"><span>Email (this is the sign-in name)</span><input class="inp np" id="fe" type="email" inputmode="email" maxlength="120" autocomplete="off" placeholder="name@example.com" value="'+esc(r?r.email:'')+'"'+(isNew?'':' readonly')+'>'+(isNew?'<small>Any email works, personal ones too.</small>':'<small>The email can\'t be changed. Add a new login and block this one instead.</small>')+'</label>'+
     '<span class="lbl">Access</span>'+
     '<label class="check" style="margin:0 0 6px"><input type="checkbox" id="fdir"'+(dir?' checked':'')+(me?' disabled':'')+'> <span><b style="color:var(--text)">Director</b> — all departments, all actions, admin (L4)</span></label>'+
@@ -925,12 +1093,25 @@ function editDlg(r){
     var d=b.closest('.drow').getAttribute('data-d'),v=+b.getAttribute('data-v');if(v)a[d]=v;else delete a[d];
     [].forEach.call(b.parentNode.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});money();};
   /* staff list for the name box (pick a Staff row = linked) */
-  var fillStaff=function(list){var dl=document.getElementById('stafflist');if(!dl)return;dl.innerHTML=list.map(function(s){return '<option value="'+esc(s.name)+'">';}).join('');};
-  var linkStaff=function(){var v=fn.value.trim().toLowerCase(),hit=null;(US.staff||[]).forEach(function(s){if(s.name.toLowerCase()===v)hit=s;});
-    /* a name that matches no Staff row keeps the link this login already had (a typo fix does not unlink it) */
-    staffId=hit?hit.id:(r?r.staff:'');document.getElementById('fst').textContent=staffId?'Staff record '+staffId:'Not linked to a Staff record';};
+  var fsf=document.getElementById('fsf'),fst=document.getElementById('fst'),staffTouched=false;
+  var stLine=function(note){fst.textContent=(staffId?'Staff record '+staffId:'Not linked to a Staff record')+(note?' — '+note:'');};
+  var byName=function(v){v=String(v||'').trim().toLowerCase();var hit=null,n=0;(US.staff||[]).forEach(function(s){if(s.name.toLowerCase()===v){hit=s;n++;}});return n===1?hit:null;};
+  var fillStaff=function(list){if(!document.body.contains(fsf))return;
+    var other={};(US.rows||[]).forEach(function(u){if(u&&u.staff&&(!r||u.email!==r.email))other[u.staff]=u.name||u.email;});
+    var h='<option value="">— Not linked —</option>',have=false;
+    list.forEach(function(s){if(s.id===staffId)have=true;h+='<option value="'+esc(s.id)+'">'+esc(s.id+' · '+s.name+(other[s.id]?' (also linked to '+other[s.id]+')':''))+'</option>';});
+    if(staffId&&!have)h+='<option value="'+esc(staffId)+'">'+esc(staffId+' (not in the Staff list)')+'</option>';
+    fsf.innerHTML=h;fsf.disabled=false;
+    var note='';
+    if(!staffId&&!staffTouched){var hit=byName(fn.value);if(hit){staffId=hit.id;note='same name, picked for you; Save links it';}}
+    fsf.value=staffId||'';stLine(note);};
+  var staffFail=function(){if(!document.body.contains(fsf))return;fsf.innerHTML='<option value="'+esc(staffId||'')+'">'+esc(staffId?staffId+' (kept)':'Staff list did not load')+'</option>';fsf.disabled=true;stLine(staffId?'':'close and open Edit again to retry');};
+  fsf.onchange=function(){staffTouched=true;staffId=fsf.value;var s=null;(US.staff||[]).forEach(function(x){if(x.id===staffId)s=x;});
+    if(s&&!fn.value.trim())fn.value=s.name;stLine('');};
+  /* typing a name that is exactly one Staff row's name links it (until a record is picked by hand); other typing keeps the link */
+  var linkStaff=function(){if(staffTouched||fsf.disabled)return;var hit=byName(fn.value);if(hit&&hit.id!==staffId){staffId=hit.id;fsf.value=staffId;stLine('same name');}};
   if(US.staff) fillStaff(US.staff);
-  else call('officeStaffList',S.token).then(function(l){US.staff=(Array.isArray(l)?l:[]).map(function(s){s=s||{};return {id:String(s.id||''),name:String(s.name||'')};}).filter(function(s){return s.id&&s.name;});if(my===DLG.seq)fillStaff(US.staff);},function(){});
+  else call('officeStaffList',S.token).then(function(l){US.staff=(Array.isArray(l)?l:[]).map(function(s){s=s||{};return {id:String(s.id||''),name:String(s.name||'')};}).filter(function(s){return s.id&&s.name;});if(my===DLG.seq)fillStaff(US.staff);},function(){if(my===DLG.seq)staffFail();});
   fn.oninput=linkStaff;
   document.getElementById('fcan').onclick=function(){if(!DLG.busy)closeDlg();};
   var doSave=function(){
@@ -962,7 +1143,8 @@ var DR={rows:[],can:false,today:'',depts:[],setup:true,q:'',f:'',st:'',seq:0};
 var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
 /* sign-in / sign-out: forget the lists of the earlier login (another person may sign in on this device) */
 function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;
-  QS.rows=[];QS.can=false;QS.money=false;QS.cur=null;QS.loaded=false;QS.seq++;}
+  QS.rows=[];QS.can=false;QS.money=false;QS.cur=null;QS.loaded=false;QS.seq++;
+  QE.d=null;QE.q=null;QE.dirty=false;QE.saving=false;QE.seq++;qePickClose();}
 var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
 function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
 function isDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
@@ -1196,7 +1378,7 @@ function quotesLoad(){
     QS.rows.sort(function(a,b){return (b.date>a.date?1:b.date<a.date?-1:0)||b.no.localeCompare(a.no);});
     var nb=document.getElementById('qnew');
     if(nb){nb.innerHTML=QS.can?'<button type="button" class="btn btn-primary btn-sm" id="qadd">'+ic('plus')+' New quote</button>':'';
-      if(QS.can)document.getElementById('qadd').onclick=function(){toast('New quote — coming next (W4).');};}
+      if(QS.can)document.getElementById('qadd').onclick=function(){viewQuoteEdit();};}
     quotesDraw();
   },function(m){
     if(my!==QS.seq||!document.getElementById('qlist'))return;
@@ -1294,7 +1476,7 @@ function quoteDraw(){
   var kv=function(rows){return '<div class="meta">'+rows.filter(function(x){return x[1];}).map(function(x){return '<span>'+x[0]+'</span><b>'+x[1]+'</b>';}).join('')+'</div>';};
   var h='<div class="qhead"><div><h2>'+esc(q.no)+(q.rev?' · Rev '+q.rev:'')+'</h2><div class="sub">'+esc(q.subject||q.project)+'</div>'+
       '<div class="qrow" style="margin-top:8px">'+(q.type?'<span class="pill ty">'+esc(q.type)+'</span>':'')+'<span class="pill qs-'+q.status+'">'+q.status+'</span></div></div>'+
-    '<div class="qacts"><button type="button" class="btn btn-ghost btn-sm" id="qpdf">'+ic('doc')+(q.pdf?'Open PDF':'Make PDF')+'</button>'+
+    '<div class="qacts">'+(q.can&&!q.locked?'<button type="button" class="btn btn-ghost btn-sm" id="qedit">'+ic('edit')+'Edit quote</button>':'')+'<button type="button" class="btn btn-ghost btn-sm" id="qpdf">'+ic('doc')+(q.pdf?'Open PDF':'Make PDF')+'</button>'+
       (q.can&&['Lost','Expired','Cancelled'].indexOf(q.status)<0?'<button type="button" class="btn btn-primary btn-sm" id="qmail">'+ic('mail')+'Email to client</button>':'')+'</div></div>'+
     '<div class="qgrid">'+
       '<div class="box"><h4>Customer</h4>'+kv([['Name',esc(q.cust)],['Attention',esc(q.contact)],['Phone',esc(q.phone)],['Email',esc(q.email)]])+'</div>'+
@@ -1306,7 +1488,7 @@ function quoteDraw(){
   if(!q.lines.length)h+='<div class="empty">No lines yet.</div>';
   else{
     h+='<table class="ltab"><thead><tr><th class="ln">#</th><th>Description</th><th>Size</th><th class="r">Qty</th><th>Unit</th>'+(M?'<th class="r">Rate</th><th class="r">Amount</th>':'')+'</tr></thead><tbody>'+
-      q.lines.map(function(l){var off=l.optional&&!l.selected,mo=l.months!==''&&l.months>1?' × '+num(l.months)+' months':'';
+      q.lines.map(function(l){var off=l.optional&&!l.selected,mo=(l.months!==''&&l.months>0?(l.billing==='Milestone'?' (stages)':' / month'):'')+(l.months!==''&&l.months>1&&l.billing!=='Milestone'?' × '+num(l.months)+' months':'');
         return '<tr'+(off?' class="opt"':'')+'><td class="ln">'+l.n+'</td><td class="d">'+(l.optional?'<b>Optional:</b> ':'')+esc(l.desc)+(off?'<small>Not included in the total</small>':'')+'</td>'+
           '<td class="sz">'+(l.size?esc(l.size):'—')+'</td><td class="r q">'+esc(num(l.qty))+'</td><td class="un">'+esc(l.unit)+esc(mo)+'</td>'+
           (M?'<td class="r ra">'+(l.rate===null?'—':tk(l.rate))+'</td><td class="r">'+(l.amount===null?'—':off?'('+tk(l.amount)+')':tk(l.amount))+'</td>':'')+'</tr>';}).join('')+'</tbody></table>';
@@ -1343,6 +1525,7 @@ function quoteDraw(){
   h+='</div>';
   el.innerHTML=h;
   document.getElementById('qpdf').onclick=quotePdf;
+  var eb=document.getElementById('qedit');if(eb)eb.onclick=function(){viewQuoteEdit(q.no);};
   var mb=document.getElementById('qmail');if(mb)mb.onclick=quoteEmailDlg;
   document.getElementById('tonly').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-o]'):null;if(!b)return;QS.only=b.getAttribute('data-o')==='1';quoteDraw();};
   if(edit){
@@ -1387,7 +1570,8 @@ function varDlg(k){
   var body=v.kind==='pick'?'<span class="lbl">'+esc(v.label)+'</span><span class="seg t-teal" id="vpick" role="radiogroup">'+v.opts.map(function(o){return '<button type="button" role="radio" data-v="'+esc(o)+'" aria-checked="'+(o===cur)+'"'+(o===cur?' class="on"':'')+'>'+esc(o)+'</button>';}).join('')+'</span>':
     '<label class="fld"><span>'+esc(v.label)+(v.unit?' ('+esc(v.unit)+')':'')+'</span><input class="inp np" id="vin" type="number" inputmode="decimal" step="any" min="'+v.min+'" max="'+v.max+'" value="'+esc(num(cur))+'"></label>';
   var pick=cur;
-  var d=formDlg(esc(v.label),'Standard: <b>'+esc(stdTxt)+'</b> — from '+(v.from==='Customer'?'the customer':'company settings')+'. A different value applies to this quote only'+(k==='AdvancePct'?' and changes the advance amount':'')+'.',
+  var d=formDlg(esc(v.label),k==='AdvancePct'?'Advance for this quote. New quotes start at <b>'+esc(stdTxt)+'</b> (company default). Changing it here changes only this quote and its advance amount.':
+    'Standard: <b>'+esc(stdTxt)+'</b> — from '+(v.from==='Customer'?'the customer':'company settings')+'. A different value applies to this quote only.',
     body+'<div class="note">'+ic('alert')+'<div>Used everywhere this field appears in the terms'+(k==='PaymentDays'||k==='LateInterest'?', and on this job\'s invoices':'')+'.</div></div>','Save',
     function(){if(v.kind==='pick')return {k:'var',key:k,value:pick};var x=document.getElementById('vin'),s=x.value.trim(),n=Number(s);
       if(s===''||!isFinite(n)||n<v.min||n>v.max){x.classList.add('bad');return 'Enter a number from '+v.min+' to '+v.max+'.';}return {k:'var',key:k,value:n};},
@@ -1471,6 +1655,519 @@ function quoteEmailDlg(){
     });
   };
   setTimeout(function(){if(my===DLG.seq)(to.value?send:to).focus();},30);
+}
+
+/* ======================= W4: new / edit quote (SC Staff+ / Director) ======================= */
+/* one grid of 7 columns for every type: # · Description · Size · Qty · Unit · Rate · Amount (= Qty × Rate).
+   Size comes from the item or the 📐 measure (no column of its own in the sheet). A "… / month" unit = one month's hire. */
+var QE={seq:0,d:null,q:null,dirty:false,pick:null,fam:'',saving:false};
+var QE_TYPES=[['Rental','Hire by the month','Items for hire · unit per month (min. one month)'],['Sale','Items sold','Items for sale · plain unit'],['Project','Scope of work','Few rows · size → m² / m³ · lump sum']];
+var QE_1=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],
+    QE_10=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+function qeW99(n){return n<20?QE_1[n]:QE_10[Math.floor(n/10)]+(n%10?'-'+QE_1[n%10]:'');}
+function qeW999(n){var h=Math.floor(n/100),r=n%100;return (h?QE_1[h]+' Hundred'+(r?' ':''):'')+(r?qeW99(r):'');}
+function qeIntW(n){if(n===0)return 'Zero';var p=[],c=Math.floor(n/1e7);n%=1e7;if(c)p.push((c>=1000?qeIntW(c):qeW999(c))+' Crore');var l=Math.floor(n/1e5);n%=1e5;if(l)p.push(qeW99(l)+' Lakh');
+  var th=Math.floor(n/1000);n%=1000;if(th)p.push(qeW99(th)+' Thousand');if(n)p.push(qeW999(n));return p.join(' ');}
+/* = PDF.gs takaWords (the server prints its own words on the PDF) */
+function qeWords(x){var v=Math.abs(qeR2(x)),t=Math.floor(v+1e-9),p=Math.round((v-t)*100);return (x<0?'Minus ':'')+'Taka '+qeIntW(t)+(p?' and Paisa '+qeW99(p):'')+' only';}
+function qeNum(v){if(v===''||v==null)return null;v=Number(String(v).replace(/,/g,''));return isFinite(v)?v:NaN;}
+function qeR2(x){return Math.round(x*100)/100;}
+function qeDp(v,dp){return Math.abs(Math.round(v*Math.pow(10,dp))-v*Math.pow(10,dp))<1e-6;}
+function qeAddDays(s,n){var p=s.split('-'),d=new Date(Date.UTC(+p[0],+p[1]-1,+p[2]+n));return d.toISOString().slice(0,10);}
+function qeDays(a,b){var f=function(s){var p=s.split('-');return Date.UTC(+p[0],+p[1]-1,+p[2]);};return Math.round((f(b)-f(a))/864e5);}
+function qeLine(o){o=o||{};return {code:String(o.code||''),desc:String(o.desc||''),size:String(o.size||''),qty:o.qty==null?'':o.qty,unit:String(o.unit||''),rate:o.rate==null?'':o.rate,opt:o.opt===true,chosen:o.opt===true&&o.chosen===true,basis:o.basis==='lump'?'lump':'unit',dim:o.dim&&typeof o.dim==='object'?o.dim:null};}
+function qeItem(code){var o=null;(QE.d.items||[]).forEach(function(i){if(i.code===code)o=i;});return o;}
+function qeMonthly(u){return /\/\s*month$/i.test(String(u||''));}
+function qeBaseUnit(u){return String(u||'').replace(/\s*\/\s*month$/i,'').trim();}
+function qeAmt(l){var q=qeNum(l.qty),r=qeNum(l.rate);return q===null||r===null||isNaN(q)||isNaN(r)?null:qeR2(q*r);}
+function qeOff(l){return l.opt&&!l.chosen;} /* in brackets, not in the total */
+function qeUsed(l){return !!(l.desc||l.code||l.qty!==''||l.rate!=='');}
+function qeTot(){
+  var q=QE.q,s=QE.d.set,sub=0;q.lines.forEach(function(l){var a=qeAmt(l);if(a!==null&&(!l.opt||l.chosen))sub+=a;});sub=qeR2(sub);
+  var vat=qeR2(sub*s.vat/100),at=qeR2(sub*s.at/100),ait=qeR2(sub*s.ait/100),t=qeR2(sub+vat+at+ait),adv=qeNum(q.adv);
+  return {sub:sub,vat:vat,at:at,ait:ait,total:t,advance:adv===null||isNaN(adv)?0:qeR2(t*adv/100)};
+}
+/* the server's answer, tidied (a missing field never breaks the screen) */
+function qeForm(r){
+  r=r||{};var arr=function(x){return Array.isArray(x)?x:[];},s=r.set||{},n=function(v,d){v=+v;return isFinite(v)?v:d;};
+  var o={money:r.money===true,today:isDay(r.today)?r.today:'',myStaff:String(r.myStaff||''),units:arr(r.units).map(String),kits:r.kits&&typeof r.kits==='object'?r.kits:{},
+    set:{vat:n(s.vat,15),at:n(s.at,0),ait:n(s.ait,0),adv:n(s.adv,50),validDays:n(s.validDays,30)},
+    items:arr(r.items).map(function(i){i=i||{};return {code:String(i.code||''),name:String(i.name||i.code||''),cat:String(i.cat||'Other'),size:String(i.size||''),unit:String(i.unit||'pc'),
+      forSale:i.forSale===true,forHire:i.forHire===true,isSet:i.isSet===true,sale:typeof i.sale==='number'?i.sale:null,hire:typeof i.hire==='number'?i.hire:null};}).filter(function(i){return i.code;}),
+    customers:arr(r.customers).map(function(c){c=c||{};return {id:String(c.id||''),name:String(c.name||''),contact:String(c.contact||''),phone:String(c.phone||''),email:String(c.email||''),address:String(c.address||'')};}).filter(function(c){return c.id;}),
+    sites:arr(r.sites).map(function(c){c=c||{};return {id:String(c.id||''),cust:String(c.cust||''),project:String(c.project||''),address:String(c.address||'')};}).filter(function(c){return c.id;}),
+    staff:arr(r.staff).map(function(c){c=c||{};return {id:String(c.id||''),name:String(c.name||'')};}).filter(function(c){return c.id;}),quote:null};
+  if(!o.today){var d=new Date();o.today=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+  var x=r.quote;
+  if(x&&typeof x==='object'){o.quote={no:String(x.no||''),rev:+x.rev||0,status:String(x.status||'Draft'),ev:typeof x.ev==='number'?x.ev:0,type:['Rental','Sale','Project'].indexOf(x.type)>=0?x.type:'',
+    cust:String(x.cust||''),site:String(x.site||''),attention:String(x.attention||''),subject:String(x.subject||''),date:isDay(x.date)?x.date:o.today,valid:isDay(x.valid)?x.valid:'',prep:String(x.prep||''),adv:n(x.adv,o.set.adv),
+    svc:x.svc===true,lines:arr(x.lines).map(qeLine)};}
+  return o;
+}
+/* entry: no = quote number to edit, empty = new */
+function viewQuoteEdit(no){
+  document.title='Core Access · '+(no?'Edit '+no:'New quote');
+  QE.d=null;QE.q=null;QE.dirty=false;qePickClose();
+  shell(no?'Sales · Edit quote':'Sales · New quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qeback">'+ic('back')+(no?' Quote':' Quotes')+'</button></div><div id="qe"><div class="empty">Loading…</div></div>');
+  document.getElementById('qeback').onclick=function(){qeLeave(no);};
+  var out=document.getElementById('out'),out0=out&&out.onclick;
+  if(out0)out.onclick=function(){if(!QE.dirty)return out0.call(out);askDlg('Sign out without saving?','Your changes to '+(no?esc(no):'this new quote')+' are not saved yet.','Sign out',true,function(){return Promise.resolve();},function(){QE.dirty=false;out0.call(out);});};
+  var my=++QE.seq;QE.saving=false;
+  call('officeQuoteForm',S.token,no||'').then(function(r){
+    if(my!==QE.seq||!document.getElementById('qe'))return;
+    var D=qeForm(r),x=D.quote,today=D.today;QE.d=D;
+    if(no&&!x){viewQuotes();toast(no+' could not be opened.');return;}
+    QE.q=x?{no:x.no,rev:x.rev,status:x.status,ev:x.ev,svc:x.svc,type:x.type,cust:x.cust,site:x.site,attention:x.attention,subject:x.subject,date:x.date,valid:x.valid,prep:x.prep,adv:x.adv,lines:x.lines.length?x.lines:[qeLine()]}
+      :{no:'',rev:0,status:'Draft',ev:0,type:'',cust:'',site:'',attention:'',subject:'',date:today,valid:qeAddDays(today,D.set.validDays),prep:D.myStaff,adv:D.set.adv,lines:[qeLine(),qeLine(),qeLine()]};
+    if(!D.staff.some(function(s){return s.id===QE.q.prep;}))QE.q.prep='';
+    if(!isDirector(S.user.depts))QE.q.prep=D.staff.some(function(s){return s.id===D.myStaff;})?D.myStaff:''; /* D2: the person who saves is the preparer (signs the PDF) */
+    qeDraw();
+  },function(m){
+    if(my!==QE.seq||!document.getElementById('qe'))return;
+    if(srvGate(m))return;
+    var k=code(m).split('|')[0];
+    if(k==='QLOCKED'){viewQuote(no);toast(no+' is locked (job, or no longer Draft / Sent) — it can\'t be edited.');return;}
+    if(k==='QOLD'){viewQuote(no);toast(no+' has lines in the old format (months / stages) — edit it in the sheet panel.');return;}
+    if(k==='NOTFOUND'){viewQuotes();toast((no||'The quote')+' no longer exists.');return;}
+    document.getElementById('qe').innerHTML='<div class="empty">Could not open the form: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="qeretry">Try again</button></div>';
+    document.getElementById('qeretry').onclick=function(){viewQuoteEdit(no);};
+  });
+}
+function qeLeave(no){
+  var go=function(){qePickClose();if(no)viewQuote(no);else viewQuotes();};
+  if(!QE.dirty)return go();
+  askDlg('Leave without saving?','Your changes to '+(no?esc(no):'this new quote')+' are not saved yet.','Leave',true,function(){return Promise.resolve();},go);
+}
+function qeCust(){var o=null;(QE.d.customers||[]).forEach(function(c){if(c.id===QE.q.cust)o=c;});return o;}
+function qeSite(){var o=null;(QE.d.sites||[]).forEach(function(c){if(c.id===QE.q.site)o=c;});return o;}
+function qeDraw(){
+  var el=document.getElementById('qe'),q=QE.q,D=QE.d;if(!el||!q)return;
+  var c=qeCust(),s=qeSite(),M=D.money===true;
+  var h='';
+  if(q.no)h+='<div class="note qe-revn">'+ic('alert')+'<div>Editing <b>'+esc(q.no)+(q.rev?' · Rev '+q.rev:'')+'</b> ('+esc(q.status)+').'+
+    (q.svc?' It is an older <b>Service</b> quote: it stays a Service quote with its terms.':'')+(q.status==='Sent'?' The client already has this one: saving makes <b>Rev '+(q.rev+1)+'</b> with the same number, back to <b>Draft</b> — email it again when ready; its new PDF replaces the earlier one.':' Saving replaces the draft and its PDF.')+'</div></div>';
+  /* 1 type */
+  h+='<div class="box" style="margin-bottom:12px"><h4>1 · Quote type</h4><div class="qe-types" role="radiogroup" aria-label="Quote type">'+QE_TYPES.map(function(t){
+    return '<button type="button" role="radio" class="qe-type'+(q.type===t[0]?' on':'')+'" data-t="'+t[0]+'" aria-checked="'+(q.type===t[0])+'"><b>'+t[0]+'</b><small>'+esc(t[1])+' · '+esc(t[2])+'</small></button>';}).join('')+'</div>'+
+    (q.type?'<p class="qe-terms" style="margin:10px 0 0">Terms: the standard <b>'+esc(q.type)+'</b> terms load with the quote — change them in the quote view after saving (colour-coded, as now).</p>':'<p class="qe-terms" style="margin:10px 0 0">Pick the type first — its lines and terms follow it.</p>')+'</div>';
+  if(!q.type){el.innerHTML=h;qeBindType();return;}
+  /* 2 customer + project */
+  h+='<div class="box" style="margin-bottom:12px"><h4>2 · Customer &amp; project</h4><div class="qe-f2">'+
+    '<label class="fld"><span>Customer</span><div class="inwrap qe-combo">'+ic('building')+'<input class="inp" id="qecu" autocomplete="off" placeholder="Search name, phone or email" value="'+esc(c?c.name:'')+'"></div>'+
+      '<div class="qe-chosen" id="qecuc">'+(c?'<span class="ok">'+ic('okc')+'</span><span>'+esc(c.id)+(c.phone?' · '+esc(c.phone):'')+'</span>':'Pick from the list or add a new customer.')+'</div></label>'+
+    '<label class="fld"><span>Project / site</span><div class="inwrap qe-combo">'+ic('brief')+'<input class="inp" id="qesi" autocomplete="off" placeholder="'+(c?'Search this customer\'s projects':'Pick the customer first')+'" value="'+esc(s?s.project:'')+'"'+(c?'':' disabled')+'></div>'+
+      '<div class="qe-chosen" id="qesic">'+(s?'<span class="ok">'+ic('okc')+'</span><span>'+esc(s.address||s.id)+'</span>':c?'Pick a project or add a new one.':'')+'</div></label>'+
+    '<label class="fld"><span>Attention</span><input class="inp np" id="qeat" value="'+esc(q.attention)+'" placeholder="'+esc(c&&c.contact||'Contact person')+'" maxlength="80"></label>'+
+    '<label class="fld"><span>Subject</span><input class="inp np" id="qesu" value="'+esc(q.subject)+'" placeholder="'+esc(qeSubj())+'" maxlength="140"></label>'+
+  '</div></div>';
+  /* 3 quote details */
+  var staff='<option value="">—</option>'+(D.staff||[]).map(function(x){return '<option value="'+esc(x.id)+'"'+(x.id===q.prep?' selected':'')+'>'+esc(x.name)+'</option>';}).join('');
+  h+='<div class="box" style="margin-bottom:12px"><h4>3 · Quote</h4><div class="qe-f4">'+
+    '<label class="fld"><span>Date</span><input class="inp np" type="date" id="qedt" value="'+esc(q.date)+'"></label>'+
+    '<label class="fld"><span>Valid until</span><input class="inp np" type="date" id="qevu" value="'+esc(q.valid)+'"></label>'+
+    '<label class="fld"><span>Prepared by</span><select class="inp np" id="qepb"'+(isDirector(S.user.depts)?'':' disabled title="You sign the quotes you save"')+'>'+staff+'</select></label>'+
+    '<label class="fld"><span>Advance %</span><input class="inp np" id="qead" inputmode="decimal" value="'+esc(q.adv)+'"></label>'+
+  '</div></div>';
+  /* 4 lines */
+  h+='<div class="box"><div class="qrow" style="margin-bottom:8px"><h4 style="margin:0">4 · Lines</h4><span class="sp"></span><span class="tag">'+esc(q.type==='Project'?'Pick a scope or type your own; 📐 works out m² / m³':q.type==='Rental'?'Pick an item: unit becomes "… / month", rate = per month':'Pick an item: rate = sale price')+'</span></div>'+
+    '<table class="qe-tab"><thead><tr><th>#</th><th>Description</th><th>Size</th><th class="r">Qty</th><th>Unit</th>'+(M?'<th class="r">Rate</th><th class="r">Amount</th>':'')+'<th></th></tr></thead><tbody id="qerows">'+qeRowsHtml()+'</tbody></table>'+
+    '<div class="qe-under"><button type="button" class="btn btn-ghost btn-sm" id="qeaddr">'+ic('plus')+'Add row</button>'+
+      (q.type!=='Project'?'<button type="button" class="btn btn-ghost btn-sm" id="qekit">'+ic('box')+'Add a set / kit</button><button type="button" class="btn btn-ghost btn-sm" id="qepaste">'+ic('copy')+'Paste rows</button>':'')+'</div>'+
+    (M?'<div class="tots" id="qetot"></div><div class="words" id="qewords"></div>':'')+
+  '</div>';
+  h+='<div class="qe-sticky"><div class="sum" id="qesum"></div><span class="sp"></span><div id="qeerr" style="width:100%;order:9"></div>'+
+    '<button type="button" class="btn btn-ghost" id="qesave">Save draft</button><button type="button" class="btn btn-primary" id="qesavep">'+ic('doc')+'Save &amp; make PDF</button></div>';
+  el.innerHTML=h;
+  qeBindType();qeBindHead();qeBindRows();qeSums();
+  document.getElementById('qeaddr').onclick=function(){qeAddRow();};
+  var kb=document.getElementById('qekit');if(kb)kb.onclick=qeKitDlg;
+  var pb=document.getElementById('qepaste');if(pb)pb.onclick=qePasteDlg;
+  document.getElementById('qesave').onclick=function(){qeSave(false);};
+  document.getElementById('qesavep').onclick=function(){qeSave(true);};
+  qeLock();
+}
+/* a save in flight: buttons off, the form can not be changed until the reply (redraws keep it) */
+function qeLock(){var el=document.getElementById('qe'),on=QE.saving===true;if(!el)return;if(on)el.setAttribute('inert','');else el.removeAttribute('inert');el.setAttribute('aria-busy',on?'true':'false');
+  ['qesave','qesavep'].forEach(function(id){var b=document.getElementById(id);if(b&&on)b.disabled=true;});}
+function qeSubj(){var s=qeSite();return (QE.q.type==='Rental'?'Scaffold material on hire':QE.q.type==='Sale'?'Supply of scaffold material':'Scaffold work')+(s?' — '+s.project:'');}
+function qeBindType(){
+  [].forEach.call(document.querySelectorAll('.qe-type'),function(b){b.onclick=function(){
+    var t=b.getAttribute('data-t'),q=QE.q;if(t===q.type)return;
+    var used=q.lines.some(qeUsed);
+    var go=function(){var was=q.type;q.type=t;QE.dirty=true;
+      if(was)q.lines.forEach(function(l){ /* the unit follows the type: rental = per month, sale = plain */
+        if(t==='Sale'&&qeMonthly(l.unit))l.unit=qeBaseUnit(l.unit);
+        if(t==='Rental'&&l.code&&!qeMonthly(l.unit)&&qeItem(l.code)&&qeItem(l.code).forHire)l.unit=l.unit+' / month';});
+      qeDraw();};
+    if(q.type&&used)askDlg('Change the type to '+esc(t)+'?','The lines stay as they are (check the units and rates), and the quote gets the standard <b>'+esc(t)+'</b> terms instead of the '+esc(q.type)+' terms.','Change to '+esc(t),false,function(){return Promise.resolve();},go);
+    else go();
+  };});
+}
+/* ---------- customer / project combobox ---------- */
+function qeBindHead(){
+  var q=QE.q,cu=document.getElementById('qecu'),si=document.getElementById('qesi');
+  var mark=function(){QE.dirty=true;};
+  cu.oninput=function(){if(q.cust){q.cust='';q.site='';mark();}qeCombo(cu,'cust');};
+  cu.onfocus=function(){qeCombo(cu,'cust');};
+  cu.onkeydown=qePickKey;
+  si.oninput=function(){if(q.site){q.site='';mark();}qeCombo(si,'site');};
+  si.onfocus=function(){if(q.cust)qeCombo(si,'site');};
+  si.onkeydown=qePickKey;
+  document.getElementById('qeat').oninput=function(){q.attention=this.value;mark();};
+  document.getElementById('qesu').oninput=function(){q.subject=this.value;mark();};
+  document.getElementById('qedt').onchange=function(){q.date=this.value;mark();};
+  document.getElementById('qevu').onchange=function(){q.valid=this.value;mark();};
+  document.getElementById('qepb').onchange=function(){q.prep=this.value;mark();};
+  document.getElementById('qead').oninput=function(){q.adv=this.value.trim();mark();qeSums();};
+}
+function qeCombo(inp,kind){
+  var t=inp.value.trim().toLowerCase(),D=QE.d,q=QE.q,ops=[],w=t.split(/\s+/).filter(Boolean);
+  var hit=function(hay){hay=hay.toLowerCase();return w.every(function(x){return hay.indexOf(x)>=0;});};
+  if(kind==='cust'){
+    D.customers.forEach(function(c){if(hit(c.name+' '+c.phone+' '+c.email+' '+c.id+' '+c.contact))ops.push({v:c.id,b:c.name,s:[c.contact,c.phone,c.email].filter(Boolean).join(' · ')});});
+    ops=ops.slice(0,30);ops.push({v:'+',b:'+ New customer'+(inp.value.trim()?' “'+inp.value.trim()+'”':''),s:'Register a customer (checked against the list — no duplicates)'});
+  } else {
+    D.sites.forEach(function(s){if(s.cust===q.cust&&hit(s.project+' '+s.address+' '+s.id))ops.push({v:s.id,b:s.project,s:s.address});});
+    ops=ops.slice(0,30);ops.push({v:'+',b:'+ New project'+(inp.value.trim()?' “'+inp.value.trim()+'”':''),s:'For '+((qeCust()||{}).name||'')});
+  }
+  qePickOpen(inp,ops.map(function(o){return {g:'',v:o.v,html:'<b>'+esc(o.b)+'</b>'+(o.s?'<small>'+esc(o.s)+'</small>':'')};}),function(v){
+    if(v==='+')return kind==='cust'?qeCustDlg(inp.value.trim()):qeSiteDlg(inp.value.trim());
+    QE.dirty=true;
+    if(kind==='cust'){if(q.cust!==v){q.cust=v;q.site='';}}else q.site=v;
+    qeDraw();var nx=document.getElementById(kind==='cust'?'qesi':'qeat');if(nx)nx.focus();
+  });
+}
+function qeCustDlg(name){
+  qePickClose();
+  var my=openDlg('<h3 id="dlgt">New customer</h3><p class="sub">Checked against the customer list: the same name, phone or email can\'t be added twice. Saved at once.</p><div id="derr"></div>'+
+    '<label class="fld"><span>Company / name</span><input class="inp np" id="ncn" maxlength="120" value="'+esc(name||'')+'"></label>'+
+    '<div class="qe-f2"><label class="fld"><span>Contact person</span><input class="inp np" id="ncc" maxlength="80"></label>'+
+    '<label class="fld"><span>Phone</span><input class="inp np" id="ncp" inputmode="tel" maxlength="40"></label></div>'+
+    '<label class="fld"><span>Email</span><input class="inp np" id="nce" type="email" maxlength="160"></label>'+
+    '<label class="fld"><span>Address</span><input class="inp np" id="nca" maxlength="200"></label>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Add customer</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;if(!v('ncn')){dlgErr('Please give the customer\'s name.');return;}
+    DLG.busy=true;busyBtn(yes,true,'Checking…');dlgErr('');
+    call('officeCustomerAdd',S.token,{name:v('ncn'),contact:v('ncc'),phone:v('ncp'),email:v('nce'),address:v('nca')}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      r=r||{};var c={id:String(r.id||''),name:String(r.name||''),contact:String(r.contact||''),phone:String(r.phone||''),email:String(r.email||''),address:String(r.address||'')};
+      if(!c.id||!QE.d)return;QE.d.customers.push(c);QE.q.cust=c.id;QE.q.site='';QE.dirty=true;qeDraw();toast(c.name+' added ('+c.id+').');
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='DUP'){var c=null;QE.d.customers.forEach(function(x){if(x.id===k[1])c=x;});
+        dlgErr('This customer is already registered'+(c?': <b>'+esc(c.name)+'</b> ('+esc(c.id)+')':' ('+esc(k[1]||'')+')')+' — same '+esc(k[2]||'details')+'. '+(c?'<button type="button" class="btn btn-ghost btn-sm" id="dpick">Use '+esc(c.name)+'</button>':'Open the form again to see it.'));
+        var pk=document.getElementById('dpick');if(pk)pk.onclick=function(){closeDlg();QE.q.cust=c.id;QE.q.site='';QE.dirty=true;qeDraw();};return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('ncn').focus();},30);
+}
+function qeSiteDlg(name){
+  qePickClose();var c=qeCust();if(!c)return;
+  var my=openDlg('<h3 id="dlgt">New project for '+esc(c.name)+'</h3><p class="sub">The same project name at the same address can\'t be added twice for one customer. Saved at once.</p><div id="derr"></div>'+
+    '<label class="fld"><span>Project name</span><input class="inp np" id="nsp" maxlength="120" value="'+esc(name||'')+'"></label>'+
+    '<label class="fld"><span>Site address</span><input class="inp np" id="nsa" maxlength="200"></label>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Add project</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;if(!v('nsp')){dlgErr('Please give the project name.');return;}
+    DLG.busy=true;busyBtn(yes,true,'Checking…');dlgErr('');
+    call('officeSiteAdd',S.token,{cust:c.id,project:v('nsp'),address:v('nsa')}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      r=r||{};var s={id:String(r.id||''),cust:String(r.cust||c.id),project:String(r.project||''),address:String(r.address||'')};
+      if(!s.id||!QE.d)return;QE.d.sites.push(s);QE.q.site=s.id;QE.dirty=true;qeDraw();toast(s.project+' added.');
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='DUP'){var known=QE.d.sites.some(function(x){return x.id===k[1]&&x.cust===c.id;});
+        if(!known){dlgErr('That project is already registered ('+esc(k[1]||'')+'). Open the form again to see it.');return;}
+        closeDlg();QE.q.site=k[1];QE.dirty=true;qeDraw();toast('That project is already registered — picked it.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('nsp').focus();},30);
+}
+/* ---------- floating picker (one for the page) ---------- */
+function qePickClose(){var p=document.getElementById('qepick');if(p)p.parentNode.removeChild(p);QE.pick=null;}
+function qePickOpen(inp,ops,choose,head){
+  qePickClose();
+  var p=document.createElement('div');p.className='qe-pick';p.id='qepick';p.setAttribute('role','listbox');
+  var h=head||'',g=null;
+  if(!ops.length)h+='<div class="none">Nothing matches — keep typing your own text.</div>';
+  ops.forEach(function(o,i){if(o.g&&o.g!==g){g=o.g;h+='<div class="gh">'+esc(g)+'</div>';}
+    h+='<button type="button" class="op" role="option" data-i="'+i+'" tabindex="-1">'+o.html+'</button>';});
+  p.innerHTML=h;document.body.appendChild(p);
+  var place=function(){
+    var r=inp.getBoundingClientRect(),w=Math.max(r.width,Math.min(440,window.innerWidth-16)),left=Math.min(r.left,window.innerWidth-w-8),below=window.innerHeight-r.bottom;
+    p.style.left=Math.max(8,left)+'px';p.style.width=w+'px';p.style.top=p.style.bottom='';
+    if(below<220&&r.top>below){p.style.bottom=(window.innerHeight-r.top+4)+'px';p.style.maxHeight=Math.max(120,Math.min(340,r.top-12))+'px';}
+    else{p.style.top=(r.bottom+4)+'px';p.style.maxHeight=Math.max(120,Math.min(340,below-12))+'px';}
+  };
+  place();
+  QE.pick={inp:inp,ops:ops,choose:choose,i:-1,el:p,place:place};
+  p.addEventListener('mousedown',function(e){e.preventDefault();});
+  p.onclick=function(e){var b=e.target.closest?e.target.closest('.op'):null;if(b){var o=ops[+b.getAttribute('data-i')];qePickClose();if(o)choose(o.v);}};
+  return p;
+}
+function qePickKey(e){
+  var P=QE.pick;
+  if(e.key==='Escape'&&P){e.preventDefault();e.stopPropagation();qePickClose();return true;}
+  if(!P||P.inp!==this)return false;
+  var bs=P.el.querySelectorAll('.op');if(!bs.length)return false;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();P.i=(P.i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length;
+    [].forEach.call(bs,function(b,i){b.classList.toggle('on',i===P.i);});if(bs[P.i].scrollIntoView)bs[P.i].scrollIntoView({block:'nearest'});return true;}
+  if(e.key==='Enter'&&P.i>=0){e.preventDefault();var o=P.ops[P.i];qePickClose();P.choose(o.v);return true;}
+  return false;
+}
+document.addEventListener('mousedown',function(e){var P=QE.pick;if(P&&e.target!==P.inp&&!P.el.contains(e.target))qePickClose();});
+function qePickMove(e){var P=QE.pick;if(!P)return;if(!document.body.contains(P.inp))return qePickClose();if(e&&e.target&&P.el.contains(e.target))return;P.place();}
+window.addEventListener('resize',qePickMove);
+window.addEventListener('beforeunload',function(e){if(QE.dirty&&document.getElementById('qe')){e.preventDefault();e.returnValue='';}});
+document.addEventListener('scroll',qePickMove,true);
+/* ---------- lines ---------- */
+function qeRowsHtml(){
+  var q=QE.q,M=QE.d.money===true,P=q.type==='Project';
+  return q.lines.map(function(l,i){var a=qeAmt(l);
+    return '<tr data-r="'+i+'"'+(qeOff(l)?' class="opt"':'')+'><td class="ln">'+(i+1)+'</td>'+
+      '<td class="d" data-n="Line '+(i+1)+'"><textarea class="c" rows="1" data-f="desc" placeholder="'+(P?'Pick a scope or type it':'Pick an item or type it')+'" maxlength="500" aria-label="Line '+(i+1)+' description">'+esc(l.desc)+'</textarea>'+
+        '<div class="qe-tags">'+(l.code?'<span class="code">'+esc(l.code)+'</span>':'')+(l.opt?'<span class="o">'+(l.chosen?'Optional — chosen by the client (in the total)':'Optional — not in the total')+'</span>':'')+(l.basis==='lump'?'<span>Lump sum</span>':'')+'</div></td>'+
+      '<td class="sz">'+(P?'<div class="qe-szw"><input class="c" data-f="size" value="'+esc(l.size)+'" readonly placeholder="📐 measure" title="From the measure (📐)" aria-label="Line '+(i+1)+' size"><button type="button" class="mini" data-a="dim" title="Measure: L × H = m², L × W × H = m³" aria-label="Measure line '+(i+1)+'">📐</button></div>':
+        '<input class="c" data-f="size" value="'+esc(l.size)+'" readonly title="From the item" aria-label="Line '+(i+1)+' size">')+'</td>'+
+      '<td class="q"><input class="c n" data-f="qty" inputmode="decimal" value="'+esc(l.qty)+'"'+(l.basis==='lump'||l.dim?' readonly':'')+' aria-label="Line '+(i+1)+' quantity"></td>'+
+      '<td class="u"><input class="c" data-f="unit" value="'+esc(l.unit)+'" maxlength="30" list="qeunits"'+(l.basis==='lump'||l.dim?' readonly':'')+' aria-label="Line '+(i+1)+' unit"></td>'+
+      (M?'<td class="ra"><input class="c n" data-f="rate" inputmode="decimal" value="'+esc(l.rate)+'" aria-label="Line '+(i+1)+' rate"></td><td class="am r" data-am>'+(a===null?'—':(qeOff(l)?'(':'')+tk(a)+(qeOff(l)?')':''))+'</td>':'')+
+      '<td class="ac"><button type="button" class="mini" data-a="menu" title="More: optional, lump sum, copy, move" aria-label="More for line '+(i+1)+'">⋯</button> '+
+        '<button type="button" class="mini del" data-a="del" title="Delete row" aria-label="Delete line '+(i+1)+'">🗑</button></td></tr>';
+  }).join('');
+}
+function qeUnits(){
+  var base=QE.d.units.length?QE.d.units:['pc','set','m','m²','m³','kg','trip','lot','visit','day'],t=QE.q.type,u;
+  if(t==='Rental')u=['pc','set','m²','m','lot'].filter(function(x){return base.indexOf(x)>=0;}).map(function(x){return x+' / month';}).concat(base);
+  else if(t==='Project'&&!QE.q.svc)u=['m²','m³','set'].filter(function(x){return base.indexOf(x)>=0;}).map(function(x){return x+' / month';}).concat(base);
+  else u=base.slice();
+  var d=document.getElementById('qeunits');if(!d){d=document.createElement('datalist');d.id='qeunits';document.body.appendChild(d);}
+  d.innerHTML=u.map(function(x){return '<option value="'+esc(x)+'">';}).join('');
+}
+function qeRedrawRows(focus){
+  var tb=document.getElementById('qerows');if(!tb)return;tb.innerHTML=qeRowsHtml();qeBindRows();qeSums();
+  if(focus){var e=tb.querySelector('tr[data-r="'+focus[0]+'"] [data-f="'+focus[1]+'"]');if(e)e.focus();}
+}
+function qeGrow(t){t.style.height='auto';t.style.height=Math.min(Math.max(t.scrollHeight+2,40),160)+'px';}
+function qeBindRows(){
+  qeUnits();
+  var tb=document.getElementById('qerows'),q=QE.q;
+  [].forEach.call(tb.querySelectorAll('textarea.c'),qeGrow);
+  tb.oninput=function(e){var f=e.target.getAttribute('data-f');if(!f||e.target.readOnly)return;var tr=e.target.closest('tr'),i=+tr.getAttribute('data-r'),l=q.lines[i];
+    l[f]=e.target.value;QE.dirty=true;
+    if(f==='desc'){qeGrow(e.target);qeItemPick(e.target,i);}
+    if(f==='qty'||f==='rate'){var v=qeNum(e.target.value);e.target.classList.toggle('bad',e.target.value!==''&&(v===null||isNaN(v)||v<0));
+      var am=tr.querySelector('[data-am]');if(am){var a=qeAmt(l);am.textContent=a===null?'—':(qeOff(l)?'(':'')+tk(a)+(qeOff(l)?')':'');}qeSums();}
+  };
+  if(!tb._qe){tb._qe=1;tb.addEventListener('focusin',function(e){if(e.target.getAttribute('data-f')==='desc'){var i=+e.target.closest('tr').getAttribute('data-r');qeItemPick(e.target,i);}});}
+  tb.onkeydown=function(e){
+    var t=e.target,f=t.getAttribute&&t.getAttribute('data-f');if(!f)return;
+    if(f==='desc'&&qePickKey.call(t,e))return;
+    if(e.key==='Enter'&&!e.shiftKey&&!(f==='desc'&&e.altKey)){
+      var i=+t.closest('tr').getAttribute('data-r');
+      e.preventDefault();
+      if(f==='desc'&&QE.pick){qePickClose();return;}
+      if(i===q.lines.length-1)qeAddRow();else{var nx=tb.querySelector('tr[data-r="'+(i+1)+'"] [data-f="'+f+'"]');if(nx)nx.focus();}
+    }
+  };
+  tb.onclick=function(e){var b=e.target.closest?e.target.closest('[data-a]'):null;if(!b)return;var i=+b.closest('tr').getAttribute('data-r'),a=b.getAttribute('data-a');
+    if(a==='del')return qeDelRow(i);
+    if(a==='menu')return qeRowMenu(b,i);
+    if(a==='dim')return qeDimDlg(i);
+  };
+}
+function qeAddRow(at,l){var q=QE.q;if(at==null)at=q.lines.length;if(q.lines.length>=200){toast('A quote can have up to 200 lines.');return;}q.lines.splice(at,0,l||qeLine());QE.dirty=true;qeRedrawRows([at,'desc']);}
+function qeDelRow(i){var q=QE.q,l=q.lines[i];if(!l)return;
+  var go=function(){q.lines.splice(i,1);if(!q.lines.length)q.lines.push(qeLine());QE.dirty=true;qeRedrawRows();toast('Line '+(i+1)+' deleted.');};
+  if(!qeUsed(l))return go();
+  askDlg('Delete line '+(i+1)+'?',esc(l.desc||l.code||'This line')+' is removed from the quote.','Delete',true,function(){return Promise.resolve();},go);}
+function qeRowMenu(btn,i){
+  var q=QE.q,l=q.lines[i],n=q.lines.length;if(!l)return;
+  var ops=[{v:'opt',html:'<b>'+(l.opt?'✓ ':'')+'Optional line</b><small>Shown in brackets, not in the total</small>'},
+    {v:'lump',html:'<b>'+(l.basis==='lump'?'✓ ':'')+'Lump sum</b><small>Qty 1, unit lot — one price for the whole line</small>'},
+    {v:'copy',html:'<b>Copy row</b><small>Adds a copy below</small>'}];
+  if(i>0)ops.push({v:'up',html:'<b>Move up</b>'});if(i<n-1)ops.push({v:'down',html:'<b>Move down</b>'});
+  qePickOpen(btn,ops,function(v){
+    if(v==='opt'){l.opt=!l.opt;l.chosen=false;}
+    if(v==='lump'){if(l.basis==='lump'){l.basis='unit';}else{l.basis='lump';l.qty=1;l.unit='lot';l.dim=null;if(QE.q.type==='Project')l.size='';}}
+    if(v==='copy'){if(q.lines.length>=200){toast('A quote can have up to 200 lines.');return;}var c=JSON.parse(JSON.stringify(l));q.lines.splice(i+1,0,c);}
+    if(v==='up'||v==='down'){var j=v==='up'?i-1:i+1,t=q.lines[i];q.lines[i]=q.lines[j];q.lines[j]=t;}
+    QE.dirty=true;qeRedrawRows();
+  });
+}
+/* the description picker: Rental / Sale = items for hire / sale grouped by family (Items.Category); Project = scopes + services */
+function qeItemPick(inp,i){
+  var q=QE.q,t=inp.value.trim().toLowerCase(),P=q.type==='Project';
+  var all=QE.d.items.filter(function(x){return P?(x.cat==='Project scope'||x.cat==='Service'):q.type==='Rental'?x.forHire:x.forSale;});
+  var fams=[];all.forEach(function(x){if(fams.indexOf(x.cat)<0)fams.push(x.cat);});
+  fams.sort(function(a,b){return (b==='Project scope')-(a==='Project scope');});
+  if(QE.fam&&fams.indexOf(QE.fam)<0)QE.fam='';
+  var words=t.split(/\s+/).filter(Boolean);
+  var hits=all.filter(function(x){if(QE.fam&&x.cat!==QE.fam)return false;var hay=(x.code+' '+x.name+' '+x.size).toLowerCase();return words.every(function(w){return hay.indexOf(w)>=0;});});
+  hits.sort(function(a,b){return fams.indexOf(a.cat)-fams.indexOf(b.cat);});
+  if(t&&!hits.length){qePickClose();return;}
+  var M=QE.d.money===true;
+  var ops=hits.slice(0,80).map(function(x){var r=q.type==='Rental'?x.hire:q.type==='Sale'?x.sale:null;
+    return {g:x.cat,v:x.code,html:(M&&r!=null?'<span class="pr">Tk '+tk(r)+(q.type==='Rental'?' / mo':'')+'</span>':'')+'<b>'+esc(x.name)+'</b><small>'+esc(x.code)+(x.size?' · '+esc(x.size):'')+' · '+esc(x.unit)+(x.isSet?' · set':'')+'</small>'};});
+  var head='<div class="fam">'+['All'].concat(fams).map(function(f){var v=f==='All'?'':f;return '<button type="button" data-fam="'+esc(v)+'"'+(QE.fam===v?' class="on"':'')+'>'+esc(f)+'</button>';}).join('')+'</div>';
+  var p=qePickOpen(inp,ops,function(code){qeUseItem(i,code);},head);
+  [].forEach.call(p.querySelectorAll('[data-fam]'),function(b){b.onclick=function(e){e.stopPropagation();QE.fam=b.getAttribute('data-fam');qeItemPick(inp,i);};});
+}
+function qeUseItem(i,code){
+  var q=QE.q,l=q.lines[i],x=qeItem(code);if(!x||!l)return;
+  if(l.dim&&x.cat!=='Project scope'){l.dim=null;if(l.basis!=='lump')l.qty='';}
+  l.code=x.code;l.desc=x.name;if(!l.dim)l.size=x.size||'';
+  if(l.basis!=='lump')l.unit=q.type==='Rental'?x.unit+' / month':q.type==='Project'&&x.cat==='Project scope'?'m² / month':x.unit;
+  var r=q.type==='Rental'?x.hire:q.type==='Sale'?x.sale:null;l.rate=r!=null?r:'';
+  QE.dirty=true;qeRedrawRows([i,q.type==='Project'&&x.cat==='Project scope'?'rate':'qty']);
+}
+/* project measure: L × H = m², L × W × H = m³, × sets (same as QF1b qfDim_; the server works it out again) */
+function qeDimDlg(i){
+  var l=QE.q.lines[i];if(!l)return;var d=l.dim||{L:'',W:'',H:'',N:''};
+  var my=openDlg('<h3 id="dlgt">Measure line '+(i+1)+'</h3><p class="sub">Length + height = m² · add a width = m³ · sets multiply. Qty and unit are worked out (the server checks it again).</p><div id="derr"></div>'+
+    '<div class="qe-dims"><label class="fld"><span>Length (m)</span><input class="inp np" id="dl" inputmode="decimal" value="'+esc(d.L)+'"></label>'+
+    '<label class="fld"><span>Width (m) — m³ only</span><input class="inp np" id="dw" inputmode="decimal" value="'+esc(d.W)+'"></label>'+
+    '<label class="fld"><span>Height (m)</span><input class="inp np" id="dh" inputmode="decimal" value="'+esc(d.H)+'"></label>'+
+    '<label class="fld"><span>Sets (optional)</span><input class="inp np" id="dn" inputmode="numeric" value="'+esc(d.N)+'"></label></div>'+
+    '<div class="qe-dimout" id="dout"></div>'+
+    '<label class="check"><input type="checkbox" id="dmo"'+(qeMonthly(l.unit)||!l.unit?' checked':'')+'> Priced per month (unit “… / month”)</label>'+
+    '<div class="dfoot">'+(l.dim?'<button type="button" class="btn btn-ghost" id="dclr">No measure</button>':'')+'<button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Use this size</button></div>');
+  var g=function(k){return document.getElementById(k).value.trim();};
+  var calc=function(){var L=qeNum(g('dl')),W=qeNum(g('dw')),H=qeNum(g('dh')),N=qeNum(g('dn'));
+    var bad=[[L,'length'],[W,'width'],[H,'height'],[N,'sets']].filter(function(x){return x[0]!==null&&!(x[0]>0&&x[0]<=10000);});
+    if(bad.length)return {e:'The '+bad[0][1]+' must be a number above 0.'};
+    if(N!==null&&(Math.round(N)!==N||N>1000))return {e:'Sets must be a whole number (up to 1000).'};
+    if([L,W,H].some(function(v){return v!==null&&!qeDp(v,3);}))return {e:'Up to 3 decimals (mm) for the sizes.'};
+    if(L===null||H===null)return {e:'Give the length and the height.'};
+    var k=N===null?1:N,qty=Math.round(L*(W===null?1:W)*H*k*1000)/1000,u=W===null?'m²':'m³',f=function(v){return String(Math.round(v*1000)/1000);};
+    if(!(qty>0))return {e:'The size works out to 0.'};
+    if(qty>1e7)return {e:'That is more than 10,000,000 '+u+' — check the sizes.'};
+    return {qty:qty,u:u,L:L,W:W===null?'':W,H:H,N:N===null?'':N,text:'L '+f(L)+' m × '+(W!==null?'W '+f(W)+' m × ':'')+'H '+f(H)+' m'+(k>1?' × '+k+' sets':'')+' = '+f(qty)+' '+u};};
+  var show=function(){var r=calc();document.getElementById('dout').textContent=r.e?'':r.text;};
+  ['dl','dw','dh','dn'].forEach(function(k){var e=document.getElementById(k);e.oninput=show;e.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();document.getElementById('dyes').click();}};});show();
+  document.getElementById('dno').onclick=closeDlg;
+  var clr=document.getElementById('dclr');if(clr)clr.onclick=function(){l.dim=null;l.size='';QE.dirty=true;closeDlg();qeRedrawRows([i,'qty']);};
+  document.getElementById('dyes').onclick=function(){var r=calc();if(r.e){dlgErr(r.e);return;}
+    l.dim={L:r.L,W:r.W,H:r.H,N:r.N};l.size=r.text;l.qty=r.qty;l.unit=r.u+(document.getElementById('dmo').checked?' / month':'');l.basis='unit';
+    QE.dirty=true;closeDlg();qeRedrawRows([i,'rate']);};
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('dl').focus();},30);
+}
+/* a whole set / kit: one line per set, or one line per part */
+function qeKitDlg(){
+  var q=QE.q,K=QE.d.kits||{},sets=QE.d.items.filter(function(x){return x.isSet&&Array.isArray(K[x.code])&&K[x.code].length&&(q.type==='Rental'?x.forHire:x.forSale);});
+  if(!sets.length){toast('No sets / kits for '+q.type.toLowerCase()+' yet.');return;}
+  var my=openDlg('<h3 id="dlgt">Add a set / kit</h3><p class="sub">Frame and aluminium mobile scaffolds go out by sets; damage is still charged per part.</p><div id="derr"></div>'+
+    '<label class="fld"><span>Set</span><select class="inp np" id="ks">'+sets.map(function(x){return '<option value="'+esc(x.code)+'">'+esc(x.name)+'</option>';}).join('')+'</select></label>'+
+    '<label class="fld"><span>Number of sets</span><input class="inp np" id="kn" inputmode="numeric" value="1"></label>'+
+    '<div class="seg t-teal" id="km" role="radiogroup" aria-label="How"><button type="button" role="radio" data-m="1" class="on" aria-checked="true">One line per set</button><button type="button" role="radio" data-m="p" aria-checked="false">One line per part</button></div>'+
+    '<ul class="qe-plist" id="kp"></ul>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Add</button></div>');
+  var mode='1';
+  var parts=function(){var n=qeNum(document.getElementById('kn').value),c=document.getElementById('ks').value;
+    document.getElementById('kp').innerHTML=(K[c]||[]).map(function(p){var it=qeItem(p[0]);return '<li><b>'+esc(n>0?p[1]*n:p[1])+' ×</b> '+esc(it?it.name:p[0])+' <span class="tag">'+esc(p[0])+'</span></li>';}).join('');};
+  document.getElementById('ks').onchange=parts;document.getElementById('kn').oninput=parts;parts();
+  document.getElementById('km').onclick=function(e){var b=e.target.closest?e.target.closest('[data-m]'):null;if(!b)return;mode=b.getAttribute('data-m');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});};
+  document.getElementById('dno').onclick=closeDlg;
+  document.getElementById('dyes').onclick=function(){
+    var n=qeNum(document.getElementById('kn').value),c=document.getElementById('ks').value,x=qeItem(c);
+    if(!(n>0)||Math.round(n)!==n||n>10000){dlgErr('The number of sets must be a whole number above 0.');return;}
+    var add=[],mo=q.type==='Rental'?' / month':'';
+    if(mode==='1')add.push(qeLine({code:x.code,desc:x.name,size:x.size,qty:n,unit:x.unit+mo,rate:q.type==='Rental'?x.hire:x.sale}));
+    else K[c].forEach(function(p){var it=qeItem(p[0])||{code:p[0],name:p[0],unit:'pc'};add.push(qeLine({code:it.code,desc:it.name,size:it.size,qty:p[1]*n,unit:it.unit+mo,rate:q.type==='Rental'?it.hire:it.sale}));});
+    var at=q.lines.length;while(at>0&&!qeUsed(q.lines[at-1]))at--;
+    if(at+add.length>200){dlgErr('A quote can have up to 200 lines.');return;}
+    q.lines.splice.apply(q.lines,[at,q.lines.length-at].concat(add));QE.dirty=true;closeDlg();qeRedrawRows();toast(add.length+' line'+(add.length===1?'':'s')+' added.');
+  };
+}
+/* paste many rows: item code + qty per line (from Excel, WhatsApp, …) */
+function qePasteDlg(){
+  var q=QE.q;
+  var my=openDlg('<h3 id="dlgt">Paste rows</h3><p class="sub">One line each: <b>item code</b> and <b>qty</b> (tab, comma or space between). Copy two columns from Excel works.</p><div id="derr"></div>'+
+    '<label class="fld"><textarea class="inp qe-paste" id="pt" rows="7" placeholder="RL-STD-20  120&#10;RL-LED-207, 200&#10;BD-ST-207&#9;150"></textarea></label><div id="pp" class="qe-terms"></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Add rows</button></div>');
+  var parse=function(){var ok=[],bad=[],all=document.getElementById('pt').value.split(/\r?\n/);
+    if(all.filter(function(s){return s.trim();}).length>300)return {ok:[],bad:['more than 300 rows — paste at most 300 at a time']};
+    all.forEach(function(s,n){s=s.trim();if(!s)return;
+      /* code, then one qty: tab, ; , or spaces between; 1,000 = one thousand; a third field is refused */
+      var c=(s.match(/^[^\s,;\t]+/)||[''])[0],rest=s.slice(c.length).replace(/^[\s,;\t]+/,'').trim(),x=qeItem(c.toUpperCase()),qt=null;c=c.toUpperCase();
+      if(rest){var t=/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(rest)?rest.replace(/,/g,''):rest;qt=/^\d+(\.\d+)?$/.test(t)?Number(t):NaN;}
+      if(!x||!(q.type==='Rental'?x.forHire:x.forSale))bad.push('line '+(n+1)+': '+(x?c+' is not for '+q.type.toLowerCase():'no item '+c));
+      else if(rest&&!(qt>0&&qt<=1e7))bad.push('line '+(n+1)+': qty “'+rest+'”');
+      else ok.push([x,rest?qt:'']);});return {ok:ok,bad:bad};};
+  var show=function(){var r=parse();document.getElementById('pp').innerHTML=(r.ok.length?'<b>'+r.ok.length+'</b> row'+(r.ok.length===1?'':'s')+' ready':'')+(r.bad.length?(r.ok.length?' · ':'')+'<span style="color:#fb7185">'+r.bad.length+' not understood: '+esc(r.bad.slice(0,4).join('; '))+(r.bad.length>4?' …':'')+'</span>':'');};
+  document.getElementById('pt').oninput=show;
+  document.getElementById('dno').onclick=closeDlg;
+  document.getElementById('dyes').onclick=function(){var r=parse();if(!r.ok.length){dlgErr('No rows understood yet.');return;}
+    if(r.bad.length){dlgErr('Fix or remove the lines not understood first ('+r.bad.length+').');return;}
+    var mo=q.type==='Rental'?' / month':'',at=q.lines.length;while(at>0&&!qeUsed(q.lines[at-1]))at--;
+    if(at+r.ok.length>200){dlgErr('A quote can have up to 200 lines.');return;}
+    var add=r.ok.map(function(p){var x=p[0];return qeLine({code:x.code,desc:x.name,size:x.size,qty:p[1],unit:x.unit+mo,rate:q.type==='Rental'?x.hire:x.sale});});
+    q.lines.splice.apply(q.lines,[at,q.lines.length-at].concat(add));QE.dirty=true;closeDlg();qeRedrawRows();toast(add.length+' rows added.');};
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('pt').focus();},30);
+}
+function qeSums(){
+  var q=QE.q,M=QE.d.money===true,t=qeTot(),n=q.lines.filter(function(l){return l.desc||l.code;}).length,s=QE.d.set;
+  var sm=document.getElementById('qesum');
+  if(sm)sm.innerHTML=n+' line'+(n===1?'':'s')+(M?' · Total <b>Tk '+tk(t.total)+'</b>':'');
+  var T=document.getElementById('qetot');if(!T)return;
+  T.innerHTML='<span>Subtotal</span><b>Tk '+tk(t.sub)+'</b><span>VAT '+esc(num(s.vat))+' %</span><b>Tk '+tk(t.vat)+'</b>'+(s.at?'<span>AT '+esc(num(s.at))+' %</span><b>Tk '+tk(t.at)+'</b>':'')+(s.ait?'<span>AIT '+esc(num(s.ait))+' %</span><b>Tk '+tk(t.ait)+'</b>':'')+
+    '<span class="gt">Total</span><b class="gt">Tk '+tk(t.total)+'</b><span>Advance '+esc(num(qeNum(q.adv)||0))+' %</span><b>Tk '+tk(t.advance)+'</b>';
+  document.getElementById('qewords').textContent=t.total>0?qeWords(t.total):'';
+}
+/* ---------- save ---------- */
+function qeCheck(){
+  var q=QE.q,M=QE.d.money===true,e=[],units=QE.d.units;
+  if(!q.cust)e.push('pick the <b>customer</b>');
+  if(!q.site)e.push('pick the <b>project</b>');
+  if(!isDay(q.date))e.push('the <b>date</b>');
+  if(!isDay(q.valid)||!isDay(q.date)||qeDays(q.date,q.valid)<1||qeDays(q.date,q.valid)>365)e.push('<b>valid until</b> (1 to 365 days after the date)');
+  var a=qeNum(q.adv);if(a===null||isNaN(a)||a<0||a>100||!qeDp(a,2))e.push('<b>advance %</b> (0–100)');
+  var used=q.lines.filter(qeUsed);
+  if(!used.length)e.push('at least one <b>line</b>');
+  if(used.length>200)e.push('up to 200 <b>lines</b>');
+  q.lines.forEach(function(l,i){if(!qeUsed(l))return;var n='line '+(i+1)+': ',qt=qeNum(l.qty),r=qeNum(l.rate),u=qeBaseUnit(l.unit);
+    if(!l.desc.trim())e.push(n+'description');
+    if(qt===null||isNaN(qt)||qt<=0||qt>1e7||!qeDp(qt,3))e.push(n+'qty above 0');
+    else if(M&&r!==null&&!isNaN(r)&&qt*r>1e12)e.push(n+'amount too large');
+    if(!u)e.push(n+'unit');else if(units.length&&units.indexOf(u)<0)e.push(n+'unit (pick one from the list)');
+    else if((q.type==='Sale'||q.svc)&&qeMonthly(l.unit))e.push(n+(q.svc?'a Service quote has no “/ month” unit':'a sale has no “/ month” unit'));
+    if(M&&(r===null||isNaN(r)||r<0||r>1e9||!qeDp(r,2)))e.push(n+'rate');});
+  return {e:e,lines:used};
+}
+function qeSave(pdf){
+  var q=QE.q,c=qeCheck(),box=document.getElementById('qeerr');
+  if(q.no&&!QE.dirty){viewQuote(q.no);toast(pdf?'Nothing changed — use Open / Make PDF here.':'Nothing changed.');return;}
+  if(c.e.length){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Please check: '+c.e.slice(0,6).join(' · ')+(c.e.length>6?' · …':'')+'</div></div>';return;}
+  box.innerHTML='';
+  var b1=document.getElementById('qesave'),b2=document.getElementById('qesavep');if(QE.saving||b1.disabled)return;
+  QE.saving=true;b1.disabled=b2.disabled=true;busyBtn(pdf?b2:b1,true,pdf?'Saving + PDF…':'Saving…');qeLock();
+  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:pdf,
+    lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
+  var my=QE.seq;
+  call('officeQuoteSave',S.token,d).then(function(r){
+    if(my!==QE.seq)return;QE.saving=false;qeLock();QE.dirty=false;r=r||{};var no=String(r.no||q.no);
+    var pm=r.changed===false?' (nothing changed)':pdf?(r.pdf?' — PDF made.':' — saved, but the PDF was not made'+(r.pdfErr?' ('+String(r.pdfErr).toLowerCase()+')':'')+': use Make PDF.'):'.';
+    toast((q.no?'Saved '+no+(r.rev?' · Rev '+r.rev:''):'Quote '+no+' saved as Draft')+pm);
+    viewQuote(no);
+  },function(m){
+    if(my!==QE.seq)return;QE.saving=false;qeLock();if(srvGate(m))return;
+    b1=document.getElementById('qesave')||b1;b2=document.getElementById('qesavep')||b2;b1.disabled=b2.disabled=false;busyBtn(pdf?b2:b1,false);
+    var k=code(m).split('|')[0];
+    if(k==='QLOCKED'){QE.dirty=false;viewQuote(q.no);toast(q.no+' is locked now — nothing saved.');return;}
+    if(k==='STALE'){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Someone changed '+esc(q.no)+' a moment ago — nothing saved. <button type="button" class="btn btn-ghost btn-sm" id="qereload">Open the latest</button></div></div>';
+      document.getElementById('qereload').onclick=function(){QE.dirty=false;viewQuoteEdit(q.no);};return;}
+    box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>'+errText(m)+'</div></div>';
+  });
 }
 
 /* ======================= start ======================= */
