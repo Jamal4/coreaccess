@@ -77,7 +77,7 @@ var OFFICE_DB_ID_ = '130OrVMdQ2tjCa_FQac2ebbWcbWzgW6l4VX5sfNWrKCw';
 var OFFICE_CFG_ = { maxFails: 5, lockMin: 15, shortH: 8, keepD: 30, iters: 300, kdfIters: 20000, minPw: 8, maxPw: 200, maxSess: 5, maxPerMin: 30 };
 var OFFICE_KDF_ = 'pbkdf2-sha256';
 var OFFICE_ENV_ = null; // self-tests put an in-memory env here
-var OLK_ = { s: 0, ls: null, np: false }; // s = script lock held by this execution (depth); ls = tests' LockService; np = panel PDF action
+var OLK_ = { s: 0, g: 0, ls: null, np: false }; // s = script lock held by this execution (depth); g = lock taken / let go count (W4d); ls = tests' LockService; np = panel PDF action
 function oLs_() { return OLK_.ls || LockService; }
 
 function officeEnv_() {
@@ -99,12 +99,12 @@ function officeEnv_() {
     cget: function (k) { var v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; },
     cput: function (k, o, sec) { CacheService.getScriptCache().put(k, JSON.stringify(o), Math.max(1, Math.min(21600, Math.ceil(sec)))); },
     cdel: function (k) { CacheService.getScriptCache().remove(k); },
-    lock: function (fn) { if (OLK_.s) return fn(); var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); } OLK_.s++; try { return fn(); } finally { OLK_.s--; l.releaseLock(); } },
+    lock: function (fn) { if (OLK_.s) return fn(); var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); } OLK_.s++; OLK_.g++; try { return fn(); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); } },
     who: function () { return { active: Session.getActiveUser().getEmail() || '', effective: Session.getEffectiveUser().getEmail() || '' }; },
     triggerIds: function () { return ScriptApp.getProjectTriggers().map(function (x) { return String(x.getUniqueId()); }); },
     db: function () { // the CAE Ops DB (the bound sheet; by id if a web call has no active sheet)
       var ss = null; try { ss = SpreadsheetApp.getActive(); } catch (e) { ss = null; }
-      return typeof SheetDb === 'function' ? new SheetDb(ss || SpreadsheetApp.openById(OFFICE_DB_ID_)) : null;
+      return typeof SheetDb === 'function' ? oW4dOn_(new SheetDb(ss || SpreadsheetApp.openById(OFFICE_DB_ID_))) : null; // W4d: one batch read
     }
   };
 }
@@ -115,8 +115,8 @@ if (typeof withLock === 'function' && !withLock.officeLk_) {
   var OLK_withLock0_ = withLock;
   withLock = function (fn) {
     if (OLK_.s || OLK_.np || (typeof LockService === 'undefined' && !OLK_.ls)) return OLK_withLock0_(fn); // a PDF (10-30 s) does not block the web app
-    var l = oLs_().getScriptLock(); l.waitLock(30000); OLK_.s++;
-    try { return OLK_withLock0_(fn); } finally { OLK_.s--; l.releaseLock(); }
+    var l = oLs_().getScriptLock(); l.waitLock(30000); OLK_.s++; OLK_.g++;
+    try { return OLK_withLock0_(fn); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); }
   };
   withLock.officeLk_ = OLK_withLock0_;
 }
@@ -1638,6 +1638,9 @@ function officeQuoteSave(token, d) {
     try { var L2 = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db(); res.pdf = String(oQPdfUse_(env, db, oQRow_(db, res.no), L2).url || ''); }
     catch (e) { res.pdf = ''; res.pdfErr = String(e && e.message || e).split('|')[0].slice(0, 40); }
   }
+  // W4c: the quote view comes back with the save (the page shows it without a second call); fresh read, same rules as officeQuoteGet
+  try { var L3 = officeGate_(token, OQ_NEED_), env3 = oEnv_(), db3 = env3.db(); if (db3) res.view = oQView_(db3, env3, oQRow_(db3, res.no), L3); }
+  catch (e) { delete res.view; /* the save stands; the page loads the view itself (a session that ended meanwhile is told there) */ }
   return res;
 }
 // Quote PDF price grid: # Description Size Qty Unit Rate Amount (the same 7 columns as the screen)
@@ -2003,6 +2006,208 @@ function officeSigImgCheck() {
   var b = oB64Dec_('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAklEQVR4AewaftIAAAAASUVORK5CYII=');
   var d = oSgDrv_(), out = 'good PNG decodes: ' + d.decodes(g, oSgImg_(g).mime) + ' · broken PNG decodes: ' + d.decodes(b, oSgImg_(b).mime);
   Logger.log(out); return out;
+}
+
+// ----------------------------------------------------------------- W4c (18 Nov): fewer sheet calls (speed)
+// Measured 18 Nov (Executions, Version 13): officeQuoteSave 44 s (with PDF), officeQuoteForm 11 s, officeQuoteGet 8 s,
+// officeQuoteList 6 s; every Spreadsheet call costs ~0.17 s from the web app, so the number of calls is the time.
+// SheetDb (Code.gs) read a tab with 8 calls (sheet twice, last column, header row, last row, data) and insert read the
+// whole tab first (Log, Sequences ...). Here, same results with fewer calls:
+//   - one Sheet handle per tab and SheetDb (getSheetByName once);
+//   - rows: headers + rows in one getDataRange().getValues() when neither is cached yet (same width / rows as before:
+//     getLastColumn x getLastRow); headers() alone stays the old header-row read (appSweep reads headers before its
+//     lock: rows must still be read inside the lock);
+//   - insert into the Log tab (add-only, never read back to rewrite a row) does not read the whole tab first. Every
+//     other tab keeps the old insert (the new rows stay in memory as written: '= text marks kept for a row rewrite).
+// Nothing else changes: same values, same row numbers (_r), same writes. (Review 18 Nov: 2 High + 1 Medium fixed.)
+var OW4C_NOREAD_ = { Log: 1 };
+var OW4C_ON_ = true;
+if (typeof SheetDb === 'function' && SheetDb.prototype && !SheetDb.prototype.ow4c_) {
+  (function (P) {
+    var sheet0 = P.sheet, hasTab0 = P.hasTab, headers0 = P.headers, rows0 = P.rows, insert0 = P.insert;
+    var fill = function (db, t) { // one read: header row + data rows
+      var s = db.sheet(t), v = s.getDataRange().getValues();
+      if (!v.length || v[0].every(blank)) return false; // a blank tab: the old path (it throws as before)
+      var h = db.hc[t] || v[0].map(String), out = [];
+      if (!db.hc[t]) db.hc[t] = h;
+      for (var i = 1; i < v.length; i++) {
+        var r = v[i]; if (r.every(blank)) continue;
+        var o = { _r: i + 1 }; h.forEach(function (k, j) { o[k] = j < r.length ? r[j] : ''; }); out.push(o);
+      }
+      db.c[t] = out; return true;
+    };
+    P.sheet = function (t) {
+      if (!OW4C_ON_) return sheet0.call(this, t);
+      var m = this.sc_ || (this.sc_ = {});
+      if (!m[t]) { var s = this.ss.getSheetByName(t); if (!s) throw new Error('Missing tab ' + t); m[t] = s; }
+      return m[t];
+    };
+    P.hasTab = function (t) {
+      if (!OW4C_ON_) return hasTab0.call(this, t);
+      var m = this.sc_ || (this.sc_ = {}); if (m[t]) return true;
+      var s = this.ss.getSheetByName(t); if (s) m[t] = s; return !!s;
+    };
+    P.headers = headers0; // header row only (uses the cached Sheet handle)
+    P.rows = function (t) {
+      if (!OW4C_ON_ || this.c[t] || !fill(this, t)) return rows0.call(this, t);
+      return this.c[t];
+    };
+    P.insert = function (t, objs) {
+      if (!OW4C_ON_ || this.c[t] || !OW4C_NOREAD_[t]) return insert0.call(this, t, objs);
+      var arr = Array.isArray(objs) ? objs : [objs];
+      if (!arr.length) return objs;
+      var s = this.sheet(t), h = this.hc[t] || headers0.call(this, t), calc = CALC[t] || {}, self = this; // header row only
+      var start = Math.max(s.getLastRow(), 1) + 1;
+      var vals = arr.map(function (o, i) {
+        o._r = start + i;
+        return h.map(function (k) { return calc[k] ? resolveF(self, t, calc[k], o._r) : cellVal_(o[k]); });
+      });
+      s.getRange(start, 1, arr.length, h.length).setValues(vals);
+      return objs;
+    };
+    P.ow4c_ = true;
+  })(SheetDb.prototype);
+}
+
+// ----------------------------------------------------------------- W4d (19 Nov): one combined read (speed)
+// Measured 19 Nov (editor probes, Executions): the time is the FIRST read of each tab, 0.26-0.70 s whatever its size; one
+// Sheets API values:batchGet of 13 tabs = 0.6 s with the same values (5 019 cells checked). So a SheetDb made by the office
+// env (env.db) reads the quote tabs below in one batch, at its first read of one of them. Same results as the tab reads:
+//   - lazy: the batch runs where the old first read ran (inside the lock when that read was inside the lock);
+//   - a tab comes from the batch only while nothing was written and no lock taken / let go since the batch: a sheet handle
+//     used outside a read (insert, update, formulas, formats, direct writes) ends batching for that SheetDb (its later first
+//     reads are tab reads, as before) and drops the batch of every other SheetDb (their next first read batches again, at
+//     most OW4D_MAX_ times); a lock taken or let go since the batch drops it too;
+//   - values as getDataRange().getValues() (W4c fill): UNFORMATTED_VALUE; date / time cells come as serial numbers and are
+//     told apart by a second request (FORMATTED_STRING: those cells are text there) sent at the same time; missing trailing
+//     cells = ''; header width = the widest row; _r = sheet row; blank rows skipped; a blank tab = the old read (throws);
+//   - SpreadsheetApp.flush() before each batch (pending writes of this execution reach the sheet, as getValues sees them);
+//   - any error (HTTP, missing tab, other shape, sheet time zone not the script's) = the old tab reads.
+var OW4D_ON_ = true;
+var OW4D_TABS_ = ['Customers', 'DocRegister', 'Items', 'Jobs', 'KitParts', 'Lists', 'Locations', 'Milestones', 'QuoteLines', 'QuoteTerms', 'Quotes',
+  'Sequences', 'Settings', 'Sites', 'Staff', 'Terms']; // the tabs the quote calls read (traced 19 Nov: List, Get, Form, Save, Pdf, CustomerAdd, SiteAdd)
+var OW4D_MAX_ = 3;      // batches per SheetDb
+var OW4D_FETCH_ = null; // self-tests: function (id, tabs) -> {tz, a, b}
+var OW4D_W_ = 0;        // sheet handles used outside a read in this execution (any SheetDb)
+function oW4dOn_(db) { if (db && OW4D_ON_ && typeof SheetDb === 'function' && db instanceof SheetDb && SheetDb.prototype.ow4d_) { db.w4d_ = true; db.ow4e_ = true; } return db; } // W4e: ow4e_ = an office SheetDb (Lists from its rows)
+function oW4dHttp_(id, tabs) { // 2 batchGets (serial / formatted dates) + the sheet's time zone, in parallel
+  var h = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id);
+  var q = tabs.map(function (t) { return 'ranges=' + encodeURIComponent("'" + String(t).replace(/'/g, "''") + "'"); }).join('&');
+  var u = function (dt) { return { url: base + '/values:batchGet?' + q + '&majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=' + dt, headers: h, muteHttpExceptions: true }; };
+  var rs = UrlFetchApp.fetchAll([u('SERIAL_NUMBER'), u('FORMATTED_STRING'), { url: base + '?fields=properties.timeZone', headers: h, muteHttpExceptions: true }]);
+  var j = rs.map(function (r) { if (r.getResponseCode() !== 200) throw new Error('batchGet HTTP ' + r.getResponseCode()); return JSON.parse(r.getContentText()); });
+  return { tz: String((j[2].properties || {}).timeZone || ''), a: j[0].valueRanges, b: j[1].valueRanges };
+}
+function oW4dDate_(v) { // serial number -> the Date getValues gives (sheet time zone = script time zone)
+  var d = new Date(Math.round((v - 25569) * 864e5)), y = d.getUTCFullYear();
+  var r = new Date(y, d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds());
+  if (y < 100) r.setFullYear(y);
+  return r;
+}
+function oW4dTab_(range) { // "'Quote Terms'!A1:Z9" / "Quotes!A1:AF5" -> the tab name
+  var s = String(range || ''), i = s.lastIndexOf('!'); if (i < 0) return null; s = s.slice(0, i);
+  return /^'.*'$/.test(s) ? s.slice(1, -1).replace(/''/g, "'") : s;
+}
+function oW4dRead_(db, tabs) { // {tab: rows as getDataRange().getValues()} or null (= the old reads)
+  SpreadsheetApp.flush(); // review H1: writes still held by SpreadsheetApp reach the sheet first (getValues sees them, the REST API would not)
+  var R = (OW4D_FETCH_ || oW4dHttp_)(db.ss.getId(), tabs);
+  if (!R || !Array.isArray(R.a) || !Array.isArray(R.b) || R.a.length !== tabs.length || R.b.length !== tabs.length) return null;
+  if (!R.tz || R.tz !== Session.getScriptTimeZone()) return null;
+  var out = {};
+  for (var t = 0; t < tabs.length; t++) {
+    if (oW4dTab_(R.a[t].range) !== tabs[t] || oW4dTab_(R.b[t].range) !== tabs[t]) return null;
+    var a = R.a[t].values || [], b = R.b[t].values || [], w = 0, v = [];
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return null;
+    for (var i = 0; i < a.length; i++) {
+      var x = a[i] || [], y = b[i] || [];
+      if (!Array.isArray(x) || !Array.isArray(y) || x.length !== y.length) return null;
+      var r = [];
+      for (var k = 0; k < x.length; k++) {
+        var c = x[k];
+        if (typeof c === 'number' && typeof y[k] === 'string') c = oW4dDate_(c);
+        else if (c === null || c === undefined) c = '';
+        else if (typeof c !== 'number' && typeof c !== 'string' && typeof c !== 'boolean') return null;
+        r.push(c);
+      }
+      if (r.length > w) w = r.length;
+      v.push(r);
+    }
+    v.forEach(function (r) { while (r.length < w) r.push(''); });
+    if (v.length && !v[0].every(blank)) out[tabs[t]] = v; // a blank tab: not taken (the old read throws as before)
+  }
+  return out;
+}
+if (typeof SheetDb === 'function' && SheetDb.prototype && SheetDb.prototype.ow4c_ && !SheetDb.prototype.ow4d_) {
+  (function (P) {
+    var sheet1 = P.sheet, hasTab1 = P.hasTab, headers1 = P.headers, rows1 = P.rows, ensureTab1 = P.ensureTab;
+    var old = function (db, f, t) { db.rd_ = (db.rd_ || 0) + 1; try { return f.call(db, t); } finally { db.rd_--; } }; // a read: keeps the batch
+    var live = function (db) { var p = db.pl_; if (p && (p.lk !== OLK_.g || p.w !== OW4D_W_)) p = db.pl_ = null; return p; };
+    var wrote = function (db) { if (!db.rd_) { OW4D_W_++; db.w4d_ = false; db.pl_ = null; } };
+    var get = function (db, t) { // tab t from the batch (made now if needed), or null
+      if (!OW4D_ON_ || !db.w4d_ || OW4D_TABS_.indexOf(t) < 0) return null;
+      var p = live(db);
+      if (!p) {
+        if ((db.nb_ || 0) >= OW4D_MAX_) return null;
+        var tabs = OW4D_TABS_.filter(function (x) { return !db.c[x]; });
+        db.nb_ = (db.nb_ || 0) + 1;
+        var v = null; try { v = oW4dRead_(db, tabs); } catch (e) { v = null; }
+        if (!v) { db.w4d_ = false; return null; } // the old tab reads for the rest of this SheetDb
+        p = db.pl_ = { lk: OLK_.g, w: OW4D_W_, v: v };
+      }
+      return Object.prototype.hasOwnProperty.call(p.v, t) ? p.v[t] : null;
+    };
+    P.sheet = function (t) { if (t === 'Lists' && !this.rd_) { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this); return sheet1.call(this, t); }; // outside a read = maybe a write (W4e: of Lists -> uiLists_ reads the sheet again)
+    P.ensureTab = function (t) { if (t === 'Lists') { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this); return ensureTab1.apply(this, arguments); };
+    P.hasTab = function (t) { var p = OW4D_ON_ && this.w4d_ ? live(this) : null; return p && Object.prototype.hasOwnProperty.call(p.v, t) ? true : hasTab1.call(this, t); };
+    P.headers = function (t) {
+      if (!this.hc[t]) { var v = get(this, t); if (v) this.hc[t] = v[0].map(String); }
+      return this.hc[t] || old(this, headers1, t);
+    };
+    P.rows = function (t) {
+      if (this.c[t]) return this.c[t];
+      var v = get(this, t); if (!v) return old(this, rows1, t);
+      var h = this.hc[t] || v[0].map(String), out = [];
+      if (!this.hc[t]) this.hc[t] = h;
+      for (var i = 1; i < v.length; i++) {
+        var r = v[i]; if (r.every(blank)) continue;
+        var o = { _r: i + 1 }; h.forEach(function (k, j) { o[k] = j < r.length ? r[j] : ''; }); out.push(o);
+      }
+      this.c[t] = out; return out;
+    };
+    P.ow4d_ = true;
+  })(SheetDb.prototype);
+}
+
+// ----------------------------------------------------------------- W4e (19 Nov): Lists from the rows (speed)
+// Measured 19 Nov (editor probe, self time per function, live): uiLists_ read the Lists tab with db.sheet('Lists').getDataRange()
+// = 0.4 s each time (3 times in a save) AND, as a sheet handle used outside a read, it ended the W4d batch -> every later tab was
+// read one by one again (form 3.3-4.0 s, save 5.8 s inside the call). For an office SheetDb (env.db) uiLists_ now takes the Lists
+// tab from db.rows / db.headers (the batch, the rows already read, or one tab read that keeps the batch). Same result: a column
+// per header (last one wins for a repeated header, as before), blank cells left out, values as String. The old read stays for
+// any other SheetDb, MemDb, an office SheetDb that took a sheet handle of Lists outside a read (it may have written it), any
+// SheetDb after a Lists handle was taken by ANY SheetDb of this execution (OW4E_LW_, review L1), and a read that fails (a blank
+// Lists tab: the old read gives the defaults, review M1).
+var OW4E_LW_ = 0; // Lists sheet handles taken outside a read in this execution (any SheetDb)
+if (typeof uiLists_ === 'function' && !uiLists_.ow4e_) {
+  var OW4E_lists0_ = uiLists_;
+  var OW4E_old_ = function (db) { // the old read; its Lists handle is a read (does not count as a write, keeps a batch)
+    if (!(typeof SheetDb === 'function' && db instanceof SheetDb)) return OW4E_lists0_(db);
+    db.rd_ = (db.rd_ || 0) + 1; try { return OW4E_lists0_(db); } finally { db.rd_--; }
+  };
+  uiLists_ = function (db) {
+    if (!(OW4D_ON_ && typeof SheetDb === 'function' && db instanceof SheetDb && db.ow4e_ && !db.ow4eLw_ && db.ss && OW4E_LW_ === 0)) return OW4E_old_(db);
+    var out = {};
+    try {
+      Object.keys(UI_LISTS_DEFAULT_).forEach(function (k) { out[k] = UI_LISTS_DEFAULT_[k].slice(); });
+      if ((db.c && db.c.Lists) || db.hasTab('Lists')) { // rows already read = the tab is there (no sheet call)
+        var rs = db.rows('Lists');
+        db.headers('Lists').forEach(function (k) { if (out[k]) out[k] = rs.map(function (r) { return r[k]; }).filter(function (x) { return !blank(x); }).map(String); });
+      }
+    } catch (e) { return OW4E_old_(db); }
+    out.PayMethod = out.PayMethod.filter(function (m) { return PAY_METHODS.indexOf(m) >= 0; }); // no cash, ever
+    return out;
+  };
+  uiLists_.ow4e_ = true;
 }
 
 // ----------------------------------------------------------------- project-wide gate (web app = execute as me, access Anyone)
@@ -2868,6 +3073,11 @@ function selfTestOffice() {
         e5.cdel('OQEW:sales4@t.com'); for (var z = 0; z < OQE_RATE_.n; z++) err(function () { officeCustomerAdd(tS, { name: 'NEW BUILDERS' }); });
         eq('O292 refused tries count too (SLOW after 60 duplicates)', err(function () { officeCustomerAdd(tS, { name: 'Fresh Name' }); }), 'SLOW');
         eq('O283 user_ is the Google user again outside a web call', OQ_ACT_ === '' && user_() === OQ_user0_(), true);
+        e5.cdel('OQEW:sales4@t.com'); var sv = officeQuoteSave(tS, base({ subject: 'W4c view' })), gv = officeQuoteGet(tS, sv.no);
+        var kv = oQView_, n37 = n0(); oQView_ = function () { throw new Error('NOSESSION'); }; var sv2 = null; e5.cdel('OQEW:sales4@t.com');
+        try { sv2 = officeQuoteSave(tS, base({ subject: 'W4c gate' })); } catch (x) { sv2 = String(x.message); } finally { oQView_ = kv; }
+        eq('O346 W4c: a save that worked is reported as saved even if the view fails (no view, page loads it)', [typeof sv2 === 'object' && /^CAE\/Q\//.test(sv2.no), sv2 && sv2.view === undefined, n0() === n37 + 1].join('|'), 'true|true|true');
+        eq('O337 W4c: the save returns the quote view = officeQuoteGet (no second call)', [!!sv.view, sv.view && sv.view.no === sv.no, j(sv.view) === j(gv), sv.view && sv.view.subject].join('|'), 'true|true|true|W4c view');
       } finally { QF5_STUB_ = keepQ5; }
     })();
     // --- D2 signatures + company stamp: uploads (own / Director), checks by bytes, PDF sign block on every kind
@@ -3020,6 +3230,119 @@ function selfTestOffice() {
       eq('O51 JS HMAC = Utilities HMAC (long key, 2 blocks)', R.b64(oHmacJs_(vv, kk)), Utilities.base64Encode(Utilities.computeHmacSha256Signature(vv, kk)));
       eq('O52 SHA-256 of "abc"', R.b64(oSha256_(R.bytes('abc'))), 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=');
     }
+    if (typeof SheetDb === 'function' && SheetDb.prototype.ow4c_) (function () { // W4c: one-read SheetDb against a fake spreadsheet
+      var j = JSON.stringify;
+      var mk = function () {
+        var n = 0, D = { Items: [['ItemCode', 'Name', 'Rate', ''], ['A1', 'Tube', 5, ''], ['', '', '', ''], ['A2', 'Clamp', 0, 'x']], Log: [['At', 'What']], Empty: [['K', 'V']] };
+        var rng = function (t, r, c, nr, nc) { return {
+          getValues: function () { n++; var o = []; for (var i = 0; i < nr; i++) { var w = D[t][r - 1 + i] || [], x = []; for (var k = 0; k < nc; k++) x.push(w[c - 1 + k] === undefined ? '' : w[c - 1 + k]); o.push(x); } return o; },
+          setValues: function (v) { n++; v.forEach(function (w, i) { var d = D[t][r - 1 + i] || (D[t][r - 1 + i] = []); w.forEach(function (x, k) { d[c - 1 + k] = x; }); }); },
+          setValue: function (x) { n++; (D[t][r - 1] || (D[t][r - 1] = []))[c - 1] = x; } }; };
+        var sh = function (t) { return { getLastRow: function () { n++; return D[t].length; }, getLastColumn: function () { n++; return D[t].reduce(function (m, w) { return Math.max(m, w.length); }, 0); },
+          getRange: function (r, c, nr, nc) { n++; return rng(t, r, c, nr || 1, nc || 1); }, getDataRange: function () { n++; return rng(t, 1, 1, D[t].length, D[t].reduce(function (m, w) { return Math.max(m, w.length); }, 0)); } }; };
+        return { D: D, n: function () { return n; }, ss: { getSheetByName: function (t) { n++; return D[t] ? sh(t) : null; } } };
+      };
+      var run = function (on) {
+        var k = OW4C_ON_; OW4C_ON_ = on;
+        try {
+          var F = mk(), db = new SheetDb(F.ss), out = [];
+          out.push(j(db.rows('Items')), j(db.headers('Items')), db.hasTab('Items'), db.hasTab('Nope'), j(db.rows('Empty')));
+          db.insert('Log', [{ At: 'a', What: 'one' }, { At: 'b', What: 'two' }]);
+          var r2 = new SheetDb(F.ss).rows('Log'); out.push(j(r2), j(F.D.Log));
+          var d3 = new SheetDb(F.ss); d3.rows('Items'); d3.insert('Items', { ItemCode: 'A3', Name: '=x' }); out.push(j(d3.rows('Items')), j(F.D.Items));
+          d3.update('Items', d3.rows('Items')[0], { Rate: 6 }); out.push(j(new SheetDb(F.ss).rows('Items')));
+          var e = ''; try { new SheetDb(F.ss).rows('Nope'); } catch (x) { e = x.message; } out.push(e);
+          return { o: out.join('\n'), n: F.n() };
+        } finally { OW4C_ON_ = k; }
+      };
+      var A = run(false), B = run(true);
+      eq('O338 W4c SheetDb: rows / headers / hasTab / insert / update read the same as before', B.o, A.o);
+      eq('O339 W4c SheetDb: fewer sheet calls for the same work', B.n < A.n && B.n <= Math.ceil(A.n * 0.6), true);
+      var F2 = mk(), d4 = new SheetDb(F2.ss), n0 = F2.n(); d4.rows('Items'); d4.headers('Items'); d4.rows('Items');
+      eq('O340 W4c a tab is read once (sheet handle + one data read)', F2.n() - n0, 3);
+      var F3 = mk(), d5 = new SheetDb(F3.ss), m0 = F3.n(); d5.insert('Log', { At: 'z', What: 'w' });
+      eq('O341 W4c insert into an unread tab does not read the tab (header row + last row + write)', [F3.n() - m0, F3.D.Log.length, d5.c.Log == null].join('|'), '7|2|true');
+      var F4 = mk(), d6 = new SheetDb(F4.ss); d6.headers('Items'); var h6 = d6.rows('Items');
+      eq('O342 W4c headers alone = the header row (as before); rows after it one data read; _r = sheet row', [h6.length, h6[1]._r, h6[1].ItemCode, F4.n()].join('|'), '2|4|A2|6');
+      var F5 = mk(), d7 = new SheetDb(F5.ss); d7.headers('Items');
+      eq('O343 W4c headers() does not cache rows (appSweep reads rows only inside its lock)', d7.c.Items == null && j(d7.hc.Items) === j(['ItemCode', 'Name', 'Rate', '']), true);
+      var F6 = mk(), d8 = new SheetDb(F6.ss); d8.insert('Items', { ItemCode: 'A9', Name: "'=y" });
+      eq('O344 W4c insert into any tab but Log = the old insert (rows in memory as written, text mark kept)', [d8.c.Items && d8.c.Items.length, d8.c.Items && d8.c.Items.slice(-1)[0].Name].join('|'), "3|'=y");
+      var F7 = mk(); F7.D.Blank = [['', '']]; var e7 = ''; try { new SheetDb(F7.ss).rows('Blank'); } catch (x) { e7 = 'threw'; }
+      var k7 = OW4C_ON_; OW4C_ON_ = false; var e8 = ''; try { new SheetDb(F7.ss).rows('Blank'); } catch (x) { e8 = 'threw'; } finally { OW4C_ON_ = k7; }
+      eq('O345 W4c a blank tab behaves as before', e7, e8);
+      if (SheetDb.prototype.ow4d_) (function () { // W4d: one batch read = the same as the tab reads
+        var d1 = new Date(2026, 10, 19), d2 = new Date(2026, 0, 5, 14, 30), ser = function (d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds()) / 864e5 + 25569; };
+        var mk4 = function () {
+          var F = mk(); F.D.Items = [['ItemCode', 'Name', 'Rate', 'Since', 'On', ''], ['A1', 'Tube', 5, d1, true, ''], ['', '', '', '', '', ''], ['A2', '=x', '0171', d2, false, 'y'], ['A3', "+88", 0, '-5 m', '@y', ''], ['', '', '', '', '', '']];
+          F.D.Customers = [['CustID', 'Name'], ['C1', "O'Neil"]]; F.D.Quotes = [['QuoteNo', 'Total'], ['Q1', 10]]; F.D.Blank = [['', '']];
+          F.f = 0; F.ss.getId = function () { return 'ID'; };
+          F.fetch = function (id, tabs) {
+            F.f++; if (F.fail) throw new Error('HTTP 500');
+            var vr = function (fmt) { return tabs.map(function (t) {
+              var v = (F.D[t] || []).map(function (r) { var o = r.map(function (c) { return c instanceof Date ? (fmt ? '19-Nov-2026' : ser(c)) : c; }); while (o.length && o[o.length - 1] === '') o.pop(); return o; });
+              while (v.length && !v[v.length - 1].length) v.pop();
+              var nm = F.badName === t ? 'Other' : "'" + t.replace(/'/g, "''") + "'";
+              return v.length ? { range: nm + '!A1:Z9', values: v } : { range: nm + '!A1:Z9' };
+            }); };
+            var a = vr(false), b = vr(true); if (F.shape) b[0].values.pop();
+            return { tz: F.tz || Session.getScriptTimeZone(), a: F.short ? a.slice(1) : a, b: b };
+          };
+          return F;
+        };
+        var T4 = ['Items', 'Customers', 'Quotes', 'Blank'], k4 = [OW4D_TABS_, OW4D_FETCH_, OW4D_ON_];
+        var dump = function (db) { var o = []; ['Items', 'Customers', 'Quotes'].forEach(function (t) { o.push(j(db.rows(t)), j(db.headers(t))); }); o.push(db.hasTab('Quotes'), db.hasTab('Nope')); var e = ''; try { db.rows('Blank'); } catch (x) { e = 'threw'; } o.push(e); return o.join('\n'); };
+        var use = function (F, on) { OW4D_FETCH_ = F.fetch; var db = new SheetDb(F.ss); if (on) oW4dOn_(db); return db; };
+        try {
+          OW4D_TABS_ = T4;
+          var F0 = mk4(), n0 = F0.n(), A0 = dump(use(F0, false)), F1 = mk4(), n1 = F1.n(), B1 = dump(use(F1, true));
+          eq('O347 W4d batch read = tab reads (dates, times, text 0171 / =x / +88 / -5 m / @y / O\'Neil, true / false, trailing and blank cells, _r, blank tab throws)', B1, A0);
+          eq('O348 W4d one batch for all the tabs, no sheet reads (only the blank tab and the missing tab ask the sheet)', [F0.f, F1.f, (F1.n() - n1) * 2 < F0.n() - n0].join('|'), '0|1|true');
+          var F2 = mk4(), db2 = use(F2, true); db2.rows('Items'); db2.update('Items', db2.rows('Items')[0], { Rate: 7 }); F2.D.Customers.push(['C2', 'New']);
+          eq('O349 W4d a write ends batching for that SheetDb: its next first read is a tab read (sees the sheet now)', [db2.rows('Customers').length, F2.f, db2.w4d_].join('|'), '2|1|false');
+          var F3 = mk4(), a3 = use(F3, true), b3 = use(F3, true); a3.rows('Items'); b3.insert('Customers', { CustID: 'C3', Name: 'Third' });
+          eq('O350 W4d a write by another SheetDb drops this batch: the next first read batches again', [a3.rows('Customers').length, F3.f, a3.w4d_].join('|'), '2|2|true');
+          var F4 = mk4(), a4 = use(F4, true); a4.rows('Items'); OLK_.s++; OLK_.g++; try { F4.D.Quotes.push(['Q2', 5]); var q4 = a4.rows('Quotes').length; } finally { OLK_.s--; OLK_.g++; }
+          var F4b = mk4(), a4b = use(F4b, true), g4 = OLK_.g; OLK_.g++; a4b.rows('Items'); OLK_.g++; OLK_.g++; F4b.D.Quotes.push(['Q3', 5]); var q4b = a4b.rows('Quotes').length; OLK_.g = g4;
+          eq('O351 W4d a lock taken after the batch: read again inside the lock; also a new lock at the same depth', [q4, F4.f, q4b, F4b.f].join('|'), '2|2|2|2');
+          var fb = function (set) { var F = mk4(); set(F); var db = use(F, true), r = dump(db); return [r === A0, db.w4d_].join(); };
+          eq('O352 W4d fall back to the tab reads (same results): HTTP error / other tab name / fewer ranges / other shape / sheet time zone not the script\'s',
+            [fb(function (F) { F.fail = 1; }), fb(function (F) { F.badName = 'Quotes'; }), fb(function (F) { F.short = 1; }), fb(function (F) { F.shape = 1; }), fb(function (F) { F.tz = 'UTC+9'; })].join(' '), 'true,false true,false true,false true,false true,false');
+          var F6 = mk4(), a6 = use(F6, true), c6 = 0; a6.rows('Items');
+          for (var i6 = 0; i6 < 5; i6++) { use(F6, false).sheet('Quotes'); a6.c.Customers = null; a6.rows('Customers'); c6++; }
+          eq('O353 W4d at most ' + OW4D_MAX_ + ' batches per SheetDb, then tab reads', [F6.f, c6].join('|'), OW4D_MAX_ + '|5');
+          var F7 = mk4(); OW4D_ON_ = false; var a7 = use(F7, true); a7.rows('Items'); OW4D_ON_ = true;
+          var F8 = mk4(), a8 = oW4dOn_(use(F8, false)); a8.rows('Staff' in F8.D ? 'Staff' : 'Log');
+          eq('O354 W4d off = tab reads; a tab not on the list = tab read (no batch); MemDb not marked', [F7.f, F8.f, !!oW4dOn_({ rows: 1 }).w4d_].join('|'), '0|0|false');
+          var dd = [new Date(2026, 10, 19), new Date(1999, 11, 31, 23, 59, 58), new Date(2030, 1, 28, 7, 5)];
+          eq('O355 W4d serial -> Date = the cell date; tab names from ranges', dd.every(function (d) { return oW4dDate_(ser(d)).getTime() === d.getTime(); }) + '|' + [oW4dTab_("'O''Neil s'!A1:B2"), oW4dTab_('Quotes!A1:AF5'), oW4dTab_('x')].join(','), "true|O'Neil s,Quotes,");
+          eq('O356 W4d pending writes are flushed before each batch (review H1)', /^function oW4dRead_[^{]*\{[^\n]*\n\s*SpreadsheetApp\.flush\(\);[^\n]*\n\s*var R = \(OW4D_FETCH_ \|\| oW4dHttp_\)/.test(String(oW4dRead_.officeRaw_ || oW4dRead_)), true);
+          // W4e: Lists from the rows
+          OW4D_TABS_ = T4.concat(['Lists']); var kLW = OW4E_LW_; OW4E_LW_ = 0;
+          var mkL = function () { var F = mk4(); F.D.Lists = [['Unit', 'PayMethod', 'Unit', 'Other', ''], ['pc', 'Bank transfer', 'kg', 'x', ''], ['', 'Cash', '', '', ''], ['m', '', d1, 'y', ''], ['', 'Cheque', 7, '', '']]; return F; };
+          var FL0 = mkL(), L0 = j(OW4E_old_(new SheetDb(FL0.ss))), FL = mkL(), dL = use(FL, true); dL.rows('Items'); var nL = FL.n(), L1 = j(uiLists_(dL));
+          eq('O357 W4e uiLists_ on an office SheetDb = the old read (repeated header: last wins, blanks out, dates / numbers as text, no cash), from the batch: no sheet read, batch kept',
+            [L1 === L0, FL.n() - nL, FL.f, dL.w4d_, L0.indexOf('Cash') < 0 && L0.indexOf('"7"') > 0].join('|'), 'true|0|1|true|true');
+          dL.insert('Customers', { CustID: 'C9', Name: 'Nine' }); var nL2 = FL.n(), L2 = j(uiLists_(dL));
+          eq('O358 W4e after a write to another tab: Lists from the rows already read (no sheet read)', [L2 === L0, FL.n() - nL2].join('|'), 'true|0');
+          var FL3 = mkL(), d3L = use(FL3, true); uiLists_(d3L); d3L.sheet('Lists'); FL3.D.Lists.push(['', '', 't', '', '']); d3L.c.Lists = null;
+          var L3 = uiLists_(d3L);
+          eq('O359 W4e a Lists sheet handle taken outside a read (maybe a write) = the old read from then on (sees the sheet now)', [!!d3L.ow4eLw_, j(L3) === j(OW4E_old_(new SheetDb(FL3.ss))), L3.Unit.slice(-1)[0]].join('|'), 'true|true|t');
+          var FL4 = mkL(), d4L = use(FL4, false), n4L = FL4.n(), L4 = j(uiLists_(d4L)), FL5 = mkL(), d5L = use(FL5, true); OW4D_ON_ = false; var L5 = j(uiLists_(d5L)); OW4D_ON_ = true;
+          var mL = new MemDb(); mL.ensureTab('Lists', ['Unit']); mL.insert('Lists', [{ Unit: 'zz' }]);
+          eq('O360 W4e not an office SheetDb / W4d off / MemDb = the old read', [L4 === L0, FL4.n() > n4L, L5 === L0, FL5.f, uiLists_(mL).Unit.join(',')].join('|'), 'true|true|true|0|' + OW4E_old_(mL).Unit.join(','));
+          var FB = mk4(); FB.D.Lists = [['']]; var dB = use(FB, true), rB = '', oB = '';
+          try { rB = j(uiLists_(dB)); } catch (x) { rB = 'threw ' + x.message; } try { oB = j(OW4E_old_(new SheetDb(FB.ss))); } catch (x) { oB = 'threw ' + x.message; }
+          var FT = mkL(), dT = use(FT, true), sv = SheetDb.prototype.rows, rT = '';
+          SheetDb.prototype.rows = function (t) { if (t === 'Lists') throw new Error('Number of columns must be at least 1'); return sv.call(this, t); };
+          try { rT = j(uiLists_(dT)); } catch (x) { rT = 'threw'; } finally { SheetDb.prototype.rows = sv; }
+          eq('O361 W4e a blank Lists tab / a failing read = the old read (defaults), never an error from the new path (review M1)', [rB === oB, rT === L0].join('|'), 'true|true');
+          OW4E_LW_ = 0; var FX = mkL(), aX = use(FX, true), bX = new SheetDb(FX.ss); uiLists_(aX); bX.insert('Lists', { Unit: 'zz' }); var LX = uiLists_(aX).Unit.join(',');
+          eq('O362 W4e Lists written through another SheetDb of this execution: the next uiLists_ reads the sheet (review L1)', [OW4E_LW_ > 0, LX === OW4E_old_(new SheetDb(FX.ss)).Unit.join(','), /zz/.test(LX)].join('|'), 'true|true|true');
+          OW4E_LW_ = kLW;
+        } finally { OW4D_TABS_ = k4[0]; OW4D_FETCH_ = k4[1]; OW4D_ON_ = k4[2]; }
+      })();
+    })();
   } catch (e) { fail++; log.push('FAIL OF crashed: ' + e.message); }
   finally { OFFICE_ENV_ = keep; OFFICE_CFG_.kdfIters = keepIt; OFFICE_CFG_.maxPerMin = keepPm; }
   log.unshift('OF ' + pass + ' passed, ' + fail + ' failed');

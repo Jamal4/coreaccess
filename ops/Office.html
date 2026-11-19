@@ -1450,15 +1450,16 @@ function clauseHtml(c,vars,edit){
   }
   return out+esc(s.slice(last));
 }
-function viewQuote(no){
+function viewQuote(no,pre){
   document.title='Core Access · '+no;
   QS.cur=null;QS.only=false;
   shell('Sales · Quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qback">'+ic('back')+' Quotes</button></div><div id="qv"><div class="empty">Loading '+esc(no)+'…</div></div>');
   document.getElementById('qback').onclick=function(){viewQuotes();};
-  quoteLoad(no);
+  quoteLoad(no,pre);
 }
-function quoteLoad(no){
+function quoteLoad(no,pre){
   var my=++QS.seq;
+  if(pre&&typeof pre==='object'&&String(pre.no||'')===String(no)){QS.cur=nqfull(pre);quoteDraw();return;} /* W4c: the view came with the save */
   call('officeQuoteGet',S.token,no).then(function(r){
     if(my!==QS.seq||!document.getElementById('qv'))return;
     QS.cur=nqfull(r);if(!QS.cur.no)QS.cur.no=no;quoteDraw();
@@ -1524,7 +1525,7 @@ function quoteDraw(){
   if(!shown)h+='<div class="empty">'+(QS.only?'Nothing to fill and nothing changed — all standard.':'No terms on this quote.')+'</div>';
   h+='</div>';
   el.innerHTML=h;
-  document.getElementById('qpdf').onclick=quotePdf;
+  document.getElementById('qpdf').onclick=quotePdf;qPdfMark(); /* W4d: a PDF still being made */
   var eb=document.getElementById('qedit');if(eb)eb.onclick=function(){viewQuoteEdit(q.no);};
   var mb=document.getElementById('qmail');if(mb)mb.onclick=quoteEmailDlg;
   document.getElementById('tonly').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-o]'):null;if(!b)return;QS.only=b.getAttribute('data-o')==='1';quoteDraw();};
@@ -1627,6 +1628,22 @@ function quotePdf(){
     else if(w)w.location.href=u;else toast('Allow pop-ups to open the PDF.');
     if(ok(u)&&QS.cur===q){q.pdf=u;b.innerHTML=ic('doc')+'Open PDF';}
   },function(m){busyBtn(b,false);if(w)try{w.close();}catch(e){}if(srvGate(m))return;toast(errText(m).replace(/<[^>]+>/g,''));});
+}
+/* W4d: "Save & make PDF" = the save returns at once; the PDF is made by its own call, the quote view shows it is being made */
+function qPdfMark(){var q=QS.cur,b=document.getElementById('qpdf'),e=document.getElementById('qmail');if(!q||!QS.pdfBg||!QS.pdfBg[String(q.no)])return;
+  if(b&&!b.disabled)busyBtn(b,true,'PDF being made…');if(e)e.disabled=true;} /* Email waits for the PDF (it would find the PDF still being made) */
+function qPdfBg(no){
+  no=String(no);var tok=(QS.pdfN=(QS.pdfN||0)+1);QS.pdfBg=QS.pdfBg||{};QS.pdfBg[no]=tok;qPdfMark();
+  var end=function(u,m){
+    if(QS.pdfBg[no]!==tok)return; /* the quote was saved again meanwhile: this PDF is not the current one, say nothing */
+    delete QS.pdfBg[no];
+    var q=QS.cur,b=document.getElementById('qpdf'),e=document.getElementById('qmail'),here=q&&String(q.no)===no;
+    if(here){if(b)busyBtn(b,false);if(e)e.disabled=false;if(u){q.pdf=u;if(b)b.innerHTML=ic('doc')+'Open PDF';}}
+    if(u)toast('PDF of '+no+' made'+(here?' — Open PDF opens it.':'.'));
+    else if(m!==null)toast(no+' is saved, but the PDF was not made'+(m?' ('+m.toLowerCase()+')':'')+': use Make PDF.');
+  };
+  call('officeQuotePdf',S.token,no).then(function(r){var u=String(r&&r.url||'');end(/^https:\/\/(docs|drive)\.google\.com\//.test(u)?u:'',u?'the link looks wrong':'');},
+    function(m){if(srvGate(m)){end('',null);return;}end('',errText(m).replace(/<[^>]+>/g,'').split('.')[0].slice(0,60));});
 }
 function quoteEmailDlg(){
   var q=QS.cur;if(!q)return;
@@ -2151,14 +2168,14 @@ function qeSave(pdf){
   box.innerHTML='';
   var b1=document.getElementById('qesave'),b2=document.getElementById('qesavep');if(QE.saving||b1.disabled)return;
   QE.saving=true;b1.disabled=b2.disabled=true;busyBtn(pdf?b2:b1,true,pdf?'Saving + PDF…':'Saving…');qeLock();
-  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:pdf,
+  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,
     lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
   var my=QE.seq;
   call('officeQuoteSave',S.token,d).then(function(r){
     if(my!==QE.seq)return;QE.saving=false;qeLock();QE.dirty=false;r=r||{};var no=String(r.no||q.no);
-    var pm=r.changed===false?' (nothing changed)':pdf?(r.pdf?' — PDF made.':' — saved, but the PDF was not made'+(r.pdfErr?' ('+String(r.pdfErr).toLowerCase()+')':'')+': use Make PDF.'):'.';
+    var pm=r.changed===false?' (nothing changed)':pdf?' — making the PDF…':'.';
     toast((q.no?'Saved '+no+(r.rev?' · Rev '+r.rev:''):'Quote '+no+' saved as Draft')+pm);
-    viewQuote(no);
+    if(QS.pdfBg)delete QS.pdfBg[no];viewQuote(no,r.view);if(pdf)qPdfBg(no);
   },function(m){
     if(my!==QE.seq)return;QE.saving=false;qeLock();if(srvGate(m))return;
     b1=document.getElementById('qesave')||b1;b2=document.getElementById('qesavep')||b2;b1.disabled=b2.disabled=false;busyBtn(pdf?b2:b1,false);
