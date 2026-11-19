@@ -768,8 +768,9 @@ function shell(screen,body){
    '</div></header>'+
    '<div class="banner"><div class="topin">'+esc(screen)+'</div></div>'+
    '<main class="main">'+body+'</main>';
-  document.getElementById('out').onclick=function(){var go=function(){var t=S.token,all;S={token:null,user:null};all=tokClear();if(t&&all.indexOf(t)<0)all.push(t);tokEnd(all);viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
-    if(qeBusyN())return askDlg('Sign out now?','A quote save is still being sent. Signing out now can lose your last changes.','Sign out',true,function(){return Promise.resolve();},go);go();};
+  var go=function(){var t=S.token,all;S={token:null,user:null};all=tokClear();if(t&&all.indexOf(t)<0)all.push(t);tokEnd(all);viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');}; /* the plain sign-out */
+  var oc=function(){if(qeRiskN())return askDlg('Sign out now?',qeRiskTxt()+' Signing out now loses them.','Sign out',true,function(){return Promise.resolve();},go);go();};
+  oc.go=go;document.getElementById('out').onclick=oc; /* W4g: asks while a save is sent or a refused one is kept */
 }
 function viewHome(f){
   document.title='Core Access · Home';
@@ -1690,6 +1691,8 @@ function quoteEmailDlg(){
 var QE={seq:0,d:null,q:null,dirty:false,pick:null,fam:'',saving:false,job:null};
 var QB={ep:0,n:0,pend:{},jobs:{},lost:{}}; /* W4g: background saves (ep = sign-in epoch; pend = new quotes still being saved; jobs = saves in flight; lost = refused saves kept for the person, shown in the list) */
 function qeBusyN(){return Object.keys(QB.jobs).length;}
+function qeRiskN(){return qeBusyN()+Object.keys(QB.lost).length;} /* CR: saves in flight + refused saves kept for the person */
+function qeRiskTxt(){var b=qeBusyN(),l=Object.keys(QB.lost).length;return (b?'A quote save is still being sent.':'')+(b&&l?' ':'')+(l?l+' quote change'+(l===1?' was':'s were')+' not saved (see Quotes).':'');}
 var QE_TYPES=[['Rental','Hire by the month','Items for hire · unit per month (min. one month)'],['Sale','Items sold','Items for sale · plain unit'],['Project','Scope of work','Few rows · size → m² / m³ · lump sum']];
 var QE_1=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],
     QE_10=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
@@ -1737,7 +1740,8 @@ function qeShell(no){ /* W4g: the form's frame (open + reopen) */
   shell(no?'Sales · Edit quote':'Sales · New quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qeback">'+ic('back')+(no?' Quote':' Quotes')+'</button></div><div id="qe"><div class="empty">Loading…</div></div>');
   document.getElementById('qeback').onclick=function(){qeLeave(no);};
   var out=document.getElementById('out'),out0=out&&out.onclick;
-  if(out0)out.onclick=function(){if(!QE.dirty)return out0.call(out);askDlg('Sign out without saving?','Your changes to '+(no?esc(no):'this new quote')+' are not saved yet.','Sign out',true,function(){return Promise.resolve();},function(){QE.dirty=false;out0.call(out);});};
+  if(out0)out.onclick=function(){if(!QE.dirty&&!qeRiskN())return out0.call(out);
+    askDlg('Sign out without saving?',(QE.dirty?'Your changes to '+(no?esc(no):'this new quote')+' are not saved yet. ':'')+esc(qeRiskTxt()),'Sign out',true,function(){return Promise.resolve();},function(){QE.dirty=false;(out0.go||out0).call(out);});}; /* CR: one ask; dirty cleared only when it goes ahead */
 }
 /* entry: no = quote number to edit, empty = new */
 function viewQuoteEdit(no){
@@ -1960,7 +1964,7 @@ function qePickKey(e){
 document.addEventListener('mousedown',function(e){var P=QE.pick;if(P&&e.target!==P.inp&&!P.el.contains(e.target))qePickClose();});
 function qePickMove(e){var P=QE.pick;if(!P)return;if(!document.body.contains(P.inp))return qePickClose();if(e&&e.target&&P.el.contains(e.target))return;P.place();}
 window.addEventListener('resize',qePickMove);
-window.addEventListener('beforeunload',function(e){if(QE.dirty&&document.getElementById('qe')||qeBusyN()){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',function(e){if(QE.dirty&&document.getElementById('qe')||qeRiskN()){e.preventDefault();e.returnValue='';}}); /* CR: also kept (refused) saves */
 document.addEventListener('scroll',qePickMove,true);
 /* ---------- lines ---------- */
 function qeRowsHtml(){
@@ -2204,11 +2208,22 @@ function qePendHtml(){return Object.keys(QB.lost).map(function(k){var x=QB.lost[
   return '<div class="qcard" aria-busy="true"><div class="qrow"><span class="qno"><span class="spin"></span> Saving…</span><span class="sp"></span>'+(p.type?'<span class="pill ty">'+esc(p.type)+'</span>':'')+'</div>'+
     '<div class="qc">'+esc(p.cust)+'</div>'+(p.project?'<div class="qp">'+esc(p.project)+'</div>':'')+'</div>';}).join('');}
 function qeSend(J,s){
-  var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;if(J.no){d.no=J.no;d.ev=J.ev;}
+  var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;
+  var fail=function(m){
+    if(ep!==QB.ep)return;if(pk){delete QB.pend[pk];quotesDraw();}
+    var n=J.next||s,here=QE.job===J&&!!document.getElementById('qe'),no=J.no||d.no,k=code(m).split('|')[0];J.next=null;J.busy=false;J.pdf=J.made=J.chg=false;delete QB.jobs[J.id];
+    if(srvGate(m)){toast((no||'The new quote')+' was not saved — sign in and enter the changes again.');return;} /* review M3 */
+    if(k==='QLOCKED'){if(here){QE.dirty=false;QE.job=null;viewQuote(no);}toast(no+' is locked now — nothing saved.');qeWake(J);return;}
+    if(here){QE.dirty=true;qeErr(m,no,false);qeWake(J);return;}
+    if(qeFree()){qeReopen(J,n);qeErr(m,no,true);return;}
+    qePark(J,n,m);qeWake(J); /* review H1: the person is busy on another form: keep this one for them */
+  };
+  if(J.no&&typeof J.ev!=='number'){setTimeout(function(){fail('NOEV');},0);return;} /* CR: the last answer had no version: never send on an unconfirmed one */
+  d.no=J.no||d.no;if(J.no)d.ev=J.ev;
   if(pk){QB.pend[pk]={cust:s.cust,project:s.project,type:s.type};quotesDraw();}
   call('officeQuoteSave',S.token,d).then(function(r){
     if(ep!==QB.ep)return;r=r||{};if(pk)delete QB.pend[pk];
-    var no=String(r.no||d.no),here=QE.job===J&&!!document.getElementById('qe');J.no=no;if(typeof r.ev==='number')J.ev=r.ev;
+    var no=String(r.no||d.no),here=QE.job===J&&!!document.getElementById('qe');J.no=no;J.ev=typeof r.ev==='number'?r.ev:null;
     if(here&&QE.q){QE.q.no=no;QE.q.ev=J.ev;QE.q.rev=+r.rev||0;QE.q.status=String(r.status||QE.q.status);}
     if(!d.no)J.made=true;if(r.changed!==false)J.chg=true;
     if(J.next){var n=J.next;J.next=null;qeSend(J,n);return;}
@@ -2219,21 +2234,14 @@ function qeSend(J,s){
     if(here&&!QE.dirty&&!document.getElementById('dlg')){QE.job=null;viewQuote(no,r.view);} /* review L8: an open dialog stays */
     else if(!here){if(document.getElementById('qv')&&QS.vno===no)quoteLoad(no,r.view);else if(document.getElementById('qlist'))quotesLoad();}
     if(pdf)qPdfBg(no);
-  },function(m){
-    if(ep!==QB.ep)return;if(pk){delete QB.pend[pk];quotesDraw();}
-    var n=J.next||s,here=QE.job===J&&!!document.getElementById('qe'),no=J.no||d.no,k=code(m).split('|')[0];J.next=null;J.busy=false;J.pdf=J.made=J.chg=false;delete QB.jobs[J.id];
-    if(srvGate(m)){toast((no||'The new quote')+' was not saved — sign in and enter the changes again.');return;} /* review M3 */
-    if(k==='QLOCKED'){if(here){QE.dirty=false;QE.job=null;viewQuote(no);}toast(no+' is locked now — nothing saved.');qeWake(J);return;}
-    if(here){QE.dirty=true;qeErr(m,no,false);qeWake(J);return;}
-    if(qeFree()){qeReopen(J,n);qeErr(m,no,true);return;}
-    qePark(J,n,m);qeWake(J); /* review H1: the person is busy on another form: keep this one for them */
-  });
+  },fail);
 }
 function qeWake(J){if(J.wait){var f=J.wait;J.wait=null;setTimeout(f,0);}}
 /* a refused save can take over the screen only when nothing unsaved / in flight / no dialog is there */
 function qeFree(){return !document.getElementById('dlg')&&!(document.getElementById('qe')&&(QE.dirty||(QE.job&&QE.job.busy)));}
 function qePark(J,s,m){var k=J.no||'p'+J.id;QB.lost[k]={J:J,s:s,m:m};quotesDraw();
-  toast((J.no||'The new quote')+' was not saved ('+code(m).split('|')[0].toLowerCase()+') — your changes are kept: open it from Quotes.');}
+  var k=code(m).split('|')[0],why={STALE:'changed by someone meanwhile',NOEV:'version not confirmed',BUSY:'the system was busy'}[k]||k.toLowerCase();
+  toast((J.no||'The new quote')+' was not saved ('+why+') — your changes are kept: open it from Quotes.');}
 function qeUnpark(k){var x=QB.lost[k];delete QB.lost[k];qeReopen(x.J,x.s);qeErr(x.m,x.J.no||x.s.d.no,false);}
 /* the form again with the data of a refused background save (the person had left it) */
 function qeReopen(J,s){
@@ -2245,7 +2253,7 @@ function qeErr(m,no,away){
   if(k==='QLOCKED'){QE.dirty=false;QE.job=null;viewQuote(no);toast(no+' is locked now — nothing saved.');return;}
   if(away)toast((no?no+' ':'The quote ')+'was not saved — the form is open again with your changes.');
   var box=document.getElementById('qeerr');if(!box)return;
-  if(k==='STALE'){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Someone changed '+esc(no)+' a moment ago — nothing saved. <button type="button" class="btn btn-ghost btn-sm" id="qereload">Open the latest</button></div></div>';
+  if(k==='STALE'||k==='NOEV'){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>'+(k==='NOEV'?esc(no)+' was saved, but your newest changes were not sent: the saved version could not be confirmed. Open the latest and enter them again.':'Someone changed '+esc(no)+' a moment ago — nothing saved.')+' <button type="button" class="btn btn-ghost btn-sm" id="qereload">Open the latest</button></div></div>';
     document.getElementById('qereload').onclick=function(){QE.dirty=false;viewQuoteEdit(no);};return;}
   box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>'+errText(m)+'</div></div>';
 }
