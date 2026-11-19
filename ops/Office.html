@@ -768,7 +768,8 @@ function shell(screen,body){
    '</div></header>'+
    '<div class="banner"><div class="topin">'+esc(screen)+'</div></div>'+
    '<main class="main">'+body+'</main>';
-  document.getElementById('out').onclick=function(){var t=S.token,all;S={token:null,user:null};all=tokClear();if(t&&all.indexOf(t)<0)all.push(t);tokEnd(all);viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
+  document.getElementById('out').onclick=function(){var go=function(){var t=S.token,all;S={token:null,user:null};all=tokClear();if(t&&all.indexOf(t)<0)all.push(t);tokEnd(all);viewLogin('<div class="msg ok">'+ic('alert')+'<div>You are signed out.</div></div>');};
+    if(qeBusyN())return askDlg('Sign out now?','A quote save is still being sent. Signing out now can lose your last changes.','Sign out',true,function(){return Promise.resolve();},go);go();};
 }
 function viewHome(f){
   document.title='Core Access · Home';
@@ -1144,7 +1145,7 @@ var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
 /* sign-in / sign-out: forget the lists of the earlier login (another person may sign in on this device) */
 function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;
   QS.rows=[];QS.can=false;QS.money=false;QS.cur=null;QS.loaded=false;QS.seq++;
-  QE.d=null;QE.q=null;QE.dirty=false;QE.saving=false;QE.seq++;qePickClose();}
+  QE.d=null;QE.q=null;QE.dirty=false;QE.saving=false;QE.seq++;QE.job=null;QB.ep++;QB.pend={};QB.jobs={};QB.lost={};qePickClose();}
 var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
 function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
 function isDay(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
@@ -1365,6 +1366,7 @@ function viewQuotes(){
   document.getElementById('qty').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-s]'):null;if(!b)return;QS.ty=b.getAttribute('data-s');
     [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});quotesDraw();};
   document.getElementById('qlist').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;
+    var lk=b.getAttribute('data-lost');if(lk&&QB.lost[lk]){qeUnpark(lk);return;}
     var no=b.getAttribute('data-q'),ok=QS.rows.some(function(r){return r.no===no;});if(ok)viewQuote(no);};
   quotesLoad();
 }
@@ -1395,8 +1397,9 @@ function quotesDraw(){
     if(QS.st&&r.status!==QS.st||QS.ty&&r.type!==QS.ty)return false;
     return !QS.q||(r.no+' '+r.cust+' '+r.project).toLowerCase().indexOf(QS.q)>=0;
   });
-  if(!show.length){L.innerHTML='<div class="empty">'+(rows.length?'No quotes match.':'No quotes yet.')+'</div>';return;}
-  L.innerHTML=show.map(function(r){
+  var P=qePendHtml();
+  if(!show.length&&!P){L.innerHTML='<div class="empty">'+(rows.length?'No quotes match.':'No quotes yet.')+'</div>';return;}
+  L.innerHTML=P+show.map(function(r){
     return '<button type="button" class="qcard" data-q="'+esc(r.no)+'">'+
       '<div class="qrow"><span class="qno">'+esc(r.no)+(r.rev?' · Rev '+r.rev:'')+'</span><span class="sp"></span>'+(r.type?'<span class="pill ty">'+esc(r.type)+'</span>':'')+'<span class="pill qs-'+r.status+'">'+r.status+'</span></div>'+
       '<div class="qc">'+esc(r.cust)+'</div>'+(r.project?'<div class="qp">'+esc(r.project)+'</div>':'')+
@@ -1452,7 +1455,7 @@ function clauseHtml(c,vars,edit){
 }
 function viewQuote(no,pre){
   document.title='Core Access · '+no;
-  QS.cur=null;QS.only=false;
+  QS.cur=null;QS.only=false;QS.vno=String(no);
   shell('Sales · Quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qback">'+ic('back')+' Quotes</button></div><div id="qv"><div class="empty">Loading '+esc(no)+'…</div></div>');
   document.getElementById('qback').onclick=function(){viewQuotes();};
   quoteLoad(no,pre);
@@ -1684,7 +1687,9 @@ function quoteEmailDlg(){
 /* ======================= W4: new / edit quote (SC Staff+ / Director) ======================= */
 /* one grid of 7 columns for every type: # · Description · Size · Qty · Unit · Rate · Amount (= Qty × Rate).
    Size comes from the item or the 📐 measure (no column of its own in the sheet). A "… / month" unit = one month's hire. */
-var QE={seq:0,d:null,q:null,dirty:false,pick:null,fam:'',saving:false};
+var QE={seq:0,d:null,q:null,dirty:false,pick:null,fam:'',saving:false,job:null};
+var QB={ep:0,n:0,pend:{},jobs:{},lost:{}}; /* W4g: background saves (ep = sign-in epoch; pend = new quotes still being saved; jobs = saves in flight; lost = refused saves kept for the person, shown in the list) */
+function qeBusyN(){return Object.keys(QB.jobs).length;}
 var QE_TYPES=[['Rental','Hire by the month','Items for hire · unit per month (min. one month)'],['Sale','Items sold','Items for sale · plain unit'],['Project','Scope of work','Few rows · size → m² / m³ · lump sum']];
 var QE_1=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'],
     QE_10=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
@@ -1728,15 +1733,19 @@ function qeForm(r){
     svc:x.svc===true,lines:arr(x.lines).map(qeLine)};}
   return o;
 }
-/* entry: no = quote number to edit, empty = new */
-function viewQuoteEdit(no){
-  document.title='Core Access · '+(no?'Edit '+no:'New quote');
-  QE.d=null;QE.q=null;QE.dirty=false;qePickClose();
+function qeShell(no){ /* W4g: the form's frame (open + reopen) */
   shell(no?'Sales · Edit quote':'Sales · New quote','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="qeback">'+ic('back')+(no?' Quote':' Quotes')+'</button></div><div id="qe"><div class="empty">Loading…</div></div>');
   document.getElementById('qeback').onclick=function(){qeLeave(no);};
   var out=document.getElementById('out'),out0=out&&out.onclick;
   if(out0)out.onclick=function(){if(!QE.dirty)return out0.call(out);askDlg('Sign out without saving?','Your changes to '+(no?esc(no):'this new quote')+' are not saved yet.','Sign out',true,function(){return Promise.resolve();},function(){QE.dirty=false;out0.call(out);});};
+}
+/* entry: no = quote number to edit, empty = new */
+function viewQuoteEdit(no){
+  document.title='Core Access · '+(no?'Edit '+no:'New quote');
+  if(no&&QB.lost[no])return qeUnpark(no); /* its last save was refused: the person's data + the reason */
+  QE.d=null;QE.q=null;QE.dirty=false;QE.job=null;qePickClose();qeShell(no);
   var my=++QE.seq;QE.saving=false;
+  var bj=no?qeJobOf(no):null;if(bj){bj.wait=function(){if(my===QE.seq&&document.getElementById('qe')&&!QE.q)viewQuoteEdit(no);};return;} /* review M4: its save is still running: open it when that lands */
   call('officeQuoteForm',S.token,no||'').then(function(r){
     if(my!==QE.seq||!document.getElementById('qe'))return;
     var D=qeForm(r),x=D.quote,today=D.today;QE.d=D;
@@ -1951,7 +1960,7 @@ function qePickKey(e){
 document.addEventListener('mousedown',function(e){var P=QE.pick;if(P&&e.target!==P.inp&&!P.el.contains(e.target))qePickClose();});
 function qePickMove(e){var P=QE.pick;if(!P)return;if(!document.body.contains(P.inp))return qePickClose();if(e&&e.target&&P.el.contains(e.target))return;P.place();}
 window.addEventListener('resize',qePickMove);
-window.addEventListener('beforeunload',function(e){if(QE.dirty&&document.getElementById('qe')){e.preventDefault();e.returnValue='';}});
+window.addEventListener('beforeunload',function(e){if(QE.dirty&&document.getElementById('qe')||qeBusyN()){e.preventDefault();e.returnValue='';}});
 document.addEventListener('scroll',qePickMove,true);
 /* ---------- lines ---------- */
 function qeRowsHtml(){
@@ -2168,30 +2177,77 @@ function qeCheck(){
     if(M&&(r===null||isNaN(r)||r<0||r>1e9||!qeDp(r,2)))e.push(n+'rate');});
   return {e:e,lines:used};
 }
+/* W4g: Save shows "Saved" at once; the call runs in the background (one per form in flight; another Save meanwhile = one more run
+   with the newest data, sent when the first answers, with its number + version). The data stays here until the server answers:
+   a refusal shows the error on the form (the form opens again with the data if it was left). Sign-out drops the answers (QB.ep). */
 function qeSave(pdf){
-  var q=QE.q,c=qeCheck(),box=document.getElementById('qeerr');
+  var q=QE.q,c=qeCheck(),box=document.getElementById('qeerr'),J=QE.job;
+  if(!QE.dirty&&J&&J.busy){if(pdf)J.pdf=true;box.innerHTML=qeSavedMsg(J.pdf);return;}
   if(q.no&&!QE.dirty){viewQuote(q.no);toast(pdf?'Nothing changed — use Open / Make PDF here.':'Nothing changed.');return;}
   if(c.e.length){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Please check: '+c.e.slice(0,6).join(' · ')+(c.e.length>6?' · …':'')+'</div></div>';return;}
   box.innerHTML='';
-  var b1=document.getElementById('qesave'),b2=document.getElementById('qesavep');if(QE.saving||b1.disabled)return;
-  QE.saving=true;b1.disabled=b2.disabled=true;busyBtn(pdf?b2:b1,true,pdf?'Saving + PDF…':'Saving…');qeLock();
+  var b1=document.getElementById('qesave');if(b1&&b1.disabled)return;
   var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,
     lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
-  var my=QE.seq;
+  var cu=qeCust(),si=qeSite(),s={d:d,q:JSON.parse(JSON.stringify(q)),qd:QE.d,cust:cu?cu.name:'',project:si?si.project:'',type:q.type};
+  if(!J)J=QE.job={id:++QB.n,busy:false,next:null,pdf:false,no:q.no||'',ev:q.ev};
+  if(pdf)J.pdf=true;
+  QE.dirty=false;box.innerHTML=qeSavedMsg(J.pdf);
+  if(J.busy){J.next=s;return;}
+  qeSend(J,s);
+}
+function qeSavedMsg(pdf){return '<div class="msg ok" role="status">'+ic('okc')+'<div>Saved'+(pdf?' — the PDF follows.':'.')+'</div></div>';}
+function qeJobOf(no){var o=null;Object.keys(QB.jobs).forEach(function(k){if(QB.jobs[k].no===no)o=QB.jobs[k];});return o;}
+function qePendHtml(){return Object.keys(QB.lost).map(function(k){var x=QB.lost[k],s=x.s;
+  return '<button type="button" class="qcard" data-lost="'+esc(k)+'"><div class="qrow"><span class="qno">'+ic('alert')+' '+esc(x.J.no||'New quote')+' — not saved</span><span class="sp"></span>'+(s.type?'<span class="pill ty">'+esc(s.type)+'</span>':'')+'</div>'+
+    '<div class="qc">'+esc(s.cust)+'</div><div class="qp">Open to see why and save again</div></button>';}).join('')+Object.keys(QB.pend).map(function(k){var p=QB.pend[k];
+  return '<div class="qcard" aria-busy="true"><div class="qrow"><span class="qno"><span class="spin"></span> Saving…</span><span class="sp"></span>'+(p.type?'<span class="pill ty">'+esc(p.type)+'</span>':'')+'</div>'+
+    '<div class="qc">'+esc(p.cust)+'</div>'+(p.project?'<div class="qp">'+esc(p.project)+'</div>':'')+'</div>';}).join('');}
+function qeSend(J,s){
+  var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;if(J.no){d.no=J.no;d.ev=J.ev;}
+  if(pk){QB.pend[pk]={cust:s.cust,project:s.project,type:s.type};quotesDraw();}
   call('officeQuoteSave',S.token,d).then(function(r){
-    if(my!==QE.seq)return;QE.saving=false;qeLock();QE.dirty=false;r=r||{};var no=String(r.no||q.no);
-    var pm=r.changed===false?' (nothing changed)':pdf?' — making the PDF…':'.';
-    toast((q.no?'Saved '+no+(r.rev?' · Rev '+r.rev:''):'Quote '+no+' saved as Draft')+pm);
-    if(QS.pdfBg)delete QS.pdfBg[no];viewQuote(no,r.view);if(pdf)qPdfBg(no);
+    if(ep!==QB.ep)return;r=r||{};if(pk)delete QB.pend[pk];
+    var no=String(r.no||d.no),here=QE.job===J&&!!document.getElementById('qe');J.no=no;if(typeof r.ev==='number')J.ev=r.ev;
+    if(here&&QE.q){QE.q.no=no;QE.q.ev=J.ev;QE.q.rev=+r.rev||0;QE.q.status=String(r.status||QE.q.status);}
+    if(!d.no)J.made=true;if(r.changed!==false)J.chg=true;
+    if(J.next){var n=J.next;J.next=null;qeSend(J,n);return;}
+    J.busy=false;delete QB.jobs[J.id];var pdf=J.pdf,made=J.made,chg=J.chg;J.pdf=J.made=J.chg=false;
+    toast((made?'Quote '+no+' saved as Draft':'Saved '+no+(r.rev?' · Rev '+r.rev:''))+(!chg?' (nothing changed)':pdf?' — making the PDF…':'.'));
+    if(QS.pdfBg)delete QS.pdfBg[no];
+    qeWake(J);
+    if(here&&!QE.dirty&&!document.getElementById('dlg')){QE.job=null;viewQuote(no,r.view);} /* review L8: an open dialog stays */
+    else if(!here){if(document.getElementById('qv')&&QS.vno===no)quoteLoad(no,r.view);else if(document.getElementById('qlist'))quotesLoad();}
+    if(pdf)qPdfBg(no);
   },function(m){
-    if(my!==QE.seq)return;QE.saving=false;qeLock();if(srvGate(m))return;
-    b1=document.getElementById('qesave')||b1;b2=document.getElementById('qesavep')||b2;b1.disabled=b2.disabled=false;busyBtn(pdf?b2:b1,false);
-    var k=code(m).split('|')[0];
-    if(k==='QLOCKED'){QE.dirty=false;viewQuote(q.no);toast(q.no+' is locked now — nothing saved.');return;}
-    if(k==='STALE'){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Someone changed '+esc(q.no)+' a moment ago — nothing saved. <button type="button" class="btn btn-ghost btn-sm" id="qereload">Open the latest</button></div></div>';
-      document.getElementById('qereload').onclick=function(){QE.dirty=false;viewQuoteEdit(q.no);};return;}
-    box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>'+errText(m)+'</div></div>';
+    if(ep!==QB.ep)return;if(pk){delete QB.pend[pk];quotesDraw();}
+    var n=J.next||s,here=QE.job===J&&!!document.getElementById('qe'),no=J.no||d.no,k=code(m).split('|')[0];J.next=null;J.busy=false;J.pdf=J.made=J.chg=false;delete QB.jobs[J.id];
+    if(srvGate(m)){toast((no||'The new quote')+' was not saved — sign in and enter the changes again.');return;} /* review M3 */
+    if(k==='QLOCKED'){if(here){QE.dirty=false;QE.job=null;viewQuote(no);}toast(no+' is locked now — nothing saved.');qeWake(J);return;}
+    if(here){QE.dirty=true;qeErr(m,no,false);qeWake(J);return;}
+    if(qeFree()){qeReopen(J,n);qeErr(m,no,true);return;}
+    qePark(J,n,m);qeWake(J); /* review H1: the person is busy on another form: keep this one for them */
   });
+}
+function qeWake(J){if(J.wait){var f=J.wait;J.wait=null;setTimeout(f,0);}}
+/* a refused save can take over the screen only when nothing unsaved / in flight / no dialog is there */
+function qeFree(){return !document.getElementById('dlg')&&!(document.getElementById('qe')&&(QE.dirty||(QE.job&&QE.job.busy)));}
+function qePark(J,s,m){var k=J.no||'p'+J.id;QB.lost[k]={J:J,s:s,m:m};quotesDraw();
+  toast((J.no||'The new quote')+' was not saved ('+code(m).split('|')[0].toLowerCase()+') — your changes are kept: open it from Quotes.');}
+function qeUnpark(k){var x=QB.lost[k];delete QB.lost[k];qeReopen(x.J,x.s);qeErr(x.m,x.J.no||x.s.d.no,false);}
+/* the form again with the data of a refused background save (the person had left it) */
+function qeReopen(J,s){
+  var no=J.no||s.d.no||'';document.title='Core Access · '+(no?'Edit '+no:'New quote');qePickClose();QE.seq++;
+  QE.d=s.qd;QE.q=s.q;if(J.no){QE.q.no=J.no;QE.q.ev=J.ev;}QE.dirty=true;QE.saving=false;QE.job=J;qeShell(no);qeDraw();
+}
+function qeErr(m,no,away){
+  var k=code(m).split('|')[0];
+  if(k==='QLOCKED'){QE.dirty=false;QE.job=null;viewQuote(no);toast(no+' is locked now — nothing saved.');return;}
+  if(away)toast((no?no+' ':'The quote ')+'was not saved — the form is open again with your changes.');
+  var box=document.getElementById('qeerr');if(!box)return;
+  if(k==='STALE'){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Someone changed '+esc(no)+' a moment ago — nothing saved. <button type="button" class="btn btn-ghost btn-sm" id="qereload">Open the latest</button></div></div>';
+    document.getElementById('qereload').onclick=function(){QE.dirty=false;viewQuoteEdit(no);};return;}
+  box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>'+errText(m)+'</div></div>';
 }
 
 /* ======================= start ======================= */
