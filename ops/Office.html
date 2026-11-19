@@ -1633,8 +1633,15 @@ function quotePdf(){
 function qPdfMark(){var q=QS.cur,b=document.getElementById('qpdf'),e=document.getElementById('qmail');if(!q||!QS.pdfBg||!QS.pdfBg[String(q.no)])return;
   if(b&&!b.disabled)busyBtn(b,true,'PDF being made…');if(e)e.disabled=true;} /* Email waits for the PDF (it would find the PDF still being made) */
 function qPdfBg(no){
-  no=String(no);var tok=(QS.pdfN=(QS.pdfN||0)+1);QS.pdfBg=QS.pdfBg||{};QS.pdfBg[no]=tok;qPdfMark();
+  no=String(no);var tok=(QS.pdfN=(QS.pdfN||0)+1);QS.pdfBg=QS.pdfBg||{};QS.pdfBg[no]=tok;QS.pdfRun=QS.pdfRun||{};qPdfMark();
+  if(QS.pdfRun[no]){QS.pdfRun[no].again=true;return;} /* W4f (CR): a PDF of this quote is still being made: one more run when it ends (a second call now would only get BUSY) */
+  qPdfGo(no);
+}
+function qPdfGo(no){
+  var tok=QS.pdfBg[no],R=QS.pdfRun[no]={again:false};
   var end=function(u,m){
+    if(QS.pdfRun[no]===R)delete QS.pdfRun[no];
+    if(R.again&&QS.pdfBg[no]){if(m!==null){qPdfGo(no);return;}tok=QS.pdfBg[no];} /* W4f: a newer save asked for its PDF: make it now (this one is of an older version; the progress stays); signed out: the queued one ends here (review L2) */
     if(QS.pdfBg[no]!==tok)return; /* the quote was saved again meanwhile: this PDF is not the current one, say nothing */
     delete QS.pdfBg[no];
     var q=QS.cur,b=document.getElementById('qpdf'),e=document.getElementById('qmail'),here=q&&String(q.no)===no;

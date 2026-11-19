@@ -1631,15 +1631,16 @@ function officeQuoteSave(token, d) {
     if (was === 'Sent' && changed) { p.Rev = num(q2.Rev) + 1; p.Status = 'Draft'; } // CR10: the OQRV record above is kept until this is written
     if (Object.keys(p).length) uiPutRow_(d2, 'Quotes', q2, p);
     if (p.Rev != null) { try { log_(d2, 'Quote revised', ref, 'Rev ' + p.Rev + ' (edited in the web app)'); } catch (e) { /* log only */ } env.del('OQRV:' + ref); }
-    var q3 = must(env.db() || d2, 'Quotes', 'QuoteNo', ref);
-    return { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
+    var q3 = must(env.db() || d2, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
+    if (d.pdf !== true) try { var db4 = env.db(); if (db4) out.view = oQView_(db4, env, oQRow_(db4, ref), L); } catch (e) { delete out.view; } // W4f: in the lock = this lock's batch (no 4th read); the save stands either way
+    return out;
   });
   if (d.pdf === true) {
     try { var L2 = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db(); res.pdf = String(oQPdfUse_(env, db, oQRow_(db, res.no), L2).url || ''); }
     catch (e) { res.pdf = ''; res.pdfErr = String(e && e.message || e).split('|')[0].slice(0, 40); }
   }
   // W4c: the quote view comes back with the save (the page shows it without a second call); fresh read, same rules as officeQuoteGet
-  try { var L3 = officeGate_(token, OQ_NEED_), env3 = oEnv_(), db3 = env3.db(); if (db3) res.view = oQView_(db3, env3, oQRow_(db3, res.no), L3); }
+  if (!res.view) try { var L3 = officeGate_(token, OQ_NEED_), env3 = oEnv_(), db3 = env3.db(); if (db3) res.view = oQView_(db3, env3, oQRow_(db3, res.no), L3); }
   catch (e) { delete res.view; /* the save stands; the page loads the view itself (a session that ended meanwhile is told there) */ }
   return res;
 }
@@ -2089,7 +2090,7 @@ var OW4D_TABS_ = ['Customers', 'DocRegister', 'Items', 'Jobs', 'KitParts', 'List
 var OW4D_MAX_ = 3;      // batches per SheetDb
 var OW4D_FETCH_ = null; // self-tests: function (id, tabs) -> {tz, a, b}
 var OW4D_W_ = 0;        // sheet handles used outside a read in this execution (any SheetDb)
-function oW4dOn_(db) { if (db && OW4D_ON_ && typeof SheetDb === 'function' && db instanceof SheetDb && SheetDb.prototype.ow4d_) { db.w4d_ = true; db.ow4e_ = true; } return db; } // W4e: ow4e_ = an office SheetDb (Lists from its rows)
+function oW4dOn_(db) { if (db && OW4D_ON_ && typeof SheetDb === 'function' && db instanceof SheetDb && SheetDb.prototype.ow4d_) { db.w4d_ = true; db.ow4e_ = true; oW4fSc_(db); } return db; } // W4e: ow4e_ = an office SheetDb (Lists from its rows)
 function oW4dHttp_(id, tabs) { // 2 batchGets (serial / formatted dates) + the sheet's time zone, in parallel
   var h = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, base = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(id);
   var q = tabs.map(function (t) { return 'ranges=' + encodeURIComponent("'" + String(t).replace(/'/g, "''") + "'"); }).join('&');
@@ -2123,10 +2124,11 @@ function oW4dRead_(db, tabs) { // {tab: rows as getDataRange().getValues()} or n
       if (!Array.isArray(x) || !Array.isArray(y) || x.length !== y.length) return null;
       var r = [];
       for (var k = 0; k < x.length; k++) {
-        var c = x[k];
-        if (typeof c === 'number' && typeof y[k] === 'string') c = oW4dDate_(c);
-        else if (c === null || c === undefined) c = '';
+        var c = x[k], e = y[k];
+        if (typeof c === 'number' && typeof e === 'string') { if (!/\d/.test(e)) return null; c = oW4dDate_(c); } // W4f (CR): a date / time text only (else a cell changed between the 2 reads); review L5: any digit (a 'Nov 2026' format keeps the batch)
+        else if (c === null || c === undefined || c === '') { if (!(e === null || e === undefined || e === '')) return null; c = ''; }
         else if (typeof c !== 'number' && typeof c !== 'string' && typeof c !== 'boolean') return null;
+        else if (c !== e) return null; // W4f (CR): the 2 reads differ -> the old tab reads
         r.push(c);
       }
       if (r.length > w) w = r.length;
@@ -2142,7 +2144,7 @@ if (typeof SheetDb === 'function' && SheetDb.prototype && SheetDb.prototype.ow4c
     var sheet1 = P.sheet, hasTab1 = P.hasTab, headers1 = P.headers, rows1 = P.rows, ensureTab1 = P.ensureTab;
     var old = function (db, f, t) { db.rd_ = (db.rd_ || 0) + 1; try { return f.call(db, t); } finally { db.rd_--; } }; // a read: keeps the batch
     var live = function (db) { var p = db.pl_; if (p && (p.lk !== OLK_.g || p.w !== OW4D_W_)) p = db.pl_ = null; return p; };
-    var wrote = function (db) { if (!db.rd_) { OW4D_W_++; db.w4d_ = false; db.pl_ = null; } };
+    var wrote = function (db, t) { if (!db.rd_) { OW4D_W_++; db.w4d_ = false; db.pl_ = null; oW4fDirty_(t); } }; // W4f: t + the tabs whose formulas read t
     var get = function (db, t) { // tab t from the batch (made now if needed), or null
       if (!OW4D_ON_ || !db.w4d_ || OW4D_TABS_.indexOf(t) < 0) return null;
       var p = live(db);
@@ -2150,14 +2152,14 @@ if (typeof SheetDb === 'function' && SheetDb.prototype && SheetDb.prototype.ow4c
         if ((db.nb_ || 0) >= OW4D_MAX_) return null;
         var tabs = OW4D_TABS_.filter(function (x) { return !db.c[x]; });
         db.nb_ = (db.nb_ || 0) + 1;
-        var v = null; try { v = oW4dRead_(db, tabs); } catch (e) { v = null; }
+        var v = null; try { v = oW4fRead_(db, tabs); } catch (e) { v = null; } // W4f: from this lock's batch, only the written tabs fetched again
         if (!v) { db.w4d_ = false; return null; } // the old tab reads for the rest of this SheetDb
         p = db.pl_ = { lk: OLK_.g, w: OW4D_W_, v: v };
       }
       return Object.prototype.hasOwnProperty.call(p.v, t) ? p.v[t] : null;
     };
-    P.sheet = function (t) { if (t === 'Lists' && !this.rd_) { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this); return sheet1.call(this, t); }; // outside a read = maybe a write (W4e: of Lists -> uiLists_ reads the sheet again)
-    P.ensureTab = function (t) { if (t === 'Lists') { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this); return ensureTab1.apply(this, arguments); };
+    P.sheet = function (t) { if (t === 'Lists' && !this.rd_) { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this, t); return sheet1.call(this, t); }; // outside a read = maybe a write (W4e: of Lists -> uiLists_ reads the sheet again)
+    P.ensureTab = function (t) { if (t === 'Lists') { this.ow4eLw_ = true; OW4E_LW_++; } wrote(this, t); return ensureTab1.apply(this, arguments); };
     P.hasTab = function (t) { var p = OW4D_ON_ && this.w4d_ ? live(this) : null; return p && Object.prototype.hasOwnProperty.call(p.v, t) ? true : hasTab1.call(this, t); };
     P.headers = function (t) {
       if (!this.hc[t]) { var v = get(this, t); if (v) this.hc[t] = v[0].map(String); }
@@ -2176,6 +2178,59 @@ if (typeof SheetDb === 'function' && SheetDb.prototype && SheetDb.prototype.ow4c
     };
     P.ow4d_ = true;
   })(SheetDb.prototype);
+}
+
+// ----------------------------------------------------------------- W4f (19 Nov): one batch per lock (speed)
+// Measured 19 Nov (editor probe, 2 saves of a TEST quote): a save made 4 batches (1.8-2.2 s): each new office SheetDb (the save,
+// the re-read after the panel save, the Rev / Status re-read, the view after the lock) fetched all the tabs again, because any
+// write dropped every batch. Now, inside one script lock (no other script writes meanwhile), a new office SheetDb takes this
+// lock's batch and only the tabs written since it was fetched are fetched again (after SpreadsheetApp.flush, as before):
+// a tab counts as written when a sheet handle of it is taken outside a read (as W4d) - and with it every tab whose CALC formulas
+// read it (QuoteLines -> Quotes, Milestones -> Jobs ...), so formula results are fresh too. Outside a lock, another lock, another
+// spreadsheet, a failed read = the W4d batch as before. The save's view is made inside the lock (not with "Save + PDF" = d.pdf
+// true: the old path). Sheet handles are shared by the office SheetDbs of one lock (W4c cached them per SheetDb).
+// Rule (review L3): write through a sheet handle right after taking it (insert / update / uiPutRow_ / uiDelRows_ do); a handle
+// kept while another office SheetDb reads would write a tab that is no longer marked as written.
+// Also (CodeRabbit on W4c-W4e): the 2 batchGets must agree cell by cell (a number + text pair only for a date / time text),
+// else the old tab reads.
+var OW4F_ON_ = true;
+var OW4F_S_ = null;   // this lock's batch: {id, lk, f: tabs fetched, d: tabs written since, v: {tab: values}}
+var OW4F_SC_ = null;  // this lock's sheet handles: {id, lk, m}
+var OW4F_DEP_ = null; // tab -> {tabs whose CALC formulas read it}
+function oW4fDeps_() {
+  if (OW4F_DEP_) return OW4F_DEP_;
+  var m = {}, C = typeof CALC === 'object' && CALC ? CALC : {};
+  Object.keys(C).forEach(function (T) { Object.keys(C[T] || {}).forEach(function (k) { String(C[T][k]).replace(/\[(\w+)\./g, function (a, X) { (m[X] = m[X] || {})[T] = 1; return a; }); }); });
+  return (OW4F_DEP_ = m);
+}
+function oW4fDirty_(t) { // t written: t and the tabs whose formulas read it (closure) are fetched again
+  var S = OW4F_S_; if (!S) return;
+  var st = [String(t)], dep = oW4fDeps_(), seen = {}; // review M1: always mark the whole closure (a dependent may have been fetched again meanwhile)
+  while (st.length) { var x = st.pop(); if (seen[x]) continue; seen[x] = 1; S.d[x] = 1; Object.keys(dep[x] || {}).forEach(function (y) { st.push(y); }); }
+}
+function oW4fId_(db) { try { var id = db && db.ss && typeof db.ss.getId === 'function' ? db.ss.getId() : ''; return id ? String(id) : ''; } catch (e) { return ''; } }
+function oW4fSc_(db) { // office SheetDbs of one lock share the sheet handles
+  if (!OW4F_ON_ || !(OLK_.s > 0)) return;
+  var id = oW4fId_(db); if (!id) return;
+  if (!OW4F_SC_ || OW4F_SC_.id !== id || OW4F_SC_.lk !== OLK_.g) OW4F_SC_ = { id: id, lk: OLK_.g, m: {} };
+  db.sc_ = OW4F_SC_.m;
+}
+function oW4fRead_(db, tabs) { // = oW4dRead_(db, tabs); inside a lock from this lock's batch, the written tabs fetched again
+  var own = Object.prototype.hasOwnProperty, id = OW4F_ON_ && OLK_.s > 0 ? oW4fId_(db) : '', S = OW4F_S_;
+  if (id && S && S.id === id && S.lk === OLK_.g) {
+    var need = tabs.filter(function (t) { return S.d[t] || !S.f[t]; });
+    if (need.length) {
+      var n = oW4dRead_(db, need); if (!n) { OW4F_S_ = null; return null; }
+      need.forEach(function (t) { S.f[t] = 1; delete S.d[t]; if (own.call(n, t)) S.v[t] = n[t]; else delete S.v[t]; });
+    }
+    S.n = (S.n || 0) + 1;
+    var out = {}; tabs.forEach(function (t) { if (own.call(S.v, t)) out[t] = S.v[t]; });
+    return out;
+  }
+  var v = oW4dRead_(db, tabs);
+  OW4F_S_ = null;
+  if (v && id) { var f = {}, c = {}; tabs.forEach(function (t) { f[t] = 1; if (own.call(v, t)) c[t] = v[t]; }); OW4F_S_ = { id: id, lk: OLK_.g, f: f, d: {}, v: c, n: 0 }; }
+  return v;
 }
 
 // ----------------------------------------------------------------- W4e (19 Nov): Lists from the rows (speed)
@@ -3339,6 +3394,35 @@ function selfTestOffice() {
           eq('O361 W4e a blank Lists tab / a failing read = the old read (defaults), never an error from the new path (review M1)', [rB === oB, rT === L0].join('|'), 'true|true');
           OW4E_LW_ = 0; var FX = mkL(), aX = use(FX, true), bX = new SheetDb(FX.ss); uiLists_(aX); bX.insert('Lists', { Unit: 'zz' }); var LX = uiLists_(aX).Unit.join(',');
           eq('O362 W4e Lists written through another SheetDb of this execution: the next uiLists_ reads the sheet (review L1)', [OW4E_LW_ > 0, LX === OW4E_old_(new SheetDb(FX.ss)).Unit.join(','), /zz/.test(LX)].join('|'), 'true|true|true');
+          // W4f: one batch per lock
+          var lk = function (f) { OW4F_S_ = null; OW4F_SC_ = null; OLK_.s++; OLK_.g++; try { return f(); } finally { OLK_.s--; OLK_.g++; OW4F_S_ = null; OW4F_SC_ = null; } };
+          var rec = function (F) { var f0 = F.fetch; F.tabs = []; F.fetch = function (id, t) { F.tabs.push(t.join(',')); return f0(id, t); }; return F; };
+          OW4D_TABS_ = T4;
+          var F9 = rec(mk4()), r9 = lk(function () { use(F9, true).rows('Items'); return dump(use(F9, true)); });
+          eq('O363 W4f inside one lock a new office SheetDb takes the lock\'s batch: no new fetch, same rows as the tab reads', [r9 === A0, F9.f].join('|'), 'true|1');
+          var F10 = rec(mk4()), r10 = lk(function () { use(F10, true).rows('Items'); use(F10, true).insert('Customers', { CustID: 'C3', Name: 'Third' }); var c = use(F10, true); return [c.rows('Customers').length, dump(c) === dump(use(F10, false))].join('|'); });
+          eq('O364 W4f a write: the next office SheetDb fetches only the written tab again (sees the new row, same as the tab reads)', [r10, F10.f, F10.tabs[1]].join('|'), '2|true|2|Customers');
+          var dp = oW4fDeps_(), dS = OW4F_S_; OW4F_S_ = { d: {} }; oW4fDirty_('QuoteLines'); var dq = Object.keys(OW4F_S_.d).sort().join(','); OW4F_S_ = dS;
+          eq('O365 W4f a written tab also marks the tabs whose formulas read it (CALC, closure)', [dq, !!(dp.Settings && dp.Settings.Quotes), !!(dp.Quotes && dp.Quotes.Jobs)].join('|'), 'Invoices,Jobs,Milestones,QuoteLines,Quotes|true|true');
+          var mS = OW4F_S_; OW4F_S_ = { d: {} }; oW4fDirty_('QuoteLines'); delete OW4F_S_.d.Quotes; delete OW4F_S_.d.Jobs; delete OW4F_S_.d.Invoices; delete OW4F_S_.d.Milestones; oW4fDirty_('QuoteLines'); var mq = Object.keys(OW4F_S_.d).sort().join(','); OW4F_S_ = mS;
+          eq('O370 W4f a second write marks the dependents again after they were fetched (review M1)', mq, 'Invoices,Jobs,Milestones,QuoteLines,Quotes');
+          var F11 = mk4(); use(F11, true).rows('Items'); use(F11, true).rows('Items');
+          var F12 = mk4(); lk(function () { use(F12, true).rows('Items'); OLK_.g++; use(F12, true).rows('Items'); });
+          var F13 = mk4(), F14 = mk4(); F14.ss.getId = function () { return 'ID2'; }; lk(function () { use(F13, true).rows('Items'); use(F14, true).rows('Items'); });
+          eq('O366 W4f no shared batch outside a lock, after the lock changed, or for another spreadsheet', [F11.f, F12.f, F13.f, F14.f].join('|'), '2|2|1|1');
+          var cr = function (a, b) { OW4D_FETCH_ = function () { return { tz: Session.getScriptTimeZone(), a: [{ range: 'Items!A1:B2', values: a }], b: [{ range: 'Items!A1:B2', values: b }] }; };
+            var r = oW4dRead_({ ss: { getId: function () { return 'ID'; } } }, ['Items']); return r === null ? 'null' : (r.Items[1][1] instanceof Date ? 'date' : String(r.Items[1][1])); };
+          var H = ['K', 'V'];
+          eq('O367 W4f (CR) the 2 reads must agree: number + text only for a date / time text, same cells equal, else the old reads',
+            [cr([H, ['A', 100]], [H, ['A', 'POA']]), cr([H, ['A', 100]], [H, ['A', 101]]), cr([H, ['A', 'x']], [H, ['A', 'y']]), cr([H, ['A', null]], [H, ['A', 'POA']]),
+             cr([H, ['A', 46345]], [H, ['A', '19-Nov-2026']]), cr([H, ['A', 0.5]], [H, ['A', '12:00:00']]), cr([H, ['A', 5]], [H, ['A', 5]]), cr([H, ['A', true]], [H, ['A', true]])].join(','),
+            'null,null,null,null,date,date,5,true');
+          var sq = String(officeQuoteSave.officeRaw_ || officeQuoteSave);
+          eq('O368 W4f the save\'s view is made inside the lock (not for Save + PDF); the old view read only when that gave none',
+            [/if \(d\.pdf !== true\) try \{ var db4 = env\.db\(\); if \(db4\) out\.view = oQView_\(db4, env, oQRow_\(db4, ref\), L\); \} catch \(e\) \{ delete out\.view; \}[^\n]*\s*return out;\s*\}\);/.test(sq), /\n  if \(!res\.view\) try \{ var L3 = officeGate_/.test(sq)].join('|'), 'true|true');
+          var F15 = mk4(), h15 = lk(function () { var a = use(F15, true); a.sheet('Quotes'); var n = F15.n(); use(F15, true).sheet('Quotes'); return F15.n() === n; });
+          var F16 = mk4(); use(F16, true).sheet('Quotes'); var n16 = F16.n(); use(F16, true).sheet('Quotes');
+          eq('O369 W4f the office SheetDbs of one lock share the sheet handles (not outside a lock)', [h15, F16.n() > n16].join('|'), 'true|true');
           OW4E_LW_ = kLW;
         } finally { OW4D_TABS_ = k4[0]; OW4D_FETCH_ = k4[1]; OW4D_ON_ = k4[2]; }
       })();
