@@ -1614,13 +1614,15 @@ if (typeof MemDb === 'function') {
   OW4gShadow_.prototype.hasTab = function (t) { return !!this.h[t] || this.b.hasTab(t); };
   OW4gShadow_.prototype.headers = function (t) { if (!this.h[t]) this.h[t] = this.b.headers(t).slice(); return this.h[t]; };
   OW4gShadow_.prototype.rows = function (t) { this.headers(t); if (!this.t[t]) this.t[t] = this.b.rows(t).map(function (r) { return Object.assign({}, r); }); return this.t[t]; };
-  OW4gShadow_.prototype.update = function (t, o, patch) { var h = this.headers(t); Object.keys(patch).forEach(function (k) { if (h.indexOf(k) < 0) throw new Error(t + ': no column ' + k); o[k] = oW4gStore_(patch[k]); }); }; // CR: the value the sheet keeps
-  OW4gShadow_.prototype.insert = function (t, objs) { if (t === 'Log' && !this.nt.Log) return objs; this.rows(t); var h = this.headers(t); (Array.isArray(objs) ? objs : [objs]).forEach(function (o) { h.forEach(function (k) { o[k] = oW4gStore_(o[k]); }); }); return MemDb.prototype.insert.call(this, t, objs); }; // CR 2: stored values set before the insert (no reliance on MemDb keeping the objects) // review M5: a Log row is not compared -> the Log tab is never read
+  OW4gShadow_.prototype.wr = function (o) { if (!Object.prototype.hasOwnProperty.call(o, '__w4g')) Object.defineProperty(o, '__w4g', { value: {}, enumerable: false }); return o.__w4g; }; // cells this save wrote
+  OW4gShadow_.prototype.update = function (t, o, patch) { var h = this.headers(t), w = this.wr(o); Object.keys(patch).forEach(function (k) { if (h.indexOf(k) < 0) throw new Error(t + ': no column ' + k); o[k] = patch[k]; w[k] = 1; }); }; // CR 3: the raw value stays in the row, as in the SheetDb cache
+  OW4gShadow_.prototype.insert = function (t, objs) { if (t === 'Log' && !this.nt.Log) return objs; this.rows(t); var h = this.headers(t), self = this, r = MemDb.prototype.insert.call(this, t, objs); this.t[t].slice(-(Array.isArray(objs) ? objs.length : 1)).forEach(function (o) { var w = self.wr(o); h.forEach(function (k) { w[k] = 1; }); }); return r; }; // CR 2 + 3: the stored rows (whatever MemDb keeps) marked as written, raw values as in the cache // review M5: a Log row is not compared -> the Log tab is never read
   OW4gShadow_.prototype.ensureTab = function (t, headers) { if (this.hasTab(t)) return false; this.h[t] = headers.slice(); this.t[t] = []; this.nt[t] = 1; return true; };
   OW4gShadow_.prototype.ensureColumn = function (t, col, after) { this.rows(t); return MemDb.prototype.ensureColumn.call(this, t, col, after); };
 }
 // what the sheet keeps for a written value: the write adds a leading ' (cellVal_ / oCell_) that the sheet takes as "this is text" and drops
 function oW4gStore_(v) { v = cellVal_(v); return typeof v === 'string' && v.charAt(0) === "'" ? v.slice(1) : v; }
+function oW4gCell_(o, k) { return o.__w4g && o.__w4g[k] ? oW4gStore_(o[k]) : o[k]; } // a shadow cell as the sheet would hold it after the save
 function oW4gEq_(a, b) { // a = what the save would store (oW4gStore_), b = the sheet's value now; strict (another type = a change)
   if (a == null) a = ''; if (b == null) b = '';
   if (a instanceof Date || b instanceof Date) return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
@@ -1638,7 +1640,7 @@ function oW4gSame_(db, q, x, ty0) {
       var h1 = sh.h[t]; if (db.headers(t).length !== h1.length) return false;
       if (!sh.t[t]) continue;
       var r0 = db.rows(t), r1 = sh.t[t]; if (r0.length !== r1.length) return false;
-      for (var i = 0; i < r1.length; i++) for (var k = 0; k < h1.length; k++) if (!oW4gEq_(r1[i][h1[k]], r0[i][h1[k]])) return false;
+      for (var i = 0; i < r1.length; i++) for (var k = 0; k < h1.length; k++) if (!oW4gEq_(oW4gCell_(r1[i], h1[k]), r0[i][h1[k]])) return false;
     }
     return true;
   } catch (e) { return false; }
@@ -3196,13 +3198,14 @@ function selfTestOffice() {
         var shT = new OW4gShadow_(db), lq = db.rows('Log').length, q0s = db.rows('Quotes')[0], s0 = q0s.Subject, hq = db.headers('Quotes').length;
         shT.rows('Quotes')[0].Subject = 'W4g shadow'; shT.insert('Log', { Action: 'x' }); shT.ensureColumn('Quotes', 'W4gX'); shT.rows('QuoteLines').splice(0, 1);
         eq('O374 W4g: the dry run works on copies (real rows, Log, headers, lines untouched; a Log row is not even read)', [q0s.Subject === s0, db.rows('Log').length === lq, db.headers('Quotes').indexOf('W4gX'), db.headers('Quotes').length === hq, shT.t.Log === undefined, shT.rows('QuoteLines').length === db.rows('QuoteLines').length - 1].join('|'), 'true|true|-1|true|true|true');
-        (function () { var shI = new OW4gShadow_(db), n0 = db.rows('QuoteLines').length, o9 = { QuoteNo: 'X9', Description: "''-Hire", Unit: '0123' }; shI.insert('QuoteLines', [o9]); var last = shI.rows('QuoteLines').slice(-1)[0];
-          eq('O379 W4g CR 2: a shadow insert stores what the sheet keeps, in the shadow rows only (escape quote dropped, numbers-as-text kept)', [last.Description, last.Unit, shI.rows('QuoteLines').length === n0 + 1, db.rows('QuoteLines').length === n0, oW4gEq_(last.Description, "'-Hire"), oW4gEq_(last.Description, '-Hire')].join('|'), "'-Hire|0123|true|true|true|false"); })();
+        (function () { var shI = new OW4gShadow_(db), n0 = db.rows('QuoteLines').length, o9 = { QuoteNo: 'X9', Description: "''-Hire", Unit: '0123' }; shI.insert('QuoteLines', [o9]); var last = shI.rows('QuoteLines').slice(-1)[0], q9 = shI.rows('Quotes')[0]; shI.update('Quotes', q9, { Subject: "'-Hire" });
+          eq('O379 W4g CR 2+3: shadow rows keep the raw value (as the SheetDb cache); the compare uses what the sheet keeps, for written cells only', [last.Description, oW4gCell_(last, 'Description'), oW4gCell_(last, 'Unit'), q9.Subject, oW4gCell_(q9, 'Subject'), oW4gCell_(q9, 'QuoteNo') === db.rows('Quotes')[0].QuoteNo, shI.rows('QuoteLines').length === n0 + 1, db.rows('QuoteLines').length === n0, db.rows('Quotes')[0].Subject !== "'-Hire"].join('|'), "''-Hire|'-Hire|0123|'-Hire|-Hire|true|true|true|true"); })();
         eq('O375 W4g: the stored value (the sheet drops the escape quote) + strict compare', [oW4gStore_("'=x"), oW4gStore_('0123'), oW4gStore_("''-Hire"), oW4gStore_(5), oW4gStore_(null), oW4gEq_('-Hire', "'-Hire"), oW4gEq_(new Date(1), new Date(1)), oW4gEq_(5, '5'), oW4gEq_(null, ''), oW4gEq_(0, ''), oW4gEq_(new Date(1), 1)].join(','), "=x,0123,'-Hire,5,,false,true,false,true,false,false");
         (function () { // W4g CR: over many edits the dry run's verdict = what the real save writes (db made sheet-like: a write keeps oW4gStore_(value))
-          var u0 = db.update, i0 = db.insert, g0 = oW4gSame_, seen = null, bad = [], noop = [], err = 0, rounds = 0, slow = 0;
-          db.update = function (t, o, p) { var q = {}; Object.keys(p).forEach(function (k) { q[k] = oW4gStore_(p[k]); }); return u0.call(db, t, o, q); };
-          db.insert = function (t, objs) { var r = i0.call(db, t, objs), h = db.headers(t); (Array.isArray(objs) ? objs : [objs]).forEach(function (o) { h.forEach(function (k) { o[k] = oW4gStore_(o[k]); }); }); return r; };
+          var u0 = db.update, i0 = db.insert, g0 = oW4gSame_, kS0 = UI_ACTIONS_.saveQuoteFull, seen = null, bad = [], noop = [], err = 0, rounds = 0, slow = 0, pend = [];
+          db.update = function (t, o, p) { Object.keys(p).forEach(function (k) { pend.push([o, k, oW4gStore_(p[k])]); }); return u0.call(db, t, o, p); }; // like SheetDb: the cache keeps the raw value during the save
+          db.insert = function (t, objs) { var r = i0.call(db, t, objs), h = db.headers(t); (Array.isArray(objs) ? objs : [objs]).forEach(function (o) { h.forEach(function (k) { pend.push([o, k, oW4gStore_(o[k])]); }); }); return r; };
+          var settle = function () { pend.forEach(function (x) { x[0][x[1]] = x[2]; }); pend = []; }; // the next save reads what the sheet kept
           var snap = function () { return j(['Quotes', 'QuoteLines', 'QuoteTerms', 'Customers', 'Sites', 'Settings', 'Sequences'].filter(function (t) { return db.hasTab(t); }).map(function (t) { var h = db.headers(t); return [t, h.length].concat(db.rows(t).map(function (r) { return h.map(function (k) { var v = r[k]; return v instanceof Date ? 'D' + v.getTime() : v == null ? '' : v; }); })); })); };
           var day = function (s, n) { var p = s.split('-'), x = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + n)); return x.toISOString().slice(0, 10); };
           var L = function (F, f) { return F.lines.map(function (l, i) { return f(Object.assign({}, l), i); }); };
@@ -3221,25 +3224,28 @@ function selfTestOffice() {
           ];
           var seed = 7, rnd = function (n) { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
           var plan = M.map(function (m) { return [m]; }); for (var z = 0; z < 26; z++) plan.push([M[rnd(M.length)], M[rnd(M.length)]]);
+          var hostile = function (dx, ax) { var r = kS0(dx, ax), ls = dx.rows('QuoteLines').filter(function (l) { return String(l.QuoteNo) === String(r.ref); }), q = find(dx.rows('Quotes'), 'QuoteNo', r.ref);
+            if (ls.length && q && dx.headers('Quotes').indexOf('Notes') >= 0) uiPutRow_(dx, 'Quotes', q, { Notes: ls[ls.length - 1].Description + '|' + q.Subject }); return r; }; // CR 3: re-reads values this save just wrote
           oW4gSame_ = function () { seen = g0.apply(this, arguments); return false; }; // the real save always runs; the dry run only gives its verdict
           try {
+            [false, true].forEach(function (hz) { UI_ACTIONS_.saveQuoteFull = hz ? hostile : kS0;
             plan.forEach(function (P) {
               rounds++; e5.cdel('OQEW:sales4@t.com');
               var F = officeQuoteForm(tS, qS).quote, o = fa(F, {}); P.forEach(function (m) { m[1](o, F); });
               var s0 = snap(), r; seen = null;
-              try { r = officeQuoteSave(tS, o); } catch (x) { err++; return; }
-              var s1 = snap(), name = P.map(function (m) { return m[0]; }).join('+');
+              try { r = officeQuoteSave(tS, o); } catch (x) { err++; pend = []; return; }
+              settle(); var s1 = snap(), name = P.map(function (m) { return m[0]; }).join('+');
               if (seen === true && s0 !== s1) bad.push(name);           // said "nothing changes" but the save changed data = would lose an edit
               if (seen === false && s0 === s1) slow++;                   // safe: only an extra write
-              if (P.every(function (m) { return m[0] === 'same'; }) && seen !== true) noop.push(name);
+              if (P.every(function (m) { return m[0] === 'same'; }) && s0 === s1 && seen !== true) noop.push(name); // nothing changed, yet the dry run said "changed"
               oW4gSame_ = g0; e5.cdel('OQEW:sales4@t.com');            // the same form again, fast path on: nothing written, nothing changes
-              var F2 = officeQuoteForm(tS, qS).quote, o2 = fa(F2, {}); P.forEach(function (m) { m[1](o2, F); }); var s2 = snap(), r2 = officeQuoteSave(tS, fa(F2, {})), s3 = snap();
+              var F2 = officeQuoteForm(tS, qS).quote, o2 = fa(F2, {}); P.forEach(function (m) { m[1](o2, F); }); var s2 = snap(), r2 = officeQuoteSave(tS, fa(F2, {})); settle(); var s3 = snap();
               if (r2.changed !== false || s2 !== s3 || r2.ev !== F2.ev) bad.push(name + ' (again)');
               oW4gSame_ = function () { seen = g0.apply(this, arguments); return false; };
-            });
-          } finally { oW4gSame_ = g0; db.update = u0; db.insert = i0; }
-          e5.cdel('OQEW:sales4@t.com'); var Fz = officeQuoteForm(tS, qS).quote; officeQuoteSave(tS, fa(Fz, { attention: 'Mr W4g', subject: 'W4g subject', lines: [{ code: '', desc: 'Item', qty: 3, unit: 'pc', rate: 10 }, { code: '', desc: 'Item 2', qty: 1, unit: 'pc', rate: 4 }] })); // plain values again for the raw test store
-          eq('O378 W4g: every single edit + 26 random pairs on a sheet-like store: never "unchanged" when the save changes data; a no-op is always caught; saving the fetched form again writes nothing', [bad.join(';') || 'none', noop.join(';') || 'none', rounds, err < rounds / 2, Object.keys(e5.store || {}).filter(function (k) { return /^OQRV:/.test(k); }).length].join('|'), 'none|none|' + plan.length + '|true|0');
+            }); });
+          } finally { oW4gSame_ = g0; db.update = u0; db.insert = i0; UI_ACTIONS_.saveQuoteFull = kS0; }
+          db.update('Quotes', must(db, 'Quotes', 'QuoteNo', qS), { Notes: '' }); e5.cdel('OQEW:sales4@t.com'); var Fz = officeQuoteForm(tS, qS).quote; officeQuoteSave(tS, fa(Fz, { attention: 'Mr W4g', subject: 'W4g subject', lines: [{ code: '', desc: 'Item', qty: 3, unit: 'pc', rate: 10 }, { code: '', desc: 'Item 2', qty: 1, unit: 'pc', rate: 4 }] })); // plain values again for the raw test store
+          eq('O378 W4g: every single edit + 26 random pairs, plain and with a wrapper that re-reads freshly written values, on a store that behaves like the sheet (raw cache during a save, sheet values on the next read): never "unchanged" when the save changes data; a no-op is always caught; saving the fetched form again writes nothing', [bad.join(';') || 'none', noop.join(';') || 'none', rounds, err, Object.keys(e5.store || {}).filter(function (k) { return /^OQRV:/.test(k); }).length].join('|'), 'none|none|' + (2 * plan.length) + '|0|0'); // CR 3: every round must complete (no error allowed)
         })();
         var kS = UI_ACTIONS_.saveQuoteFull, FL = officeQuoteForm(tS, qS).quote, lg1 = db.rows('Log').length, rL; e5.cdel('OQEW:sales4@t.com');
         UI_ACTIONS_.saveQuoteFull = function (dx, ax) { if (dx instanceof OW4gShadow_) throw new Error('shadow boom'); return kS(dx, ax); };
