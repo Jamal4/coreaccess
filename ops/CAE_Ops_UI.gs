@@ -119,11 +119,13 @@ function uiList_(db, k) { return uiLists_(db)[k] || []; }
 function uiInList_(db, k, v, what) { if (!blank(v) && uiList_(db, k).indexOf(String(v)) < 0) throw new Error(what + ' "' + v + '" is not in Lists › ' + k); }
 function uiStaff_(db, id) { if (!blank(id)) must(db, 'Staff', 'StaffID', id); return id || ''; }
 // Whole-row write (one call per row on the sheet); calculated columns get their formula again.
+// The row is rewritten from the cache, where Sheets has already dropped the text mark ', so text starting with = + - @ gets it back.
+function uiCell_(v) { v = cellVal_(v); return typeof v === 'string' && /^[=+\-@]/.test(v) ? "'" + v : v; }
 function uiPutRow_(db, t, o, patch) {
   if (!db.ss) { db.update(t, o, patch); return; }
   var h = db.headers(t), calc = CALC[t] || {};
   Object.keys(patch).forEach(function (k) { if (h.indexOf(k) < 0) throw new Error(t + ': no column ' + k); o[k] = patch[k]; });
-  db.sheet(t).getRange(o._r, 1, 1, h.length).setValues([h.map(function (k) { return calc[k] ? resolveF(db, t, calc[k], o._r) : cellVal_(o[k]); })]);
+  db.sheet(t).getRange(o._r, 1, 1, h.length).setValues([h.map(function (k) { return calc[k] ? resolveF(db, t, calc[k], o._r) : uiCell_(o[k]); })]);
 }
 function uiDelRows_(db, t, rows) {
   if (!rows.length) return;
