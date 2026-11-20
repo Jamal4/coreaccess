@@ -641,8 +641,8 @@ function qf3DefSigner_(db, q, m) {
 function qf3Stamp_(d) { return d instanceof Date && !isNaN(d.getTime()) ? fmtDay(dayNum(d)) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) : ''; }
 function qf3Sig_(db, p) {
   var co = co_(db), web = String(co.CoWeb || '').replace(/^https?:\/\//, '').replace(/\/$/, ''), reg = S(db, 'RegNo', ''), tl = S(db, 'TradeLicenceNo', '');
-  var ph = p ? p.phone : co.CoPhone, ml = p ? p.email : QF3_ALIAS_;
-  return (p ? [p.name, p.title] : []).concat([co.name, 'Safety by design, not by chance', (blank(ph) ? '' : 'Tel/WhatsApp ' + ph + ' · ') + ml, web, S(db, 'OfficeAddress', ''),
+  var ph = p ? p.phone : co.CoPhone, ml = p ? p.email : QF3_ALIAS_, of = String(S(db, 'OfficeAddress', '')).trim(), yd = String(S(db, 'YardAddress', '')).trim();
+  return (p ? [p.name, p.title] : []).concat([co.name, 'Safety by design, not by chance', (blank(ph) ? '' : 'Tel/WhatsApp ' + ph + ' · ') + ml, web, blank(of) ? '' : (blank(yd) ? '' : 'Office: ') + of, blank(yd) ? '' : 'Yard: ' + yd,
     [blank(reg) ? '' : 'Reg. No. ' + reg, blank(tl) ? '' : 'Trade Licence ' + tl].filter(function (x) { return x; }).join(' · ')]).filter(function (x) { return !blank(x); }).join('\n');
 }
 // the email as proposed (panel: Email to client) — nothing is written
