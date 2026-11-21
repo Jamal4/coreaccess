@@ -223,6 +223,10 @@ textarea.inp{height:auto;min-height:84px;padding:10px 14px;resize:vertical;line-
 .qrow .sp{flex:1}
 .qs-Draft{background:var(--amberbg);color:var(--amber)} .qs-Sent{background:var(--skybg);color:var(--sky)} .qs-Accepted{background:var(--greenbg);color:var(--green)}
 .qs-Lost{background:var(--redbg);color:#fb7185} .qs-Expired,.qs-Cancelled{background:var(--card2);color:var(--muted)}
+.cs-Active{background:var(--greenbg);color:var(--green)} .cs-Inactive{background:var(--card2);color:var(--muted)}
+.ss-Planned{background:var(--skybg);color:var(--sky)} .ss-Ongoing{background:var(--greenbg);color:var(--green)} .ss-Closed,.ss-Other{background:var(--card2);color:var(--muted)}
+.ltab tr.go{cursor:pointer} .ltab tr.go:hover td{background:var(--card2)} .tblw{overflow-x:auto} .ccard .qno{font-size:13px}
+.f2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px} @media(max-width:560px){.f2{grid-template-columns:1fr}}
 .tag{font-size:12px;color:var(--muted)} .tag.fill{color:#fb7185;font-weight:700} .tag.chg{color:var(--amber);font-weight:700}
 .qhead{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
 .qhead h2{margin:0;font-size:21px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.3px}
@@ -699,7 +703,7 @@ var TILES=[
   {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
   {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, terms, email',ic:'doc',l:1,r:1},
   {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2,r:1},
-  {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1},
+  {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1,r:1},
   {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1},
   {d:'SC',k:'tenders',t:'Tenders',x:'Submission packs',ic:'award',l:1},
   {d:'PS',k:'jobs',t:'Jobs',x:'Status, close + settlement',ic:'brief',l:1},
@@ -802,10 +806,185 @@ function viewHome(f){
     if(k==='docreg') return viewDocs();
     if(k==='quotes') return viewQuotes();
     if(k==='newquote') return viewQuoteEdit();
+    if(k==='customers') return viewCusts();
     toast(b.querySelector('b').textContent+' — comes in a later step.');
   };});
 }
 
+/* ======================= SC › customers & projects (M1) ======================= */
+var CU={rows:[],can:false,loaded:false,q:'',st:'',seq:0,c:null};
+function cuS(v){return v==null?'':String(v);}
+function cuArr(x){return Array.isArray(x)?x:[];}
+function ncust(r){r=r||{};return {id:cuS(r.id),name:cuS(r.name),contact:cuS(r.contact),phone:cuS(r.phone),email:cuS(r.email),address:cuS(r.address),status:r.status==='Inactive'?'Inactive':'Active',
+  projects:cuArr(r.projects).map(cuS),sites:+r.sites||0,quotes:+r.quotes||0,last:isDay(r.last)?r.last:''};}
+function ncustFull(r){
+  r=r||{};var o=ncust(r);
+  o.designation=cuS(r.designation);o.bin=cuS(r.bin);o.paymentDays=typeof r.paymentDays==='number'?r.paymentDays:'';o.money=r.money===true;o.can=r.can===true;o.ev=typeof r.ev==='number'?r.ev:0;
+  o.sites=cuArr(r.sites).map(function(s){s=s||{};return {id:cuS(s.id),project:cuS(s.project),address:cuS(s.address),siteRep:cuS(s.siteRep),siteRepPhone:cuS(s.siteRepPhone),start:isDay(s.start)?s.start:'',status:cuS(s.status)||'Planned',quotes:+s.quotes||0,ev:typeof s.ev==='number'?s.ev:0};}).filter(function(s){return s.id;});
+  o.quotes=cuArr(r.quotes).map(function(q){q=q||{};return {no:cuS(q.no),date:isDay(q.date)?q.date:'',project:cuS(q.project),type:cuS(q.type),status:cuS(q.status)||'Draft',job:cuS(q.job),total:typeof q.total==='number'&&isFinite(q.total)?q.total:null};}).filter(function(q){return q.no;});
+  return o;
+}
+function viewCusts(){
+  document.title='Core Access · Customers';
+  CU.rows=[];CU.can=false;CU.loaded=false;CU.c=null;CU.q='';CU.st=''; /* nothing of an earlier sign-in is shown */
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="cq" type="search" placeholder="Search name, contact, phone, email, ID or project" autocomplete="off" aria-label="Search customers"></div>'+
+    '<span id="cnew"></span></div>'+
+    '<div class="chips t-teal" id="cst" role="group" aria-label="Status">'+['','Active','Inactive'].map(function(s){
+      return '<button type="button" class="chip'+(s===''?' on':'')+'" data-s="'+s+'" aria-pressed="'+(s==='')+'">'+(s||'All')+'</button>';}).join('')+'</div>'+
+    '<p class="cnt" id="ccnt">&nbsp;</p><div id="clist" class="qlist"><div class="empty">Loading customers…</div></div>';
+  shell('Sales · Customers & projects',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('cq').oninput=function(){CU.q=this.value.trim().toLowerCase();custsDraw();};
+  document.getElementById('cst').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;CU.st=b.getAttribute('data-s');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});custsDraw();};
+  document.getElementById('clist').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;
+    var id=b.getAttribute('data-c');if(CU.rows.some(function(c){return c.id===id;}))viewCust(id);};
+  custsLoad();
+}
+function custsLoad(){
+  var my=++CU.seq;
+  call('officeCustList',S.token).then(function(r){
+    if(my!==CU.seq||!document.getElementById('clist'))return;
+    CU.loaded=true;CU.can=!!(r&&r.can===true);
+    CU.rows=cuArr(r&&r.rows).map(ncust).filter(function(x){return x.id;});
+    CU.rows.sort(function(a,b){return a.name.localeCompare(b.name)||a.id.localeCompare(b.id);});
+    var nb=document.getElementById('cnew');
+    if(nb){nb.innerHTML=CU.can?'<button type="button" class="btn btn-primary btn-sm" id="cadd">'+ic('plus')+' New customer</button>':'';
+      if(CU.can)document.getElementById('cadd').onclick=function(){custDlg(null);};}
+    custsDraw();
+  },function(m){
+    if(my!==CU.seq||!document.getElementById('clist'))return;
+    if(srvGate(m))return;
+    document.getElementById('clist').innerHTML='<div class="empty">Could not load the customers: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="cretry">Try again</button></div>';
+    document.getElementById('cretry').onclick=custsLoad;
+  });
+}
+function custsDraw(){
+  var L=document.getElementById('clist');if(!L||!CU.loaded)return;
+  var n=CU.rows.length,act=CU.rows.filter(function(c){return c.status==='Active';}).length;
+  document.getElementById('ccnt').textContent=n+' customer'+(n===1?'':'s')+' · '+act+' active · '+(n-act)+' inactive';
+  var show=CU.rows.filter(function(c){
+    if(CU.st&&c.status!==CU.st)return false;
+    return !CU.q||(c.name+' '+c.contact+' '+c.phone+' '+c.email+' '+c.id+' '+c.projects.join(' ')).toLowerCase().indexOf(CU.q)>=0;
+  });
+  L.innerHTML=show.length?show.map(function(c){
+    return '<button type="button" class="qcard ccard" data-c="'+esc(c.id)+'"><div class="qrow"><span class="qno">'+esc(c.id)+'</span><span class="sp"></span><span class="pill cs-'+c.status+'">'+c.status+'</span></div>'+
+      '<div class="qc">'+esc(c.name)+'</div><div class="qp">'+esc([c.contact,c.phone,c.email].filter(Boolean).join(' · ')||'No contact yet')+'</div>'+
+      '<div class="qrow"><span class="tag">'+c.sites+' project'+(c.sites===1?'':'s')+' · '+c.quotes+' quote'+(c.quotes===1?'':'s')+'</span><span class="sp"></span><span class="tag">'+(c.last?'Last quote '+fmtDay(c.last):'No quotes yet')+'</span></div></button>';
+  }).join(''):'<div class="empty">'+(n?'No customers match.':'No customers yet.')+'</div>';
+}
+function viewCust(id){
+  id=cuS(id);document.title='Core Access · '+id;CU.c=null;
+  shell('Sales · Customer','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="cback">'+ic('back')+' Customers</button></div><div id="cv"><div class="empty">Loading '+esc(id)+'…</div></div>');
+  document.getElementById('cback').onclick=function(){viewCusts();};
+  custLoad(id);
+}
+function custLoad(id){
+  var my=++CU.seq;
+  call('officeCustGet',S.token,id).then(function(r){
+    if(my!==CU.seq||!document.getElementById('cv'))return;
+    var c=ncustFull(r);if(c.id!==id){viewCusts();toast(id+' could not be opened.');return;}
+    CU.c=c;custDraw();
+  },function(m){
+    if(my!==CU.seq||!document.getElementById('cv'))return;
+    if(srvGate(m))return;
+    if(code(m).split('|')[0]==='NOTFOUND'){viewCusts();toast(id+' no longer exists.');return;}
+    document.getElementById('cv').innerHTML='<div class="empty">Could not load '+esc(id)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="cvretry">Try again</button></div>';
+    document.getElementById('cvretry').onclick=function(){custLoad(id);};
+  });
+}
+function cuKv(rows){var r=rows.filter(function(x){return x[1]!=='';});return r.length?'<div class="meta">'+r.map(function(x){return '<span>'+x[0]+'</span><b>'+x[1]+'</b>';}).join('')+'</div>':'';}
+function custDraw(){
+  var c=CU.c,V=document.getElementById('cv');if(!c||!V)return;
+  var M=c.money,E=c.can,acc=c.quotes.filter(function(q){return q.status==='Accepted';});
+  var accT=acc.reduce(function(a,q){return a+(q.total||0);},0),accX=acc.some(function(q){return typeof q.total!=='number';}),last=c.quotes.map(function(q){return q.date;}).filter(Boolean).sort().pop()||'';
+  var ct=cuKv([['Person',esc(c.contact)],['Designation',esc(c.designation)],['Phone',esc(c.phone)],['Email',esc(c.email)]]);
+  var h='<div class="qhead"><div><h2>'+esc(c.name)+'</h2><div class="sub">'+esc(c.id)+'</div><div class="qrow" style="margin-top:8px"><span class="pill cs-'+c.status+'">'+c.status+'</span></div></div>'+
+    '<div class="qacts">'+(E?'<button type="button" class="btn btn-ghost btn-sm" id="cedit">'+ic('edit')+' Edit customer</button><button type="button" class="btn btn-ghost btn-sm" id="snew">'+ic('plus')+' New project</button>'+
+      (c.status==='Active'?'<button type="button" class="btn btn-primary btn-sm" id="qnew">'+ic('doc')+' New quote</button>':''):'')+'</div></div>'+
+    '<div class="qgrid"><div class="box"><h4>Contact</h4>'+(ct||'<div class="tag">No contact yet</div>')+'</div>'+
+    '<div class="box"><h4>Company</h4>'+(cuKv([['Address',esc(c.address)],['BIN',esc(c.bin)],['Payment',c.paymentDays===''?'':c.paymentDays+' days']])||'<div class="tag">—</div>')+'</div>'+
+    '<div class="box"><h4>Summary</h4>'+cuKv([['Projects',String(c.sites.length)],['Quotes',String(c.quotes.length)],['Accepted',String(acc.length)],['Accepted value',M&&acc.length?(accX?'—':'Tk '+tk(accT)):''],['Last quote',last?fmtDay(last):'']])+'</div></div>';
+  h+='<div class="box" style="margin-bottom:12px"><h4>Projects / sites</h4>'+(c.sites.length?'<div class="tblw"><table class="ltab"><thead><tr><th>ID</th><th>Project</th><th>Address</th><th>Site rep</th><th>Start</th><th>Status</th><th class="r">Quotes</th>'+(E?'<th></th>':'')+'</tr></thead><tbody>'+
+    c.sites.map(function(s){var sc=['Planned','Ongoing','Closed'].indexOf(s.status)>=0?s.status:'Other';
+      return '<tr><td class="qno">'+esc(s.id)+'</td><td>'+esc(s.project)+'</td><td>'+esc(s.address||'—')+'</td><td>'+esc([s.siteRep,s.siteRepPhone].filter(Boolean).join(' · ')||'—')+'</td><td>'+fmtDay(s.start)+'</td><td><span class="pill ss-'+sc+'">'+esc(s.status)+'</span></td><td class="r">'+s.quotes+'</td>'+
+      (E?'<td class="r"><button type="button" class="btn btn-ghost btn-sm" data-se="'+esc(s.id)+'" aria-label="Edit project '+esc(s.project)+'">'+ic('edit')+'</button></td>':'')+'</tr>';}).join('')+'</tbody></table></div>':'<div class="empty">No projects yet.</div>')+'</div>';
+  h+='<div class="box"><h4>Quote history</h4>'+(c.quotes.length?'<div class="tblw"><table class="ltab"><thead><tr><th>Quote</th><th>Date</th><th>Project</th><th>Type</th><th>Status</th>'+(M?'<th class="r">Total</th>':'')+'<th>Job</th></tr></thead><tbody>'+
+    c.quotes.slice().sort(function(a,b){return (b.date>a.date?1:b.date<a.date?-1:0)||b.no.localeCompare(a.no);}).map(function(q){var qc=QSTAT.indexOf(q.status)>=0?q.status:'Cancelled';
+      return '<tr class="go" data-q="'+esc(q.no)+'" tabindex="0"><td class="qno">'+esc(q.no)+'</td><td>'+fmtDay(q.date)+'</td><td>'+esc(q.project)+'</td><td><span class="pill ty">'+esc(q.type)+'</span></td><td><span class="pill qs-'+qc+'">'+esc(q.status)+'</span></td>'+
+      (M?'<td class="r">'+(q.total==null?'—':'Tk '+tk(q.total))+'</td>':'')+'<td>'+esc(q.job||'—')+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="empty">No quotes yet.</div>')+'</div>';
+  V.innerHTML=h;
+  [].forEach.call(V.querySelectorAll('tr.go'),function(r){var go=function(){viewQuote(r.getAttribute('data-q'));};r.onclick=go;r.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();go();}};});
+  if(!E)return;
+  document.getElementById('cedit').onclick=function(){custDlg(c);};
+  document.getElementById('snew').onclick=function(){cuSiteDlg(c,null);};
+  var qn=document.getElementById('qnew');if(qn)qn.onclick=function(){viewQuoteEdit('',c.id);};
+  [].forEach.call(V.querySelectorAll('[data-se]'),function(b){b.onclick=function(){var id=b.getAttribute('data-se');cuSiteDlg(c,c.sites.filter(function(s){return s.id===id;})[0]||null);};});
+}
+function cuFld(id,lab,v,o){o=o||{};return '<label class="fld"><span>'+lab+'</span><input class="inp np" id="'+id+'" type="'+(o.t||'text')+'"'+(o.m?' maxlength="'+o.m+'"':'')+(o.im?' inputmode="'+o.im+'"':'')+' value="'+esc(v==null?'':v)+'" autocomplete="off"></label>';}
+function custDlg(c){
+  var my=openDlg('<h3 id="dlgt">'+(c?'Edit customer':'New customer')+'</h3><p class="sub">'+(c?esc(c.id)+' · changes are logged. ':'')+'The same name, phone or email as another customer is refused.</p><div id="derr"></div>'+
+    cuFld('fn','Company name',c&&c.name,{m:120})+'<div class="f2">'+cuFld('fc','Contact person',c&&c.contact,{m:80})+cuFld('fd','Designation',c&&c.designation,{m:80})+
+    cuFld('fp','Phone',c&&c.phone,{m:40,im:'tel'})+cuFld('fe','Email',c&&c.email,{m:160,t:'email'})+'</div>'+
+    cuFld('fa','Address',c&&c.address,{m:200})+'<div class="f2">'+cuFld('fb','BIN',c&&c.bin,{m:40})+cuFld('fy','Payment days',c?c.paymentDays:'',{m:3,im:'numeric'})+'</div>'+
+    (c?'<div class="fld"><span>Status</span><div><span class="seg t-teal" id="fs" role="radiogroup" aria-label="Status">'+['Active','Inactive'].map(function(s){
+      return '<button type="button" role="radio" data-v="'+s+'" aria-checked="'+(c.status===s)+'"'+(c.status===s?' class="on"':'')+'>'+s+'</button>';}).join('')+'</span></div><small>Inactive customers stay in the history but are not offered on a new quote.</small></div>':'')+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">'+(c?'Save changes':'Add customer')+'</button></div>');
+  var st=c?c.status:'Active',yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  if(c)document.getElementById('fs').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(!b||DLG.busy)return;st=b.getAttribute('data-v');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    if(!v('fn')){dlgErr('Please give the company name.');return;}
+    var pd=v('fy');if(pd&&(!/^\d{1,3}$/.test(pd)||+pd>365)){dlgErr('Payment days: a whole number from 0 to 365 (empty = company default).');return;}
+    var d={name:v('fn'),contact:v('fc'),designation:v('fd'),phone:v('fp'),email:v('fe'),address:v('fa'),bin:v('fb'),paymentDays:pd===''?'':+pd};
+    if(c){d.id=c.id;d.status=st;d.ev=c.ev;}
+    DLG.busy=true;busyBtn(yes,true,'Checking…');dlgErr('');
+    call(c?'officeCustomerSave':'officeCustomerAdd',S.token,d).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      var id=cuS(r&&r.id)||(c?c.id:'');toast(c?'Saved.':cuS(r&&r.name)+' added ('+id+').');if(id)viewCust(id);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='DUP'){dlgErr('Same '+esc(k[2]||'details')+' as customer <b>'+esc(k[1]||'')+'</b>. Not saved. <button type="button" class="btn btn-ghost btn-sm" id="dgo">Open it</button>');
+        var g=document.getElementById('dgo');if(g)g.onclick=function(){closeDlg();viewCust(k[1]);};return;}
+      if(k[0]==='STALE'){staleClose(function(){viewCust(c.id);});return;}
+      if(k[0]==='NOTFOUND'){closeDlg();viewCusts();toast('This customer no longer exists.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('fn').focus();},30);
+}
+function cuSiteDlg(c,s){
+  var my=openDlg('<h3 id="dlgt">'+(s?'Edit project':'New project')+'</h3><p class="sub">'+esc(c.name)+(s?' · '+esc(s.id):'')+' · the same project at the same address can\'t be added twice for one customer.</p><div id="derr"></div>'+
+    cuFld('sp','Project name',s&&s.project,{m:120})+cuFld('sa','Site address',s&&s.address,{m:200})+'<div class="f2">'+cuFld('sr','Site rep',s&&s.siteRep,{m:80})+cuFld('sh','Site rep phone',s&&s.siteRepPhone,{m:40,im:'tel'})+'</div>'+
+    cuFld('sd','Start date',s&&s.start,{t:'date'})+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">'+(s?'Save changes':'Add project')+'</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    if(!v('sp')){dlgErr('Please give the project name.');return;}
+    var sd=v('sd');if(sd&&!isDay(sd)){dlgErr('Please check the start date.');return;}
+    var d={project:v('sp'),address:v('sa'),siteRep:v('sr'),siteRepPhone:v('sh'),startDate:sd};
+    if(s){d.id=s.id;d.ev=s.ev;}else d.cust=c.id;
+    DLG.busy=true;busyBtn(yes,true,'Checking…');dlgErr('');
+    call(s?'officeSiteSave':'officeSiteAdd',S.token,d).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      toast(s?'Saved.':cuS(r&&r.project)+' added.');viewCust(c.id);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='DUP'){dlgErr('This customer already has that project ('+esc(k[1]||'')+'). Not saved.');return;}
+      if(k[0]==='STALE'){staleClose(function(){viewCust(c.id);});return;}
+      if(k[0]==='NOTFOUND'){closeDlg();viewCust(c.id);toast('That project or customer no longer exists.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('sp').focus();},30);
+}
 /* ======================= server errors (any screen) ======================= */
 /* a dead session goes back to sign-in; no access goes Home; the rest is text for the screen */
 function srvGate(m){
@@ -1744,7 +1923,7 @@ function qeShell(no){ /* W4g: the form's frame (open + reopen) */
     askDlg('Sign out without saving?',(QE.dirty?'Your changes to '+(no?esc(no):'this new quote')+' are not saved yet. ':'')+esc(qeRiskTxt()),'Sign out',true,function(){return Promise.resolve();},function(){QE.dirty=false;(out0.go||out0).call(out);});}; /* CR: one ask; dirty cleared only when it goes ahead */
 }
 /* entry: no = quote number to edit, empty = new */
-function viewQuoteEdit(no){
+function viewQuoteEdit(no,cu){ /* M1: cu = customer to pick on a new quote */
   document.title='Core Access · '+(no?'Edit '+no:'New quote');
   if(no&&QB.lost[no])return qeUnpark(no); /* its last save was refused: the person's data + the reason */
   QE.d=null;QE.q=null;QE.dirty=false;QE.job=null;qePickClose();qeShell(no);
@@ -1757,6 +1936,7 @@ function viewQuoteEdit(no){
     QE.q=x?{no:x.no,rev:x.rev,status:x.status,ev:x.ev,svc:x.svc,type:x.type,cust:x.cust,site:x.site,attention:x.attention,subject:x.subject,date:x.date,valid:x.valid,prep:x.prep,adv:x.adv,lines:x.lines.length?x.lines:[qeLine()]}
       :{no:'',rev:0,status:'Draft',ev:0,type:'',cust:'',site:'',attention:'',subject:'',date:today,valid:qeAddDays(today,D.set.validDays),prep:D.myStaff,adv:D.set.adv,lines:[qeLine(),qeLine(),qeLine()]};
     if(!D.staff.some(function(s){return s.id===QE.q.prep;}))QE.q.prep='';
+    if(!x&&cu&&D.customers.some(function(c){return c.id===cu;}))QE.q.cust=cu;
     if(!isDirector(S.user.depts))QE.q.prep=D.staff.some(function(s){return s.id===D.myStaff;})?D.myStaff:''; /* D2: the person who saves is the preparer (signs the PDF) */
     qeDraw();
   },function(m){

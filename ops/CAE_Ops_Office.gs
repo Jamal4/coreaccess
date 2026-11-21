@@ -1455,10 +1455,10 @@ function oQeRate_(env, L) { // a flood of writes from one login is refused (SLOW
 }
 function oQeCustOut_(c) { return { id: String(c.CustID), name: oUncell_(c.Name), contact: oUncell_(c.ContactPerson), phone: oUncell_(c.Phone), email: oUncell_(c.Email), address: oUncell_(c.Address) }; }
 function oQeSiteOut_(s) { return { id: String(s.SiteID), cust: String(s.CustID), project: oUncell_(s.Project), address: oUncell_(s.Address) }; }
-function oQeDupCust_(db, f) { // -> [row, 'name' | 'phone' | 'email'] or null
+function oQeDupCust_(db, f, ex) { // -> [row, 'name' | 'phone' | 'email'] or null; ex = own CustID (an edit)
   var k = oQeKey_(f.name), ph = oQePhones_(f.phone), em = oQeMails_(f.email), hit = null;
   db.rows('Customers').some(function (r) {
-    if (blank(r.CustID)) return false;
+    if (blank(r.CustID) || (ex && String(r.CustID) === ex)) return false;
     var w = k && oQeKey_(r.Name) === k ? 'name' : ph.length && oQePhones_(r.Phone).some(function (p) { return ph.indexOf(p) >= 0; }) ? 'phone'
       : em.length && oQeMails_(r.Email).some(function (e) { return em.indexOf(e) >= 0; }) ? 'email' : '';
     if (w) hit = [r, w];
@@ -1466,9 +1466,9 @@ function oQeDupCust_(db, f) { // -> [row, 'name' | 'phone' | 'email'] or null
   });
   return hit;
 }
-function oQeDupSite_(db, cust, project, address) {
+function oQeDupSite_(db, cust, project, address, ex) { // ex = own SiteID (an edit)
   var p = oQeKey_(project), a = oQeKey_(address);
-  return db.rows('Sites').filter(function (s) { return !blank(s.SiteID) && String(s.CustID) === cust && oQeKey_(s.Project) === p && oQeKey_(s.Address) === a; })[0] || null;
+  return db.rows('Sites').filter(function (s) { return !blank(s.SiteID) && (!ex || String(s.SiteID) !== ex) && String(s.CustID) === cust && oQeKey_(s.Project) === p && oQeKey_(s.Address) === a; })[0] || null;
 }
 function oQeOldLine_(l) { var m = blank(l.Months) ? 0 : num(l.Months); return String(l.Billing) === 'Milestone' || (m !== 0 && m !== 1); }
 function oQeOld_(db, no) { // lines the 7 columns can't show without changing the total -> edit in the sheet panel
@@ -1503,7 +1503,7 @@ function officeQuoteForm(token, no) {
   list.forEach(function (i) { if (i.isSet && typeof kitParts_ === 'function') { try { kits[i.code] = kitParts_(db, i.code).map(function (p) { return [p.item, p.qty]; }); } catch (e) { /* a set without parts: no kit */ } } });
   var units = uiList_(db, 'Unit').map(String);
   var out = { money: M, today: oDayOf_(env.now()), myStaff: String(L.staff || ''), set: oQeSet_(db, q), units: units, items: list, kits: kits,
-    customers: db.rows('Customers').filter(function (c) { return !blank(c.CustID); }).map(oQeCustOut_),
+    customers: db.rows('Customers').filter(function (c) { return !blank(c.CustID) && (oCuSt_(c) === 'Active' || (q && String(c.CustID) === String(q.CustID))); }).map(oQeCustOut_), // M1: Inactive ones are not offered (an edit keeps its own)
     sites: db.rows('Sites').filter(function (s) { return !blank(s.SiteID); }).map(oQeSiteOut_),
     staff: db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name); }).map(function (s) { return { id: String(s.StaffID), name: oUncell_(s.Name) }; }), quote: null };
   if (q) {
@@ -1524,12 +1524,11 @@ function officeCustomerAdd(token, c) {
   officeGate_(token, OQ_NEED_);
   return oQW_(token, function (env, db, L) {
     c = c && typeof c === 'object' && !Array.isArray(c) ? c : {};
-    var f = { name: oQeTxt_(c.name, 120, 'name', true), contact: oQeTxt_(c.contact, 80, 'contact'), phone: oQeTxt_(c.phone, 40, 'phone'), email: oQeTxt_(c.email, 160, 'email'), address: oQeTxt_(c.address, 200, 'address') };
+    var f = oCuF_(c);
     oQeRate_(env, L); // every try counts (a flood of refused tries too)
-    if (f.phone && (!/\d/.test(f.phone) || /[^\d\s+\-\/,().]/.test(f.phone) || !/^[\d+(]/.test(f.phone))) oFail_('BADINPUT|phone'); // +880... is kept as text by cellVal_
-    if (f.email) { if (/(^|[,;]\s*)[=+\-@]/.test(f.email)) oFail_('BADINPUT|email'); try { f.email = qfEmail_(f.email); } catch (e) { oFail_('BADINPUT|email'); } if (f.email.length > 160) oFail_('BADINPUT|email'); }
+    oCuChk_(f);
     var dup = oQeDupCust_(db, f); if (dup) oFail_('DUP|' + dup[0].CustID + '|' + dup[1]);
-    var cp; try { cp = qfCustPlan_(db, { mode: 'new', fields: { name: oCell_(f.name), contact: oCell_(f.contact), phone: f.phone, email: f.email, address: oCell_(f.address) } }); }
+    var cp; try { cp = qfCustPlan_(db, { mode: 'new', fields: oCuPatch_(f) }); }
     catch (e) { oFail_('BADINPUT|details'); }
     qfReadyUp_(db);
     var w = qfCustWrite_(db, cp);
@@ -1543,13 +1542,123 @@ function officeSiteAdd(token, s) {
     var cust = typeof s.cust === 'string' && s.cust ? find(db.rows('Customers'), 'CustID', s.cust) : null;
     if (!cust) oFail_('BADINPUT|customer');
     oQeRate_(env, L);
-    var f = { project: oQeTxt_(s.project, 120, 'project', true), address: oQeTxt_(s.address, 200, 'address') };
+    var f = oSiF_(s);
     var dup = oQeDupSite_(db, String(cust.CustID), f.project, f.address); if (dup) oFail_('DUP|' + dup.SiteID + '|project');
-    var sp; try { sp = qfSitePlan_(db, { mode: 'new', fields: { project: oCell_(f.project), address: oCell_(f.address) } }, { row: cust, patch: {} }); }
+    var sp; try { sp = qfSitePlan_(db, { mode: 'new', fields: oSiPatch_(f) }, { row: cust, patch: {} }); }
     catch (e) { oFail_('BADINPUT|details'); }
     qfReadyUp_(db);
     var w = qfSiteWrite_(db, sp, String(cust.CustID));
     return oQeSiteOut_(must(env.db() || db, 'Sites', 'SiteID', w.id));
+  });
+}
+// ======================================================================= M1 customers & projects (SC)
+function oCuSt_(c) { return String(c && c.Status == null ? '' : c.Status).trim() === 'Inactive' ? 'Inactive' : 'Active'; }
+function oCuF_(c) { // the customer fields of the web forms, checked; absent = ''
+  var f = { name: oQeTxt_(c.name, 120, 'name', true), contact: oQeTxt_(c.contact, 80, 'contact'), designation: oQeTxt_(c.designation, 80, 'designation'), phone: oQeTxt_(c.phone, 40, 'phone'),
+    email: oQeTxt_(c.email, 160, 'email'), address: oQeTxt_(c.address, 200, 'address'), bin: oQeTxt_(c.bin, 40, 'BIN'), paymentDays: '' };
+  var pd = c.paymentDays;
+  if (pd != null && pd !== '') { if (typeof pd !== 'number' || !isFinite(pd) || pd < 0 || pd > 365 || Math.round(pd) !== pd) oFail_('BADINPUT|payment days'); f.paymentDays = pd; }
+  return f;
+}
+function oCuChk_(f) {
+  if (f.phone && (!/\d/.test(f.phone) || /[^\d\s+\-\/,().]/.test(f.phone) || !/^[\d+(]/.test(f.phone))) oFail_('BADINPUT|phone'); // +880... is kept as text by cellVal_
+  if (f.email) { if (/(^|[,;]\s*)[=+\-@]/.test(f.email)) oFail_('BADINPUT|email'); try { f.email = qfEmail_(f.email); } catch (e) { oFail_('BADINPUT|email'); } if (f.email.length > 160) oFail_('BADINPUT|email'); }
+}
+function oCuPatch_(f) { // -> QF_CF_ keys (payment days '' = company default)
+  return { name: oCell_(f.name), contact: oCell_(f.contact), designation: oCell_(f.designation), phone: f.phone, email: f.email, address: oCell_(f.address), bin: oCell_(f.bin), paymentDays: f.paymentDays === '' ? '' : String(f.paymentDays) };
+}
+function oSiF_(s) { // the project fields of the web forms, checked; absent = ''
+  var f = { project: oQeTxt_(s.project, 120, 'project', true), address: oQeTxt_(s.address, 200, 'address'), siteRep: oQeTxt_(s.siteRep, 80, 'site rep'), siteRepPhone: oQeTxt_(s.siteRepPhone, 40, 'site rep phone'), startDate: '' };
+  if (f.siteRepPhone && (!/\d/.test(f.siteRepPhone) || /[^\d\s+\-\/,().]/.test(f.siteRepPhone) || !/^[\d+(]/.test(f.siteRepPhone))) oFail_('BADINPUT|site rep phone');
+  if (s.startDate != null && s.startDate !== '') { if (!oDayOk_(s.startDate)) oFail_('BADINPUT|start date'); f.startDate = s.startDate; }
+  return f;
+}
+function oSiPatch_(f) { return { project: oCell_(f.project), address: oCell_(f.address), siteRep: oCell_(f.siteRep), siteRepPhone: f.siteRepPhone, startDate: f.startDate }; }
+// CR-M1: ev = hash of the row as the form was opened (STALE when someone saved meanwhile); old panel PDFs of open quotes marked out of date
+function oCuEv_(r, defs, ex) { return oQHash_(JSON.stringify(defs.map(function (d) { return d[1]; }).concat(ex || []).map(function (k) { var x = r[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); }))); }
+function oCuPdfOld_(env, db, key, id) { db.rows('Quotes').forEach(function (q) { if (oQNo_(String(q.QuoteNo)) && String(q[key]) === id && !oQLocked_(db, q)) oQPdfStale_(env, db, String(q.QuoteNo)); }); }
+function oCuQTot_(db, q, no) { try { return typeof q.Total === 'number' && isFinite(q.Total) ? q.Total : quoteTotals(db, no).total; } catch (e) { return null; } } // Total = sheet formula
+function officeCustList(token) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var ns = {}, pj = {}, nq = {}, lq = {};
+  db.rows('Sites').forEach(function (s) { if (blank(s.SiteID)) return; var k = String(s.CustID); ns[k] = (ns[k] || 0) + 1; (pj[k] = pj[k] || []).push(oUncell_(s.Project)); });
+  db.rows('Quotes').forEach(function (q) { if (!oQNo_(String(q.QuoteNo))) return; var k = String(q.CustID), d = oQDn_(q.QuoteDate); nq[k] = (nq[k] || 0) + 1; if (d != null && (lq[k] == null || d > lq[k])) lq[k] = d; });
+  var rows = db.rows('Customers').filter(function (c) { return !blank(c.CustID); }).map(function (c) {
+    var k = String(c.CustID), o = oQeCustOut_(c);
+    o.status = oCuSt_(c); o.projects = pj[k] || []; o.sites = ns[k] || 0; o.quotes = nq[k] || 0; o.last = lq[k] == null ? '' : oQDay_(lq[k]);
+    return o;
+  });
+  return { can: oQCan_(oAcc_(L)), rows: rows };
+}
+function officeCustGet(token, id) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var c = typeof id === 'string' && id ? find(db.rows('Customers'), 'CustID', id) : null;
+  if (!c || blank(c.CustID)) oFail_('NOTFOUND');
+  var k = String(c.CustID), jobs = {}, sites = {}, sq = {};
+  db.rows('Jobs').forEach(function (j) { if (!blank(j.QuoteNo) && !jobs[String(j.QuoteNo)]) jobs[String(j.QuoteNo)] = String(j.JobNo); });
+  var ss = db.rows('Sites').filter(function (s) { return !blank(s.SiteID) && String(s.CustID) === k; });
+  ss.forEach(function (s) { sites[String(s.SiteID)] = s; });
+  var quotes = db.rows('Quotes').filter(function (q) { return oQNo_(String(q.QuoteNo)) && String(q.CustID) === k; }).map(function (q) {
+    var no = String(q.QuoteNo), sid = blank(q.SiteID) ? '' : String(q.SiteID), s = sites[sid] || null;
+    if (sid) sq[sid] = (sq[sid] || 0) + 1;
+    var o = { no: no, date: oQDay_(oQDn_(q.QuoteDate)), project: s && !blank(s.Project) ? oUncell_(s.Project) : oUncell_(q.Subject), type: oQType_(q), status: String(q.Status || 'Draft'), job: jobs[no] || '' };
+    if (M) o.total = oCuQTot_(db, q, no);
+    return o;
+  });
+  var o = oQeCustOut_(c);
+  o.designation = oUncell_(c.Designation); o.bin = oUncell_(c.BIN); o.paymentDays = blank(c.PaymentDays) ? '' : num(c.PaymentDays); o.status = oCuSt_(c);
+  o.money = M; o.can = oQCan_(a); o.quotes = quotes; o.ev = oCuEv_(c, QF_CF_, ['Status']);
+  o.sites = ss.map(function (s) {
+    var x = oQeSiteOut_(s);
+    x.siteRep = oUncell_(s.SiteRep); x.siteRepPhone = oUncell_(s.SiteRepPhone); x.start = oDay_(s.StartDate); x.status = String(s.Status || 'Planned'); x.quotes = sq[x.id] || 0; x.ev = oCuEv_(s, QF_SF_);
+    return x;
+  });
+  return o;
+}
+// c = {id, ev, name, contact, designation, phone, email, address, bin, paymentDays, status: Active | Inactive}
+function officeCustomerSave(token, c) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    c = c && typeof c === 'object' && !Array.isArray(c) ? c : {};
+    var row = typeof c.id === 'string' && c.id ? find(db.rows('Customers'), 'CustID', c.id) : null;
+    if (!row || blank(row.CustID)) oFail_('NOTFOUND');
+    if (c.ev !== oCuEv_(row, QF_CF_, ['Status'])) oFail_('STALE');
+    var f = oCuF_(c);
+    if (c.status !== 'Active' && c.status !== 'Inactive') oFail_('BADINPUT|status');
+    oQeRate_(env, L);
+    oCuChk_(f);
+    var id = String(row.CustID), dup = oQeDupCust_(db, f, id); if (dup) oFail_('DUP|' + dup[0].CustID + '|' + dup[1]);
+    var cp; try { cp = qfCustPlan_(db, { mode: 'existing', id: id, fields: oCuPatch_(f) }); }
+    catch (e) { oFail_('BADINPUT|details'); }
+    if (oCuSt_(row) !== c.status) cp.patch.Status = c.status;
+    qfReadyUp_(db);
+    if (Object.keys(cp.patch).some(function (k) { return k !== 'Status'; })) oCuPdfOld_(env, db, 'CustID', id); // CR7 rule: before the write
+    qfCustWrite_(db, cp);
+    var r = must(env.db() || db, 'Customers', 'CustID', id), o = oQeCustOut_(r); o.status = oCuSt_(r);
+    return o;
+  });
+}
+// s = {id, ev, project, address, siteRep, siteRepPhone, startDate: yyyy-mm-dd | ''}
+function officeSiteSave(token, s) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    s = s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+    var row = typeof s.id === 'string' && s.id ? find(db.rows('Sites'), 'SiteID', s.id) : null;
+    if (!row || blank(row.SiteID)) oFail_('NOTFOUND');
+    var cust = find(db.rows('Customers'), 'CustID', row.CustID);
+    if (!cust) oFail_('NOTFOUND');
+    if (s.ev !== oCuEv_(row, QF_SF_)) oFail_('STALE');
+    oQeRate_(env, L);
+    var f = oSiF_(s), id = String(row.SiteID);
+    var dup = oQeDupSite_(db, String(cust.CustID), f.project, f.address, id); if (dup) oFail_('DUP|' + dup.SiteID + '|project');
+    var sp; try { sp = qfSitePlan_(db, { mode: 'existing', id: id, fields: oSiPatch_(f) }, { row: cust, patch: {} }); }
+    catch (e) { oFail_('BADINPUT|details'); }
+    qfReadyUp_(db);
+    if (Object.keys(sp.patch || {}).length) oCuPdfOld_(env, db, 'SiteID', id); // CR7 rule: before the write
+    qfSiteWrite_(db, sp, String(cust.CustID));
+    return oQeSiteOut_(must(env.db() || db, 'Sites', 'SiteID', id));
   });
 }
 // d = {no, ev, type, cust, site, attention, subject, date, valid, prep, adv, pdf, lines: [{code, desc, qty, unit, rate, opt, basis, dim}]}
@@ -2322,6 +2431,7 @@ var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // la
   'officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus',
   'officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail',
   'officeQuoteForm', 'officeCustomerAdd', 'officeSiteAdd', 'officeQuoteSave',
+  'officeCustList', 'officeCustGet', 'officeCustomerSave', 'officeSiteSave',
   'officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
