@@ -1661,6 +1661,225 @@ function officeSiteSave(token, s) {
     return oQeSiteOut_(must(env.db() || db, 'Sites', 'SiteID', id));
   });
 }
+// ----------------------------------------------------------------- M2 (21 Nov): SC > Contracts (PO / WO) = Jobs rows made from a quote
+// Reuses quoteToJob / quoteTotals / quoteToPI (Code.gs). New columns (added in the lock on the first write, safe to repeat):
+// Jobs.OrderKind (PO / WO / LOI), Jobs.AdvancePct (blank = the quote's), QuoteLines.NeedsFab (Yes / blank; never printed).
+// officeContractList(token)          -> {can, money, rows: [contract card], free: [Sent quotes without a job] (writers only), staff}
+// officeContractGet(token, job)      -> one contract (+ ev = hash of the row as shown; money only for money logins)
+// officeContractMake(token, d)       d = {quote, kind, no, date, adv (%), pm} -> {job}; quote must be Sent, no job (else EXISTS|job)
+// officeContractSave(token, d)       d = {job, ev, kind, no, date, pm, status, notes, adv, sdAmount, sdCheque, sdStatus} (ev old -> STALE)
+// officeContractFab(token, d)        d = {job, line, fab: true | false} -> sets QuoteLines.NeedsFab (planning only, no PDF change)
+// officeContractAdvance(token, d)    d = {job, amount, date} -> {pi} Draft advance PI (one per contract, else PIMADE)
+// Codes: NOTFOUND, EXISTS|job, QSTATE|status, CLOSED, PIMADE, NOTOTAL, STALE, BADINPUT|field, NOACCESS, BUSY.
+var OCT_KINDS_ = ['PO', 'WO', 'LOI'];
+var OCT_EV_ = ['ClientWONo', 'ClientWODate', 'OrderKind', 'AdvancePct', 'PM', 'Status', 'Notes', 'SecDepAmount', 'SecDepChequeNo', 'SecDepStatus', 'ContractValue'];
+function oCtUp_(db) { // idempotent; columns at the end (formulas / panels find columns by name)
+  var done = [];
+  if (db.ensureColumn('Jobs', 'OrderKind')) done.push('Jobs + OrderKind');
+  if (db.ensureColumn('Jobs', 'AdvancePct')) done.push('Jobs + AdvancePct');
+  if (db.ensureColumn('QuoteLines', 'NeedsFab')) done.push('QuoteLines + NeedsFab');
+  if (done.length) log_(db, 'Upgrade M2', '', done.join('; '));
+}
+function oCtEv_(j) { return oCuEv_(j, [], OCT_EV_); }
+function oCtEvX_(db, j) { // ev = the row + the effective advance % and value (they can follow the quote / Settings)
+  var qn = String(j.QuoteNo == null ? '' : j.QuoteNo), q = qn ? find(db.rows('Quotes'), 'QuoteNo', qn) : null;
+  return oQHash_(oCtEv_(j) + '|' + oCtPct_(db, j, q) + '|' + oCtValue_(db, j, q));
+}
+function oCtKind_(j) { var k = String(j.OrderKind == null ? '' : j.OrderKind); return OCT_KINDS_.indexOf(k) >= 0 ? k : 'WO'; }
+function oCtClosed_(j) { return String(j.Status) === 'Closed'; }
+function oCtRow_(db, no) { var n = oQNo_(no), j = n ? find(db.rows('Jobs'), 'JobNo', n) : null; if (!j || blank(j.JobNo)) oFail_('NOTFOUND'); return j; }
+function oCtDay_(v, env, what) { // '' or yyyy-mm-dd from 2020 to a year ahead -> a sheet date
+  if (v == null || v === '') return '';
+  var d = oDayOk_(v) ? oQDn_(oDayCell_(v)) : null, now = oQDn_(new Date(env.now()));
+  if (d == null || d < oQDn_(new Date(2020, 0, 1)) || (now != null && d > now + 366)) oFail_('BADINPUT|' + what);
+  return oDayCell_(v);
+}
+function oCtNotes_(v) { return v == null || (typeof v === 'string' && !v.trim()) ? '' : oQeDesc_(v, 'notes'); }
+function oCtValue_(db, j, q) { // contract value = ContractValue, else the quote total (incl. VAT); null when unknown
+  if (typeof j.ContractValue === 'number' && isFinite(j.ContractValue)) return j.ContractValue;
+  if (!blank(j.ContractValue) && isFinite(num(j.ContractValue))) return num(j.ContractValue);
+  return q ? oCuQTot_(db, q, String(q.QuoteNo)) : null;
+}
+function oCtPct_(db, j, q) { // advance share 0-1: the contract's, else the quote's, else Settings 50 %
+  if (!blank(j.AdvancePct) && isFinite(num(j.AdvancePct))) return num(j.AdvancePct);
+  return q && !blank(q.AdvancePct) ? num(q.AdvancePct) : num(S(db, 'AdvancePct', 0.5));
+}
+function oCtPis_(db, qno) { return db.rows('Proformas').filter(function (p) { return !blank(p.PINo) && String(p.QuoteNo) === qno && p.Status !== 'Cancelled'; }); }
+function oCtMoney_(db, j, q, pis) { // value, advance, PI, paid, set off (all numbers or null)
+  var v = oCtValue_(db, j, q), pct = oCtPct_(db, j, q), no = pis.map(function (p) { return String(p.PINo); });
+  var paid = r2(sum(db.rows('Allocations').filter(function (a) { return a.DocType === 'PI' && no.indexOf(String(a.DocNo)) >= 0; }), function (a) { return num(a.Amount); }));
+  var set = r2(sum(db.rows('Invoices').filter(function (i) { return String(i.JobNo) === String(j.JobNo) && i.Status !== 'Cancelled'; }), function (i) { return num(i.AdvanceAdjusted); }));
+  var p = pis[0] || null;
+  return { value: v, advPct: pct, adv: v == null ? null : r2(v * pct), paid: paid, set: set, pi: p ? { no: String(p.PINo), status: String(p.Status || 'Draft'), amount: num(p.Amount) } : null };
+}
+function oCtLines_(db, qno, M) {
+  var items = {}; db.rows('Items').forEach(function (i) { items[String(i.ItemCode)] = i; });
+  return oQLines_(db, qno).filter(function (l) { return l.Selected === 'Yes'; }).map(function (l, i) {
+    var it = items[String(l.ItemCode)] || {}, dim = typeof qfDimTxt_ === 'function' ? qfDimTxt_(l) : '';
+    var o = { id: String(l.LineID), n: num(l.LineNo) || i + 1, desc: oUncell_(l.Description || it.Name || ''), size: dim || String(it.Size == null ? '' : it.Size), unit: String(l.Unit || ''), qty: num(l.Qty),
+      months: blank(l.Months) ? '' : num(l.Months), fab: String(l.NeedsFab) === 'Yes' };
+    if (M) { o.rate = num(l.Rate); o.amount = lineAmt(l); }
+    return o;
+  });
+}
+function oCtQv_(db, q) { // version of a quote as offered in the picker: a revision / resend / other total or terms -> another number
+  var n = String(q.QuoteNo);
+  return oQHash_([q.Rev, q.Status, oCuQTot_(db, q, n), q.AdvancePct, q.CustID, q.SiteID, q.QuoteType].map(function (x) { return String(x == null ? '' : x); }).join('|'));
+}
+function oCt4_(x) { return Math.round(num(x) * 1e4); } // shares compared at the 2-decimal % shown in the form
+function oCtStaff_(db) { return db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name); }).map(function (s) { return { id: String(s.StaffID), name: oUncell_(s.Name) }; }); }
+function officeContractList(token) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), C = oQCan_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var cus = {}, sites = {}, qs = {}, stf = {}, fab = {}, has = {};
+  db.rows('Customers').forEach(function (c) { cus[String(c.CustID)] = c; });
+  db.rows('Sites').forEach(function (s) { sites[String(s.SiteID)] = s; });
+  db.rows('Quotes').forEach(function (q) { if (oQNo_(String(q.QuoteNo))) qs[String(q.QuoteNo)] = q; });
+  db.rows('Staff').forEach(function (s) { stf[String(s.StaffID)] = s; });
+  db.rows('QuoteLines').forEach(function (l) { if (l.Selected === 'Yes' && String(l.NeedsFab) === 'Yes') fab[String(l.QuoteNo)] = (fab[String(l.QuoteNo)] || 0) + 1; });
+  var rows = db.rows('Jobs').filter(function (j) { return !blank(j.JobNo); }).map(function (j) {
+    var qn = String(j.QuoteNo == null ? '' : j.QuoteNo), q = qs[qn] || null, s = sites[String(j.SiteID)] || null, pm = stf[String(j.PM)];
+    if (qn) has[qn] = 1;
+    var o = { job: String(j.JobNo), quote: qn, custId: String(j.CustID), cust: oUncell_((cus[String(j.CustID)] || {}).Name || j.CustID), project: s && !blank(s.Project) ? oUncell_(s.Project) : q ? oUncell_(q.Subject) : '',
+      type: String(j.JobType || (q ? oQType_(q) : '')), kind: oCtKind_(j), no: oUncell_(j.ClientWONo), date: oDay_(j.ClientWODate), pm: pm ? oUncell_(pm.Name) : '', status: String(j.Status || 'Awaiting order'), fab: fab[qn] || 0 };
+    if (M) { try { var m = oCtMoney_(db, j, q, oCtPis_(db, qn)); o.value = m.value; o.adv = m.adv; o.paid = m.paid; o.pi = m.pi ? m.pi.amount : null; } catch (e) { o.value = null; o.adv = null; o.paid = 0; o.pi = null; } }
+    return o;
+  });
+  var out = { can: C, money: M, rows: rows, today: oDayOf_(env.now()) };
+  if (C) {
+    out.free = Object.keys(qs).filter(function (n) { return !has[n] && String(qs[n].Status) === 'Sent'; }).map(function (n) {
+      var q = qs[n], s = sites[String(q.SiteID)] || null, x = { no: n, cust: oUncell_((cus[String(q.CustID)] || {}).Name || q.CustID), project: s && !blank(s.Project) ? oUncell_(s.Project) : oUncell_(q.Subject), type: oQType_(q),
+        advPct: !blank(q.AdvancePct) ? num(q.AdvancePct) : num(S(db, 'AdvancePct', 0.5)), qv: oCtQv_(db, q) };
+      if (M) x.total = oCuQTot_(db, q, n);
+      return x;
+    });
+    out.staff = oCtStaff_(db);
+  }
+  return out;
+}
+function officeContractGet(token, no) {
+  var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var j = oCtRow_(db, no), qn = String(j.QuoteNo == null ? '' : j.QuoteNo), q = qn ? find(db.rows('Quotes'), 'QuoteNo', qn) : null;
+  var cu = find(db.rows('Customers'), 'CustID', j.CustID) || {}, s = find(db.rows('Sites'), 'SiteID', j.SiteID) || null, pm = blank(j.PM) ? null : find(db.rows('Staff'), 'StaffID', j.PM);
+  var cl = oCtClosed_(j), lines = q ? oCtLines_(db, qn, M) : [];
+  var o = { job: String(j.JobNo), quote: qn, custId: String(j.CustID), cust: oUncell_(cu.Name || j.CustID), project: s && !blank(s.Project) ? oUncell_(s.Project) : q ? oUncell_(q.Subject) : '', site: s ? oUncell_(s.Address) : '',
+    type: String(j.JobType || (q ? oQType_(q) : '')), kind: oCtKind_(j), no: oUncell_(j.ClientWONo), date: oDay_(j.ClientWODate), pm: blank(j.PM) ? '' : String(j.PM), pmName: pm ? oUncell_(pm.Name) : '',
+    status: String(j.Status || 'Awaiting order'), notes: oUncell_(j.Notes), closed: cl, ev: oCtEvX_(db, j), money: M, can: oQCan_(a) && !cl, lines: lines, qStatus: q ? String(q.Status || '') : '', today: oDayOf_(env.now()),
+    fab: lines.filter(function (l) { return l.fab; }).length, lists: { status: uiList_(db, 'JobStatus'), sd: uiList_(db, 'SecDepStatus') }, staff: oCtStaff_(db) };
+  if (M) {
+    var m = oCtMoney_(db, j, q, qn ? oCtPis_(db, qn) : []);
+    o.value = m.value; o.advPct = m.advPct; o.adv = m.adv; o.paid = m.paid; o.set = m.set; o.pi = m.pi;
+    o.sd = { amount: blank(j.SecDepAmount) ? 0 : num(j.SecDepAmount), cheque: oUncell_(j.SecDepChequeNo), status: String(j.SecDepStatus || 'None') };
+  }
+  return o;
+}
+function officeContractMake(token, d) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+    oQRevFix_(env, db, String(oQRow_(db, d.quote).QuoteNo)); // CR10: a half-saved revision is completed (-> Draft) before the Sent check
+    var q = oQRow_(db, d.quote), qn = String(q.QuoteNo), ex = oQJob_(db, qn);
+    if (ex) oFail_('EXISTS|' + ex.JobNo);
+    if (String(q.Status) !== 'Sent') oFail_('QSTATE|' + String(q.Status || 'Draft'));
+    if (typeof d.qv !== 'number' || d.qv !== oCtQv_(db, q)) oFail_('STALE'); // the quote changed since the picker was shown
+    if (OCT_KINDS_.indexOf(d.kind) < 0) oFail_('BADINPUT|order kind');
+    var wo = oQeTxt_(d.no, 60, 'order no.'), wd = oCtDay_(d.date, env, 'order date');
+    var pm = d.pm == null || d.pm === '' ? '' : (typeof d.pm === 'string' && find(db.rows('Staff'), 'StaffID', d.pm) ? d.pm : oFail_('BADINPUT|project manager'));
+    var qp = !blank(q.AdvancePct) ? num(q.AdvancePct) : num(S(db, 'AdvancePct', 0.5)), pct = '';
+    if (oCanSeeMoney_(oAcc_(L)) && d.adv != null && d.adv !== '') { var p = Math.round(oQeNum_(d.adv, 0, 100, 2, 'advance') * 100) / 1e4; if (oCt4_(p) !== oCt4_(qp)) pct = p; }
+    var tot = oCuQTot_(db, q, qn); if (typeof tot !== 'number' || !isFinite(tot) || tot <= 0) oFail_('NOTOTAL');
+    oQeRate_(env, L);
+    oCtUp_(db);
+    var jn = quoteToJob(db, qn, { woNo: oCell_(wo), woDate: wd || '', pm: pm, extra: { ContractValue: tot, OrderKind: d.kind, AdvancePct: pct } }); // one row write (ContractValue stays the sheet formula live)
+    log_(db, 'Contract made', jn, qn + ' · ' + d.kind + (wo ? ' ' + wo : '') + (pct !== '' ? ' · advance ' + r2(pct * 100) + ' %' : ''));
+    return { job: jn };
+  });
+}
+function oCtPdfOld_(db, jn) { // documents of the job still open (Draft) that print the WO no.: their PDF link is cleared (old URL kept in the Log)
+  var n = 0;
+  [['Invoices', 'InvNo'], ['Challans', 'ChallanNo'], ['Notes', 'NoteNo']].forEach(function (t) {
+    if (!db.hasTab(t[0]) || db.headers(t[0]).indexOf('PDF') < 0) return;
+    db.rows(t[0]).forEach(function (r) {
+      if (String(r.JobNo) !== jn || blank(r.PDF) || !(blank(r.Status) || String(r.Status) === 'Draft')) return;
+      var u = String(r.PDF); log_(db, 'PDF out of date', String(r[t[1]]), 'WO no. of ' + jn + ' changed; old PDF ' + u); // logged first: a failed log stops before the link is cleared
+      uiPutRow_(db, t[0], r, { PDF: '' }); n++;
+    });
+  });
+  return n;
+}
+function officeContractSave(token, d) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+    var j = oCtRow_(db, d.job), jn = String(j.JobNo), M = oCanSeeMoney_(oAcc_(L));
+    if (typeof d.ev !== 'number' || d.ev !== oCtEvX_(db, j)) oFail_('STALE');
+    if (oCtClosed_(j)) oFail_('CLOSED');
+    if (OCT_KINDS_.indexOf(d.kind) < 0) oFail_('BADINPUT|order kind');
+    var wo = oQeTxt_(d.no, 60, 'order no.'), wd = oCtDay_(d.date, env, 'order date'), notes = oCtNotes_(d.notes);
+    var pm = d.pm == null || d.pm === '' ? '' : (typeof d.pm === 'string' && (d.pm === String(j.PM == null ? '' : j.PM) || find(db.rows('Staff'), 'StaffID', d.pm)) ? d.pm : oFail_('BADINPUT|project manager')); // the PM already on the contract stays even if its Staff row is gone
+    if (typeof d.status !== 'string' || (d.status !== String(j.Status || '') && uiList_(db, 'JobStatus').indexOf(d.status) < 0)) oFail_('BADINPUT|status'); // an unchanged status stays even if no longer listed
+    var p = { ClientWONo: oCell_(wo), ClientWODate: wd, PM: pm, Status: d.status, Notes: oCell_(notes) }, lg = { ClientWONo: wo, Notes: notes };
+    if (db.headers('Jobs').indexOf('OrderKind') >= 0 || d.kind !== 'WO') p.OrderKind = d.kind;
+    if (M) {
+      var qn = String(j.QuoteNo == null ? '' : j.QuoteNo), q = qn ? find(db.rows('Quotes'), 'QuoteNo', qn) : null;
+      var cur = oCtPct_(db, j, q), pct = Math.round(oQeNum_(d.adv, 0, 100, 2, 'advance') * 100) / 1e4;
+      if (oCt4_(pct) !== oCt4_(cur)) { if (qn && oCtPis_(db, qn).length) oFail_('PIMADE'); var qp = q && !blank(q.AdvancePct) ? num(q.AdvancePct) : num(S(db, 'AdvancePct', 0.5)); p.AdvancePct = oCt4_(pct) !== oCt4_(qp) ? pct : ''; }
+      var sa = d.sdAmount == null || d.sdAmount === '' ? '' : oQeNum_(d.sdAmount, 0, 1e9, 2, 'deposit amount');
+      if (typeof d.sdStatus !== 'string' || (d.sdStatus !== String(j.SecDepStatus || 'None') && uiList_(db, 'SecDepStatus').indexOf(d.sdStatus) < 0)) oFail_('BADINPUT|deposit status');
+      if (d.sdStatus !== 'None' && !(sa > 0)) oFail_('BADINPUT|deposit amount');
+      p.SecDepAmount = sa === 0 ? '' : sa; lg.SecDepChequeNo = oQeTxt_(d.sdCheque, 40, 'cheque no.'); p.SecDepChequeNo = oCell_(lg.SecDepChequeNo); p.SecDepStatus = d.sdStatus;
+    }
+    var nv = function (k, x) { return k === 'ClientWODate' ? oDay_(x) : String(x == null ? '' : x).replace(/^'/, ''); };
+    var cur = function (k) { return String(j[k] == null ? '' : j[k]); }; // text fields: compared as text, a literal leading apostrophe counts
+    var ch = Object.keys(p).filter(function (k) { return k in lg ? !(cur(k) === String(lg[k]) || cur(k) === p[k]) : nv(k, p[k]) !== nv(k, j[k]); });
+    if (!ch.length) return { ok: true, same: true, old: 0 };
+    oQeRate_(env, L);
+    oCtUp_(db); j = must(db, 'Jobs', 'JobNo', jn);
+    var patch = {}; ch.forEach(function (k) { patch[k] = p[k]; });
+    var old = ch.indexOf('ClientWONo') >= 0 ? oCtPdfOld_(db, jn) : 0; // CR7 rule: before the write
+    uiPutRow_(db, 'Jobs', j, patch);
+    log_(db, 'Contract updated', jn, ch.join(', '));
+    return { ok: true, old: old };
+  });
+}
+function officeContractFab(token, d) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+    var j = oCtRow_(db, d.job); if (oCtClosed_(j)) oFail_('CLOSED');
+    if (typeof d.fab !== 'boolean') oFail_('BADINPUT|fabrication');
+    var l = typeof d.line === 'string' && d.line ? find(db.rows('QuoteLines'), 'LineID', d.line) : null;
+    if (!l || blank(j.QuoteNo) || String(l.QuoteNo) !== String(j.QuoteNo) || l.Selected !== 'Yes') oFail_('NOTFOUND');
+    var v = d.fab ? 'Yes' : '';
+    if (String(l.NeedsFab == null ? '' : l.NeedsFab) === v) return { ok: true, same: true };
+    oQeRate_(env, L);
+    oCtUp_(db);
+    l = find(db.rows('QuoteLines'), 'LineID', d.line);
+    uiPutRow_(db, 'QuoteLines', l, { NeedsFab: v });
+    log_(db, 'Contract line', String(j.JobNo), 'Line ' + num(l.LineNo) + (d.fab ? ': needs fabrication' : ': from stock'));
+    return { ok: true };
+  });
+}
+function officeContractAdvance(token, d) {
+  officeGate_(token, OQ_NEED_);
+  return oQW_(token, function (env, db, L) {
+    if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
+    d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+    var j = oCtRow_(db, d.job), qn = String(j.QuoteNo == null ? '' : j.QuoteNo), q = qn ? find(db.rows('Quotes'), 'QuoteNo', qn) : null;
+    if (!q) oFail_('NOTFOUND');
+    if (typeof d.ev !== 'number' || d.ev !== oCtEvX_(db, j)) oFail_('STALE');
+    if (oCtClosed_(j)) oFail_('CLOSED');
+    if (oCtPis_(db, qn).length) oFail_('PIMADE');
+    var v = oCtValue_(db, j, q); if (typeof v !== 'number' || !isFinite(v) || v <= 0) oFail_('NOTOTAL');
+    var amt = oQeNum_(d.amount, 0.01, v, 2, 'amount'), dt = oCtDay_(d.date, env, 'PI date') || new Date(env.now());
+    oQeRate_(env, L);
+    var pct = oCtPct_(db, j, q);
+    var ds = Math.abs(amt - r2(v * pct)) < 0.005 ? 'Advance payable on order: ' + r2(pct * 100) + '% of contract value (' + String(j.JobNo) + ')' : 'Advance payable on order (' + String(j.JobNo) + ')';
+    var pi = quoteToPI(db, qn, { amount: amt, date: dt, description: ds }); // one row write
+    return { pi: pi };
+  });
+}
 // d = {no, ev, type, cust, site, attention, subject, date, valid, prep, adv, pdf, lines: [{code, desc, qty, unit, rate, opt, basis, dim}]}
 function oQeArgs_(db, d, q, env) {
   if (OQE_TYPES_.indexOf(d.type) < 0) oFail_('BADINPUT|type');
@@ -2432,6 +2651,7 @@ var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // la
   'officeQuoteList', 'officeQuoteGet', 'officeQuoteTerm', 'officeQuotePdf', 'officeQuoteEmail',
   'officeQuoteForm', 'officeCustomerAdd', 'officeSiteAdd', 'officeQuoteSave',
   'officeCustList', 'officeCustGet', 'officeCustomerSave', 'officeSiteSave',
+  'officeContractList', 'officeContractGet', 'officeContractMake', 'officeContractSave', 'officeContractFab', 'officeContractAdvance',
   'officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },

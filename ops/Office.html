@@ -387,6 +387,14 @@ span.tv{cursor:default}
 .stcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-left:4px solid #ef4444;border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .stcard small{display:block;color:var(--muted)}.sgmini{width:56px;height:56px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#889;flex:none}
 .sgmini img{max-width:52px;max-height:52px}
+.js-Awaiting{background:var(--amberbg);color:var(--amber)} .js-Mobilising{background:var(--skybg);color:var(--sky)} .js-Onhire{background:var(--greenbg);color:var(--green)}
+.js-Offhire{background:var(--violetbg);color:var(--violet)} .js-Closed{background:var(--card2);color:var(--muted)} .ok-k{background:var(--card2);color:var(--text)}
+.fab{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:var(--bg2);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.fab.on{border-color:var(--orange);background:var(--orangebg);color:var(--orange)} span.fab{cursor:default} .fab:disabled{opacity:.6;cursor:wait}
+.bar2{height:8px;border-radius:99px;background:var(--bg2);overflow:hidden;margin:8px 0 4px} .bar2 i{display:block;height:100%;background:var(--teal)}
+.qpick{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;margin-bottom:14px}
+.qpk{text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);background:var(--bg2);cursor:pointer}
+.qpk.on{border-color:var(--teal);background:var(--tealbg)} .qpk b{font-family:ui-monospace,Consolas,monospace;color:var(--teal2)} .qpk small{display:block;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -704,7 +712,7 @@ var TILES=[
   {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, terms, email',ic:'doc',l:1,r:1},
   {d:'SC',k:'newquote',t:'New quote',x:'Customer, project, lines, terms',ic:'plus',l:2,r:1},
   {d:'SC',k:'customers',t:'Customers & projects',x:'Contacts, sites, history',ic:'building',l:1,r:1},
-  {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1},
+  {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1,r:1},
   {d:'SC',k:'tenders',t:'Tenders',x:'Submission packs',ic:'award',l:1},
   {d:'PS',k:'jobs',t:'Jobs',x:'Status, close + settlement',ic:'brief',l:1},
   {d:'PS',k:'dos',t:'Delivery orders',x:'Prepare, dispatch, confirm',ic:'truck',l:1,s:1},
@@ -807,6 +815,7 @@ function viewHome(f){
     if(k==='quotes') return viewQuotes();
     if(k==='newquote') return viewQuoteEdit();
     if(k==='customers') return viewCusts();
+    if(k==='contracts') return viewContracts();
     toast(b.querySelector('b').textContent+' — comes in a later step.');
   };});
 }
@@ -985,6 +994,267 @@ function cuSiteDlg(c,s){
   };
   setTimeout(function(){if(my===DLG.seq)document.getElementById('sp').focus();},30);
 }
+/* ======================= SC › contracts PO / WO (M2) ======================= */
+/* a contract = the job made from a Sent quote; money (values, advance, deposit, rates) only for money logins */
+var CT={rows:[],free:[],staff:[],can:false,money:false,loaded:false,q:'',f:'open',seq:0,nseq:0,c:null};
+var CT_KINDS=['PO','WO','LOI'],CT_KN={PO:'Purchase order (PO)',WO:'Work order (WO)',LOI:'Letter of intent (LOI)'};
+function ctNum(x){return typeof x==='number'&&isFinite(x)?x:null;}
+function ctKind(k){return CT_KINDS.indexOf(k)>=0?k:'WO';}
+function ctJs(s){return 'js-'+({'Awaiting order':'Awaiting','Mobilising':'Mobilising','On hire':'Onhire','Off-hire':'Offhire','Closed':'Closed'}[s]||'Awaiting');}
+function ctTk(n){return n==null?'—':'Tk '+tk(n);}
+function ctR2(n){return Math.round(n*100)/100;}
+function ctToday(){if(CT.today)return CT.today;var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function nct(r){r=r||{};return {job:cuS(r.job),quote:cuS(r.quote),custId:cuS(r.custId),cust:cuS(r.cust),project:cuS(r.project),type:cuS(r.type),kind:ctKind(r.kind),no:cuS(r.no),date:isDay(r.date)?r.date:'',
+  pm:cuS(r.pm),status:cuS(r.status)||'Awaiting order',fab:+r.fab||0,value:ctNum(r.value),adv:ctNum(r.adv),paid:ctNum(r.paid)||0,pi:ctNum(r.pi)};}
+function nctFree(r){r=r||{};return {no:cuS(r.no),cust:cuS(r.cust),project:cuS(r.project),type:cuS(r.type),total:ctNum(r.total),advPct:ctNum(r.advPct),qv:typeof r.qv==='number'?r.qv:0};}
+function nctStaff(s){s=s||{};return {id:cuS(s.id),name:cuS(s.name)};}
+function nctFull(r){
+  r=r||{};var o=nct(r),L=r.lists||{},sd=r.sd||{};
+  o.site=cuS(r.site);o.pmName=cuS(r.pmName);o.notes=cuS(r.notes);o.qStatus=cuS(r.qStatus);if(isDay(r.today))CT.today=r.today;o.closed=r.closed===true;o.ev=typeof r.ev==='number'?r.ev:0;o.money=r.money===true;o.can=r.can===true;
+  o.lines=cuArr(r.lines).map(function(l){l=l||{};return {id:cuS(l.id),n:+l.n||0,desc:cuS(l.desc),size:cuS(l.size),unit:cuS(l.unit),qty:ctNum(l.qty),months:ctNum(l.months),fab:l.fab===true,rate:ctNum(l.rate),amount:ctNum(l.amount)};}).filter(function(l){return l.id;});
+  o.fab=o.lines.filter(function(l){return l.fab;}).length;
+  o.lists={status:cuArr(L.status).map(cuS).filter(Boolean),sd:cuArr(L.sd).map(cuS).filter(Boolean)};o.staff=cuArr(r.staff).map(nctStaff).filter(function(s){return s.id;});
+  o.advPct=ctNum(r.advPct);o.set=ctNum(r.set)||0;
+  o.pi=r.pi&&typeof r.pi==='object'&&r.pi.no?{no:cuS(r.pi.no),status:cuS(r.pi.status)||'Draft',amount:ctNum(r.pi.amount)}:null;
+  o.sd={amount:ctNum(sd.amount)||0,cheque:cuS(sd.cheque),status:cuS(sd.status)||'None'};
+  return o;
+}
+function viewContracts(){
+  document.title='Core Access · Contracts';
+  CT.rows=[];CT.free=[];CT.staff=[];CT.can=false;CT.money=false;CT.loaded=false;CT.c=null;CT.q='';CT.f='open'; /* nothing of an earlier sign-in is shown */
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="tq" type="search" placeholder="Search job, quote, customer, project or PO / WO no." autocomplete="off" aria-label="Search contracts"></div>'+
+    '<span id="tnew"></span></div>'+
+    '<div class="chips t-teal" id="tf" role="group" aria-label="Show">'+[['open','Open'],['closed','Closed'],['all','All']].map(function(x){
+      return '<button type="button" class="chip'+(x[0]==='open'?' on':'')+'" data-f="'+x[0]+'" aria-pressed="'+(x[0]==='open')+'">'+x[1]+'</button>';}).join('')+'</div>'+
+    '<p class="cnt" id="tcnt">&nbsp;</p><div id="tlist" class="qlist"><div class="empty">Loading contracts…</div></div>';
+  shell('Sales · Contracts (PO / WO)',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('tq').oninput=function(){CT.q=this.value.trim().toLowerCase();ctsDraw();};
+  document.getElementById('tf').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;CT.f=b.getAttribute('data-f');
+    [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});ctsDraw();};
+  document.getElementById('tlist').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;
+    var no=b.getAttribute('data-j');if(CT.rows.some(function(c){return c.job===no;}))viewContract(no);};
+  ctsLoad();
+}
+function ctsLoad(){
+  var my=++CT.seq;
+  call('officeContractList',S.token).then(function(r){
+    if(my!==CT.seq||!document.getElementById('tlist'))return;
+    CT.loaded=true;CT.can=!!(r&&r.can===true);CT.money=!!(r&&r.money===true);
+    CT.rows=cuArr(r&&r.rows).map(nct).filter(function(x){return x.job;});
+    CT.rows.sort(function(a,b){return b.job.localeCompare(a.job);});
+    CT.free=cuArr(r&&r.free).map(nctFree).filter(function(x){return x.no;});CT.staff=cuArr(r&&r.staff).map(nctStaff).filter(function(s){return s.id;});
+    var nb=document.getElementById('tnew');
+    if(nb){nb.innerHTML=CT.can?'<button type="button" class="btn btn-primary btn-sm" id="tadd">'+ic('plus')+' New contract from quote</button>':'';
+      if(CT.can)document.getElementById('tadd').onclick=function(){ctNew('');};}
+    ctsDraw();
+  },function(m){
+    if(my!==CT.seq||!document.getElementById('tlist'))return;
+    if(srvGate(m))return;
+    document.getElementById('tlist').innerHTML='<div class="empty">Could not load the contracts: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="tretry">Try again</button></div>';
+    document.getElementById('tretry').onclick=ctsLoad;
+  });
+}
+function ctsDraw(){
+  var L=document.getElementById('tlist');if(!L||!CT.loaded)return;
+  var M=CT.money,n=CT.rows.length,open=CT.rows.filter(function(c){return c.status!=='Closed';}).length;
+  document.getElementById('tcnt').textContent=n+' contract'+(n===1?'':'s')+' · '+open+' open · '+(n-open)+' closed';
+  var show=CT.rows.filter(function(c){
+    if(CT.f==='open'&&c.status==='Closed'||CT.f==='closed'&&c.status!=='Closed')return false;
+    return !CT.q||(c.job+' '+c.quote+' '+c.cust+' '+c.project+' '+c.no).toLowerCase().indexOf(CT.q)>=0;
+  });
+  L.innerHTML=show.length?show.map(function(c){var b=c.pi!=null?c.pi:c.adv,due=b==null?null:ctR2(b-c.paid);
+    return '<button type="button" class="qcard" data-j="'+esc(c.job)+'"><div class="qrow"><span class="qno">'+esc(c.job)+'</span><span class="sp"></span><span class="pill '+ctJs(c.status)+'">'+esc(c.status)+'</span></div>'+
+      '<div class="qc">'+esc(c.cust)+'</div><div class="qp">'+esc([c.project,c.type].filter(Boolean).join(' · '))+'</div>'+
+      '<div class="qrow"><span class="pill ok-k">'+c.kind+'</span><span class="tag">'+esc(c.no||'no. not given')+' · '+fmtDay(c.date)+'</span><span class="sp"></span><span class="tag">'+esc(c.quote||'—')+'</span></div>'+
+      ((M||c.fab)?'<div class="qrow">'+(M?'<span class="qamt">'+ctTk(c.value)+'</span>':'')+'<span class="sp"></span>'+(M&&due!=null?'<span class="tag'+(due>0?' chg':'')+'">'+(due>0?'Advance due '+ctTk(due):'Advance paid')+'</span>':'')+
+        (c.fab?'<span class="fab on">'+ic('wrench')+c.fab+' to fabricate</span>':'')+'</div>':'')+'</button>';
+  }).join(''):'<div class="empty">'+(n?'No contracts match.':'No contracts yet.')+'</div>';
+}
+function viewContract(no){
+  no=cuS(no);document.title='Core Access · '+no;CT.c=null;
+  shell('Sales · Contract','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="tback">'+ic('back')+' Contracts</button></div><div id="tv"><div class="empty">Loading '+esc(no)+'…</div></div>');
+  document.getElementById('tback').onclick=function(){viewContracts();};
+  ctLoad(no);
+}
+function ctLoad(no){
+  var my=++CT.seq;
+  call('officeContractGet',S.token,no).then(function(r){
+    if(my!==CT.seq||!document.getElementById('tv'))return;
+    var c=nctFull(r);if(c.job!==no){viewContracts();toast(no+' could not be opened.');return;}
+    CT.c=c;ctDraw();
+  },function(m){
+    if(my!==CT.seq||!document.getElementById('tv'))return;
+    if(srvGate(m))return;
+    if(code(m).split('|')[0]==='NOTFOUND'){viewContracts();toast(no+' no longer exists.');return;}
+    document.getElementById('tv').innerHTML='<div class="empty">Could not load '+esc(no)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="tvretry">Try again</button></div>';
+    document.getElementById('tvretry').onclick=function(){ctLoad(no);};
+  });
+}
+function ctDraw(){
+  var c=CT.c,V=document.getElementById('tv');if(!c||!V)return;
+  var M=c.money,E=c.can,adv=c.adv,base=c.pi&&c.pi.amount!=null?c.pi.amount:adv,left=base==null?null:Math.max(0,ctR2(base-c.paid)),pct=c.advPct==null?null:ctR2(c.advPct*100);
+  var h='<div class="qhead"><div><h2>'+esc(c.job)+'</h2><div class="sub">'+esc([c.cust,c.project].filter(Boolean).join(' · '))+'</div><div class="qrow" style="margin-top:8px"><span class="pill '+ctJs(c.status)+'">'+esc(c.status)+'</span>'+(c.type?'<span class="pill ty">'+esc(c.type)+'</span>':'')+'</div></div>'+
+    '<div class="qacts">'+(E?'<button type="button" class="btn btn-ghost btn-sm" id="tedit">'+ic('edit')+'Edit order</button>'+(M&&!c.pi&&c.value>0&&c.quote?'<button type="button" class="btn btn-primary btn-sm" id="tadv">'+ic('cash')+'Advance invoice (PI)</button>':''):'')+
+    (c.quote?'<button type="button" class="btn btn-ghost btn-sm" id="tquote">'+ic('doc')+'Quote '+esc(c.quote)+'</button>':'')+'</div></div>';
+  if(c.closed)h+='<div class="lockn">'+ic('lock')+'<div>Closed contract — read only.</div></div>';
+  h+='<div class="qgrid"><div class="box"><h4>Client order</h4>'+cuKv([['Kind',CT_KN[c.kind]],['Number',c.no?esc(c.no):'<span class="tag chg">not given yet</span>'],['Date',fmtDay(c.date)],['Project manager',esc(c.pmName)||'—'],['From quote',c.quote?esc(c.quote)+(c.qStatus?' ('+esc(c.qStatus)+', locked)':' (locked)'):'—']])+'</div>';
+  if(M){
+    h+='<div class="box"><h4>Value &amp; advance</h4>'+cuKv([['Contract value',ctTk(c.value)+' <small class="tag">incl. VAT, = quote total</small>'],['Advance',(pct==null?'—':pct+' %')+' = '+ctTk(adv)],['Advance PI',c.pi?esc(c.pi.no)+' · '+esc(c.pi.status):'not made yet'],
+      ['Paid',ctTk(c.paid)],['Left to pay',left==null?'—':left>0?'<span style="color:var(--amber)">'+ctTk(left)+'</span>':'nothing'],['Set off on invoices',ctTk(c.set)]])+
+      '<div class="bar2"><i style="width:'+(base?Math.min(100,c.paid/base*100):0)+'%"></i></div><small class="tag">advance paid '+(base?Math.round(Math.min(100,c.paid/base*100)):0)+' %</small></div>'+
+      '<div class="box"><h4>Security deposit</h4>'+(c.sd.status==='None'?'<div class="tag">None</div>':cuKv([['Amount',ctTk(c.sd.amount)],['Cheque no.',esc(c.sd.cheque)],['Status',esc(c.sd.status)]]))+'</div>';
+  }
+  h+='</div><div class="box"><h4>Order lines'+(c.fab?' · <span style="color:var(--orange)">'+c.fab+' need fabrication</span>':'')+'</h4>'+(c.lines.length?'<div class="tblw"><table class="ltab"><thead><tr><th>#</th><th>Item</th><th>Size</th><th class="r">Qty</th>'+(M?'<th class="r">Rate</th><th class="r">Amount</th>':'')+'<th>Fabrication</th></tr></thead><tbody>'+
+    c.lines.map(function(l){var t=l.fab?'Needs fabrication':'From stock';
+      return '<tr><td class="ln">'+l.n+'</td><td class="d">'+esc(l.desc)+'</td><td class="sz">'+esc(l.size)+'</td><td class="r q">'+(l.qty==null?'—':l.qty)+' '+esc(l.unit)+(l.months!=null?' × '+l.months+' mo':'')+'</td>'+
+        (M?'<td class="r ra">'+ctTk(l.rate)+'</td><td class="r">'+ctTk(l.amount)+'</td>':'')+
+        '<td>'+(E?'<button type="button" class="fab'+(l.fab?' on':'')+'" data-l="'+esc(l.id)+'" aria-pressed="'+l.fab+'"'+(c.pend&&c.pend[l.id]?' disabled':'')+'>'+ic('wrench')+t+'</button>':'<span class="fab'+(l.fab?' on':'')+'">'+t+'</span>')+'</td></tr>';}).join('')+
+    '</tbody></table></div>':'<div class="empty">No lines.</div>')+'<div class="note">'+ic('alert')+'<span>"Needs fabrication" is for our own planning (feeds the fabrication work orders later). It is not printed on the quote or any client document.</span></div></div>';
+  if(c.notes)h+='<div class="box" style="margin-top:12px"><h4>Notes</h4><div style="white-space:pre-line">'+esc(c.notes)+'</div></div>';
+  V.innerHTML=h;
+  var qb=document.getElementById('tquote');if(qb)qb.onclick=function(){viewQuote(c.quote);};
+  if(!E)return;
+  document.getElementById('tedit').onclick=function(){ctEditDlg(c);};
+  var ab=document.getElementById('tadv');if(ab)ab.onclick=function(){ctAdvDlg(c);};
+  [].forEach.call(V.querySelectorAll('button.fab[data-l]'),function(b){b.onclick=function(){
+    var id=b.getAttribute('data-l');if(b.disabled||CT.c!==c||(c.pend&&c.pend[id]))return;var l=c.lines.filter(function(x){return x.id===id;})[0];if(!l)return;
+    var to=!l.fab,my=CT.seq;b.disabled=true;c.pend=c.pend||{};c.pend[id]=1; /* a line stays locked until its own answer is back, across redraws */
+    call('officeContractFab',S.token,{job:c.job,line:id,fab:to}).then(function(){
+      delete c.pend[id];if(my!==CT.seq||CT.c!==c)return;l.fab=to;c.fab=c.lines.filter(function(x){return x.fab;}).length;ctDraw();toast('Line '+l.n+': '+(to?'needs fabrication':'from stock')+' (saved).');
+    },function(m){
+      delete c.pend[id];if(srvGate(m))return;if(my!==CT.seq||CT.c!==c)return;ctDraw();
+      var k=code(m).split('|')[0];if(k==='CLOSED'||k==='NOTFOUND'){ctLoad(c.job);toast(k==='CLOSED'?'This contract is closed now — reloaded.':'That line is no longer on the contract — reloaded.');return;}
+      toast(errText(m).replace(/<[^>]+>/g,''));
+    });
+  };});
+}
+function ctSeg(id,opts,v){return '<span class="seg t-teal" id="'+id+'" role="radiogroup" aria-label="Order kind">'+opts.map(function(o){return '<button type="button" role="radio" data-v="'+o+'" aria-checked="'+(o===v)+'"'+(o===v?' class="on"':'')+'>'+o+'</button>';}).join('')+'</span>';}
+function ctSegOn(id,cb){document.getElementById(id).onclick=function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(!b||DLG.busy)return;
+  [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});cb(b.getAttribute('data-v'));};}
+function ctSel(id,lab,opts,v){return '<label class="fld"><span>'+lab+'</span><select class="inp np" id="'+id+'">'+opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(o[0]===v?' selected':'')+'>'+esc(o[1])+'</option>';}).join('')+'</select></label>';}
+function ctPmOpts(staff,v){var o=[['','—']].concat(staff.map(function(s){return [s.id,s.name];}));if(v&&!staff.some(function(s){return s.id===v;}))o.push([v,v]);return o;}
+/* new contract: the list of Sent quotes is read fresh (another user may have made one meanwhile) */
+function ctNew(pre){
+  var my=++CT.nseq,anc=document.getElementById(pre?'qv':'tlist'); /* the answer is dropped once the user has left that page */
+  call('officeContractList',S.token).then(function(r){
+    if(my!==CT.nseq||!anc||!anc.isConnected)return;
+    if(r&&isDay(r.today))CT.today=r.today;
+    CT.free=cuArr(r&&r.free).map(nctFree).filter(function(x){return x.no;});CT.staff=cuArr(r&&r.staff).map(nctStaff).filter(function(s){return s.id;});CT.money=!!(r&&r.money===true);
+    if(!(r&&r.can===true)){toast('You can\'t make contracts with this login.');return;}
+    ctDlg(pre);
+  },function(m){if(my!==CT.nseq||!anc||!anc.isConnected)return;if(srvGate(m))return;toast(errText(m).replace(/<[^>]+>/g,''));});
+}
+function ctDlg(pre){
+  var M=CT.money,F=CT.free,pick=pre?(F.some(function(q){return q.no===pre;})?pre:''):(F.length===1?F[0].no:''),kind='WO';
+  var my=openDlg('<h3 id="dlgt">New contract from a quote</h3><p class="sub">Only <b>Sent</b> quotes without a contract are offered. The quote becomes <b>Accepted</b> and is locked.</p>'+(pre&&!pick&&F.length?'<div class="note" id="tpre">'+ic('alert')+'<span>'+esc(pre)+' is not Sent any more, or has a contract. Pick another quote or cancel.</span></div>':'')+'<div id="derr"></div>'+
+    (F.length?'<span class="lbl">Quote</span><div class="qpick" id="tqp" role="radiogroup" aria-label="Quote">'+F.map(function(q){return '<button type="button" role="radio" class="qpk'+(q.no===pick?' on':'')+'" aria-checked="'+(q.no===pick)+'" data-q="'+esc(q.no)+'"><b>'+esc(q.no)+'</b> · '+esc(q.type)+'<small>'+esc([q.cust,q.project].filter(Boolean).join(' · '))+(M?' · '+ctTk(q.total):'')+'</small></button>';}).join('')+'</div>':
+      '<div class="empty">No sent quote is waiting for a contract.'+(pre?' ('+esc(pre)+' is not Sent any more, or has a contract.)':'')+'</div>')+
+    '<span class="lbl">Client order</span><div style="margin-bottom:14px">'+ctSeg('tk',CT_KINDS,kind)+'</div><div class="f2">'+cuFld('tn','PO / WO no. (can be added later)','',{m:60})+cuFld('td','Order date',ctToday(),{t:'date'})+'</div>'+
+    '<div class="f2">'+(M?'<label class="fld"><span>Advance %</span><input class="inp np" id="ta" type="number" min="0" max="100" step="0.01" inputmode="decimal" autocomplete="off"><small id="tah"></small></label>':'')+ctSel('tp','Project manager',ctPmOpts(CT.staff,''),'')+'</div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes"'+(F.length?'':' disabled')+'>Make contract</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();},Q=function(){return F.filter(function(x){return x.no===pick;})[0]||null;};
+  var hint=function(){var h=document.getElementById('tah'),q=Q();if(!h)return;var p=+v('ta');h.textContent=q&&q.total!=null&&v('ta')!==''&&p>=0&&p<=100?'= '+ctTk(ctR2(q.total*p/100))+' of '+ctTk(q.total)+(q.advPct!=null?' (quote: '+ctR2(q.advPct*100)+' %)':''):'';};
+  var setPct=function(){var a=document.getElementById('ta'),q=Q();if(a){a.value=q&&q.advPct!=null?ctR2(q.advPct*100):50;hint();}};
+  ctSegOn('tk',function(x){kind=x;});
+  var qp=document.getElementById('tqp');if(qp)qp.onclick=function(e){var b=e.target.closest?e.target.closest('.qpk'):null;if(!b||DLG.busy)return;pick=b.getAttribute('data-q');
+    [].forEach.call(qp.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});setPct();};
+  if(M){document.getElementById('ta').oninput=hint;setPct();}
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy||!F.length)return;
+    if(!pick){dlgErr('Please pick the quote.');return;}
+    var dd=v('td');if(dd&&!isDay(dd)){dlgErr('Please check the order date.');return;}
+    var d={quote:pick,qv:(F.filter(function(q){return q.no===pick;})[0]||{}).qv,kind:kind,no:v('tn'),date:dd,pm:document.getElementById('tp').value};
+    if(M){var p=v('ta');if(p===''||!(+p>=0&&+p<=100)){dlgErr('Advance %: a number from 0 to 100.');return;}d.adv=ctR2(+p);}
+    DLG.busy=true;busyBtn(yes,true,'Making…');dlgErr('');
+    call('officeContractMake',S.token,d).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      var j=cuS(r&&r.job);toast((j||'Contract')+' made · '+pick+' is now Accepted.');if(j)viewContract(j);else viewContracts();
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='EXISTS'){dlgErr('Quote '+esc(pick)+' already has contract <b>'+esc(k[1]||'')+'</b> (made by someone else just now). Nothing saved. <button type="button" class="btn btn-ghost btn-sm" id="dgo">Open it</button>');
+        var g=document.getElementById('dgo');if(g)g.onclick=function(){closeDlg();viewContract(k[1]);};return;}
+      if(k[0]==='STALE'){closeDlg();ctNew(pre);toast('Quote '+pick+' was changed meanwhile — reloaded. Please check it again.');return;}
+      if(k[0]==='QSTATE'){dlgErr('Quote '+esc(pick)+' is <b>'+esc(k[1]||'not Sent')+'</b> now — only Sent quotes become a contract. Nothing saved.');return;}
+      if(k[0]==='NOTOTAL'){dlgErr('Quote '+esc(pick)+' has no total yet (no selected lines?). Nothing saved.');return;}
+      if(k[0]==='NOTFOUND'){closeDlg();viewContracts();toast('That quote no longer exists.');return;}
+      dlgErr(errText(m));
+    });
+  };
+}
+function ctEditDlg(c){
+  var M=c.money,kind=c.kind,st=c.lists.status.slice();if(st.indexOf(c.status)<0)st.unshift(c.status);
+  var sd=c.lists.sd.slice();if(!sd.length)sd=['None'];if(sd.indexOf(c.sd.status)<0)sd.unshift(c.sd.status);
+  var my=openDlg('<h3 id="dlgt">Edit order</h3><p class="sub">'+esc(c.job)+' · changes are logged.</p><div id="derr"></div><span class="lbl">Client order</span><div style="margin-bottom:14px">'+ctSeg('tk',CT_KINDS,kind)+'</div>'+
+    '<div class="f2">'+cuFld('tn','PO / WO no.',c.no,{m:60})+cuFld('td','Order date',c.date,{t:'date'})+'</div>'+
+    '<div class="f2">'+ctSel('tp','Project manager',ctPmOpts(c.staff,c.pm),c.pm)+ctSel('ts','Status',st.map(function(s){return [s,s];}),c.status)+'</div>'+
+    (M?'<div class="f2"><label class="fld"><span>Advance %</span><input class="inp np" id="ta" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="'+(c.advPct==null?'':ctR2(c.advPct*100))+'"'+(c.pi?' readonly':'')+' autocomplete="off">'+(c.pi?'<small>Advance PI '+esc(c.pi.no)+' is made — change the PI instead.</small>':'')+'</label>'+
+      cuFld('tsa','Security deposit (Tk)',c.sd.amount||'',{im:'decimal',m:14})+'</div><div class="f2">'+cuFld('tsc','Deposit cheque no.',c.sd.cheque,{m:40})+ctSel('tss','Deposit status',sd.map(function(s){return [s,s];}),c.sd.status)+'</div>':'')+
+    '<label class="fld"><span>Notes</span><textarea class="inp np" id="to" maxlength="500">'+esc(c.notes)+'</textarea></label>'+
+    '<div class="note">'+ic('alert')+'<span>Changing the PO / WO no. marks the PDFs of this job\'s open (Draft) invoices / challans / notes as old — they print that number.</span></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Save changes</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  ctSegOn('tk',function(x){kind=x;});
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    var dd=v('td');if(dd&&!isDay(dd)){dlgErr('Please check the order date.');return;}
+    var d={job:c.job,ev:c.ev,kind:kind,no:v('tn'),date:dd,pm:document.getElementById('tp').value,status:document.getElementById('ts').value,notes:document.getElementById('to').value};
+    if(M){
+      var p=v('ta');if(p===''||!(+p>=0&&+p<=100)){dlgErr('Advance %: a number from 0 to 100.');return;}d.adv=ctR2(+p);
+      var sa=v('tsa').replace(/,/g,''),ss=document.getElementById('tss').value;
+      if(sa!==''&&!(/^\d+(\.\d{1,2})?$/.test(sa))){dlgErr('Security deposit: an amount in Tk (up to 2 decimals).');return;}
+      if(ss!=='None'&&!(+sa>0)){dlgErr('Deposit status "'+esc(ss)+'" needs an amount.');return;}
+      d.sdAmount=sa===''?'':+sa;d.sdCheque=v('tsc');d.sdStatus=ss;
+    }
+    DLG.busy=true;busyBtn(yes,true,'Saving…');dlgErr('');
+    call('officeContractSave',S.token,d).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      var o=r&&+r.old||0;toast(r&&r.same?'Nothing changed.':'Saved.'+(o?' '+o+' open PDF'+(o===1?'':'s')+' of this job marked old.':''));viewContract(c.job);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|')[0];
+      if(k==='STALE'){staleClose(function(){viewContract(c.job);});return;}
+      if(k==='CLOSED'){closeDlg();viewContract(c.job);toast('This contract is closed now — nothing saved.');return;}
+      if(k==='PIMADE'){dlgErr('An advance PI is already made — the advance % can\'t change now. Nothing saved.');return;}
+      if(k==='NOTFOUND'){closeDlg();viewContracts();toast('This contract no longer exists.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('tn').focus();},30);
+}
+function ctAdvDlg(c){
+  var my=openDlg('<h3 id="dlgt">Advance invoice (proforma)</h3><p class="sub">'+esc(c.job)+' · '+(c.advPct==null?'—':ctR2(c.advPct*100)+' %')+' of '+ctTk(c.value)+'</p><div id="derr"></div>'+
+    '<div class="f2">'+cuFld('taa','Amount (Tk)',c.adv==null?'':c.adv,{im:'decimal',m:14})+cuFld('tad','PI date',ctToday(),{t:'date'})+'</div>'+
+    '<div class="note">'+ic('alert')+'<span>Made as a Draft PI, due '+(c.type==='Sale'?'before delivery':'before mobilisation')+'. Accounts approves and sends it.</span></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Make PI</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    var a=v('taa').replace(/,/g,''),dd=v('tad');
+    if(!/^\d+(\.\d{1,2})?$/.test(a)||!(+a>0)){dlgErr('Please enter the amount in Tk (more than 0, up to 2 decimals).');return;}
+    if(c.value!=null&&+a>c.value){dlgErr('More than the contract value ('+ctTk(c.value)+').');return;}
+    if(dd&&!isDay(dd)){dlgErr('Please check the PI date.');return;}
+    DLG.busy=true;busyBtn(yes,true,'Making…');dlgErr('');
+    call('officeContractAdvance',S.token,{job:c.job,ev:c.ev,amount:+a,date:dd}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();toast(cuS(r&&r.pi)+' made (Draft).');viewContract(c.job);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|')[0];
+      if(k==='STALE'){staleClose(function(){viewContract(c.job);});return;}
+      if(k==='PIMADE'){closeDlg();viewContract(c.job);toast('An advance PI was made meanwhile — reloaded.');return;}
+      if(k==='CLOSED'){closeDlg();viewContract(c.job);toast('This contract is closed now — nothing made.');return;}
+      if(k==='NOTOTAL'){dlgErr('This contract has no value yet. Nothing made.');return;}
+      if(k==='NOTFOUND'){closeDlg();viewContracts();toast('This contract no longer exists.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById('taa').focus();},30);
+}
 /* ======================= server errors (any screen) ======================= */
 /* a dead session goes back to sign-in; no access goes Home; the rest is text for the screen */
 function srvGate(m){
@@ -1016,6 +1286,10 @@ function errText(m){
     case 'LIMIT': return 'You have sent many emails today. Please try again tomorrow or ask a Director.';
     case 'WITHDRAWN': return 'This document is <b>withdrawn</b>. Make it active again before revising it.';
     case 'NOREG': return 'The document register is not set up yet. A Director runs <b>Web app › Set up document register</b> in the sheet.';
+    case 'EXISTS': return 'This quote already has a contract (<b>'+esc(k[1]||'')+'</b>).';
+    case 'CLOSED': return 'This contract is <b>closed</b> — read only.';
+    case 'PIMADE': return 'An advance PI is already made for this contract.';
+    case 'NOTOTAL': return 'The quote has no total yet.';
     case 'SYSDOC': return 'The system prints this document, so it can\'t be withdrawn. Revise it instead.';
     default: return 'Could not finish: '+esc(code(m));
   }
@@ -1661,7 +1935,8 @@ function quoteDraw(){
   var h='<div class="qhead"><div><h2>'+esc(q.no)+(q.rev?' · Rev '+q.rev:'')+'</h2><div class="sub">'+esc(q.subject||q.project)+'</div>'+
       '<div class="qrow" style="margin-top:8px">'+(q.type?'<span class="pill ty">'+esc(q.type)+'</span>':'')+'<span class="pill qs-'+q.status+'">'+q.status+'</span></div></div>'+
     '<div class="qacts">'+(q.can&&!q.locked?'<button type="button" class="btn btn-ghost btn-sm" id="qedit">'+ic('edit')+'Edit quote</button>':'')+'<button type="button" class="btn btn-ghost btn-sm" id="qpdf">'+ic('doc')+(q.pdf?'Open PDF':'Make PDF')+'</button>'+
-      (q.can&&['Lost','Expired','Cancelled'].indexOf(q.status)<0?'<button type="button" class="btn btn-primary btn-sm" id="qmail">'+ic('mail')+'Email to client</button>':'')+'</div></div>'+
+      (q.can&&['Lost','Expired','Cancelled'].indexOf(q.status)<0?'<button type="button" class="btn btn-primary btn-sm" id="qmail">'+ic('mail')+'Email to client</button>':'')+
+      (q.job?'<button type="button" class="btn btn-ghost btn-sm" id="qjob">'+ic('contract')+'Contract '+esc(q.job)+'</button>':q.can&&q.status==='Sent'?'<button type="button" class="btn btn-ghost btn-sm" id="qct">'+ic('contract')+'Make contract</button>':'')+'</div></div>'+
     '<div class="qgrid">'+
       '<div class="box"><h4>Customer</h4>'+kv([['Name',esc(q.cust)],['Attention',esc(q.contact)],['Phone',esc(q.phone)],['Email',esc(q.email)]])+'</div>'+
       '<div class="box"><h4>Project</h4>'+kv([['Project',esc(q.project)],['Site',esc(q.site)],['Job',q.job?esc(q.job):'—']])+'</div>'+
@@ -1710,6 +1985,8 @@ function quoteDraw(){
   el.innerHTML=h;
   document.getElementById('qpdf').onclick=quotePdf;qPdfMark(); /* W4d: a PDF still being made */
   var eb=document.getElementById('qedit');if(eb)eb.onclick=function(){viewQuoteEdit(q.no);};
+  var jb=document.getElementById('qjob');if(jb)jb.onclick=function(){viewContract(q.job);};
+  var cb=document.getElementById('qct');if(cb)cb.onclick=function(){ctNew(q.no);};
   var mb=document.getElementById('qmail');if(mb)mb.onclick=quoteEmailDlg;
   document.getElementById('tonly').onclick=function(e){var b=e.target.closest?e.target.closest('button[data-o]'):null;if(!b)return;QS.only=b.getAttribute('data-o')==='1';quoteDraw();};
   if(edit){
