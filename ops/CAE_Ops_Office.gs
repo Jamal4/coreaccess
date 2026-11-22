@@ -1727,6 +1727,7 @@ function oCtQv_(db, q) { // version of a quote as offered in the picker: a revis
   return oQHash_([q.Rev, q.Status, oCuQTot_(db, q, n), q.AdvancePct, q.CustID, q.SiteID, q.QuoteType].map(function (x) { return String(x == null ? '' : x); }).join('|'));
 }
 function oCt4_(x) { return Math.round(num(x) * 1e4); } // shares compared at the 2-decimal % shown in the form
+function oCtLog_(db, a, r, t) { try { log_(db, a, r, t); return ''; } catch (e) { return 'LOG'; } } // audit line after a committed write: a failure is reported, not thrown
 function oCtStaff_(db) { return db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name); }).map(function (s) { return { id: String(s.StaffID), name: oUncell_(s.Name) }; }); }
 function officeContractList(token) {
   var L = officeGate_(token, OQ_NEED_), a = oAcc_(L), M = oCanSeeMoney_(a), C = oQCan_(a), env = oEnv_(), db = env.db();
@@ -1792,8 +1793,8 @@ function officeContractMake(token, d) {
     oQeRate_(env, L);
     oCtUp_(db);
     var jn = quoteToJob(db, qn, { woNo: oCell_(wo), woDate: wd || '', pm: pm, extra: { ContractValue: tot, OrderKind: d.kind, AdvancePct: pct } }); // one row write (ContractValue stays the sheet formula live)
-    log_(db, 'Contract made', jn, qn + ' · ' + d.kind + (wo ? ' ' + wo : '') + (pct !== '' ? ' · advance ' + r2(pct * 100) + ' %' : ''));
-    return { job: jn };
+    var w = oCtLog_(db, 'Contract made', jn, qn + ' · ' + d.kind + (wo ? ' ' + wo : '') + (pct !== '' ? ' · advance ' + r2(pct * 100) + ' %' : ''));
+    return w ? { job: jn, warn: w } : { job: jn };
   });
 }
 function oCtPdfOld_(db, jn) { // documents of the job still open (Draft) that print the WO no.: their PDF link is cleared (old URL kept in the Log)
@@ -1839,8 +1840,8 @@ function officeContractSave(token, d) {
     var patch = {}; ch.forEach(function (k) { patch[k] = p[k]; });
     var old = ch.indexOf('ClientWONo') >= 0 ? oCtPdfOld_(db, jn) : 0; // CR7 rule: before the write
     uiPutRow_(db, 'Jobs', j, patch);
-    log_(db, 'Contract updated', jn, ch.join(', '));
-    return { ok: true, old: old };
+    var w = oCtLog_(db, 'Contract updated', jn, ch.join(', '));
+    return w ? { ok: true, old: old, warn: w } : { ok: true, old: old };
   });
 }
 function officeContractFab(token, d) {
@@ -1857,8 +1858,8 @@ function officeContractFab(token, d) {
     oCtUp_(db);
     l = find(db.rows('QuoteLines'), 'LineID', d.line);
     uiPutRow_(db, 'QuoteLines', l, { NeedsFab: v });
-    log_(db, 'Contract line', String(j.JobNo), 'Line ' + num(l.LineNo) + (d.fab ? ': needs fabrication' : ': from stock'));
-    return { ok: true };
+    var w = oCtLog_(db, 'Contract line', String(j.JobNo), 'Line ' + num(l.LineNo) + (d.fab ? ': needs fabrication' : ': from stock'));
+    return w ? { ok: true, warn: w } : { ok: true };
   });
 }
 function officeContractAdvance(token, d) {

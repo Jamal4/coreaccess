@@ -1121,8 +1121,8 @@ function ctDraw(){
   [].forEach.call(V.querySelectorAll('button.fab[data-l]'),function(b){b.onclick=function(){
     var id=b.getAttribute('data-l');if(b.disabled||CT.c!==c||(c.pend&&c.pend[id]))return;var l=c.lines.filter(function(x){return x.id===id;})[0];if(!l)return;
     var to=!l.fab,my=CT.seq;b.disabled=true;c.pend=c.pend||{};c.pend[id]=1; /* a line stays locked until its own answer is back, across redraws */
-    call('officeContractFab',S.token,{job:c.job,line:id,fab:to}).then(function(){
-      delete c.pend[id];if(my!==CT.seq||CT.c!==c)return;l.fab=to;c.fab=c.lines.filter(function(x){return x.fab;}).length;ctDraw();toast('Line '+l.n+': '+(to?'needs fabrication':'from stock')+' (saved).');
+    call('officeContractFab',S.token,{job:c.job,line:id,fab:to}).then(function(r){
+      delete c.pend[id];if(my!==CT.seq||CT.c!==c)return;l.fab=to;c.fab=c.lines.filter(function(x){return x.fab;}).length;ctDraw();toast('Line '+l.n+': '+(to?'needs fabrication':'from stock')+' (saved).'+(r&&r.warn==='LOG'?' (Log entry not written.)':''));
     },function(m){
       delete c.pend[id];if(srvGate(m))return;if(my!==CT.seq||CT.c!==c)return;ctDraw();
       var k=code(m).split('|')[0];if(k==='CLOSED'||k==='NOTFOUND'){ctLoad(c.job);toast(k==='CLOSED'?'This contract is closed now — reloaded.':'That line is no longer on the contract — reloaded.');return;}
@@ -1171,7 +1171,7 @@ function ctDlg(pre){
     DLG.busy=true;busyBtn(yes,true,'Making…');dlgErr('');
     call('officeContractMake',S.token,d).then(function(r){
       if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
-      var j=cuS(r&&r.job);toast((j||'Contract')+' made · '+pick+' is now Accepted.');if(j)viewContract(j);else viewContracts();
+      var j=cuS(r&&r.job);toast((j||'Contract')+' made · '+pick+' is now Accepted.'+(r&&r.warn==='LOG'?' (Log entry not written.)':''));if(j)viewContract(j);else viewContracts();
     },function(m){
       if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
       var k=code(m).split('|');
@@ -1213,7 +1213,7 @@ function ctEditDlg(c){
     DLG.busy=true;busyBtn(yes,true,'Saving…');dlgErr('');
     call('officeContractSave',S.token,d).then(function(r){
       if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
-      var o=r&&+r.old||0;toast(r&&r.same?'Nothing changed.':'Saved.'+(o?' '+o+' open PDF'+(o===1?'':'s')+' of this job marked old.':''));viewContract(c.job);
+      var o=r&&+r.old||0;toast(r&&r.same?'Nothing changed.':'Saved.'+(o?' '+o+' open PDF'+(o===1?'':'s')+' of this job marked old.':'')+(r&&r.warn==='LOG'?' (Log entry not written.)':''));viewContract(c.job);
     },function(m){
       if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);
       var k=code(m).split('|')[0];
