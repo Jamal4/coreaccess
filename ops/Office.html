@@ -1278,7 +1278,7 @@ function stKg(n){n=+n;return isFinite(n)?n.toLocaleString('en-IN',{maximumFracti
 function stTk(n){return typeof n==='number'&&isFinite(n)?'Tk '+tk(n):'—';}
 function stList(x){return cuArr(x).map(cuS).filter(Boolean);}
 function nst(r){r=r||{};return {code:cuS(r.code),name:cuS(r.name),cat:cuS(r.cat),size:cuS(r.size),unit:cuS(r.unit),isSet:r.isSet===true,tracked:r.tracked===true,status:cuS(r.status)||'Active',reorder:stN(r.reorder),
-  yard:stN(r.yard),site:stN(r.site),rep:stN(r.rep),lost:stN(r.lost),own:stN(r.own),low:r.low===true,cata:r.cata===true,kitBad:r.kitBad===true,parts:stN(r.parts),make:stN(r.make),cost:ctNum(r.cost),val:ctNum(r.val),hz:stHz(r.hz)};}
+  yard:stN(r.yard),site:stN(r.site),rep:stN(r.rep),lost:stN(r.lost),own:stN(r.own),low:r.low===true,cata:r.cata===true,kitBad:r.kitBad===true,parts:stN(r.parts),make:stN(r.make),cost:ctNum(r.cost),val:ctNum(r.val),hz:stHz(r.hz),op:cuArr(r.op).map(cuS)};}
 function stHz(z){if(!z||typeof z!=='object')return null;var o={};['yard','site','rep','lost'].forEach(function(k){o[k]=z[k]===true;});return o;} /* CR run 14: raw presence per group (server) */
 function nstFull(r){
   r=r||{};var o=nst(r),ls=r.lists||{};
@@ -1447,6 +1447,7 @@ function stItemDlg(o){
     if(!vl('xk').trim()||(!vl('xu').trim()&&(nw||String(o.unit||'').trim()))){dlgErr('The category and the unit are needed.');return;} /* CR run 13: a blank unit kept as it was on edit */
     var kg=stNumIn(v('xw'),3);if(kg===null||kg>10000){dlgErr('Weight: a number in kg (up to 3 decimals).');return;}
     var rl=stNumIn(v('xr'),0);if(rl===null||rl>1e6){dlgErr('Reorder level: a whole number, 0 or more.');return;}
+    if(st==='Yes'&&tr==='Yes'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No.');return;} /* CR run 15 */
     var d={code:c,name:v('xn'),cat:vl('xk'),size:v('xs'),unit:vl('xu'),kg:kg,reorder:rl===''?'':rl,status:document.getElementById('xt').value,tracked:tr,isSet:st,forHire:fh,forSale:fs};
     if(!nw)d.ev=o.ev;
     if(P){var ks=[['xp1','hire','Hire rate'],['xp2','sale','Sale price'],['xp3','repl','Replacement cost'],['xp4','repair','Repair rate']];
@@ -1466,6 +1467,7 @@ function stItemDlg(o){
       if(k[0]==='BADINPUT'&&k[1]==='unit'){dlgErr('The unit can\'t change: stock, moves, set parts or challan / damage / PO lines already count this item in '+esc(o.unit)+'. Nothing saved.');return;}
       if(k[0]==='BADINPUT'&&k[1]==='stock tracked'){dlgErr('Stock tracking can\'t be switched off while this item has stock. Nothing saved.');return;}
       if(k[0]==='ONORDER'){dlgErr('Stock tracking can\'t be switched off: PO <b>'+esc(k[1]||'')+'</b> still has this item to receive. Receive it, or cancel / close the PO, first. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='set tracked'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No. Nothing saved.');return;}
       if(k[0]==='BADINPUT'&&k[1]==='part tracked'){dlgErr('This item is a part of a set (KitParts): it must stay stock-tracked. Take it out of the set first. Nothing saved.');return;}
       dlgErr(errText(m));
     });
@@ -1487,11 +1489,17 @@ function stOpenDlg(pre,fr){ /* CR run 8: items + locations read fresh each time 
     '<button type="button" class="btn btn-ghost btn-sm" id="oadd">'+ic('plus')+'Add line</button>'+
     '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Post opening stock</button></div>');
   var box=document.getElementById('ols'),nl=0;
+  /* CR run 15: locations this item had an opening at when the list loaded: flagged, and a new line starts on one not opened; the post
+     alone refuses (EXISTS: this list can be old, CR run 5) */
+  var opd=function(c){var x=items.filter(function(y){return y.code===c;})[0];return x&&x.op||[];};
+  var olf=function(d){var s=d.querySelector('.oloc'),v=s.value,op=opd(d.querySelector('.oi').value),f=locs.filter(function(l){return op.indexOf(l.code)<0;})[0];
+    s.innerHTML=locs.map(function(l){return '<option value="'+esc(l.code)+'">'+esc(l.code+' · '+l.name)+(op.indexOf(l.code)>=0?' (opened)':'')+'</option>';}).join('');
+    s.value=v&&locs.some(function(l){return l.code===v;})?v:(f||locs[0]).code;};
   var line=function(it){var d=document.createElement('div');d.className='st-ol';nl++;
     d.innerHTML='<select class="inp np oi" aria-label="Item">'+items.map(function(x){return '<option value="'+esc(x.code)+'"'+(x.code===it?' selected':'')+'>'+esc(x.code+' · '+[x.name,x.size].filter(Boolean).join(' '))+'</option>';}).join('')+'</select>'+
-      '<select class="inp np oloc" aria-label="Location">'+locs.map(function(l){return '<option value="'+esc(l.code)+'">'+esc(l.code+' · '+l.name)+'</option>';}).join('')+'</select>'+
+      '<select class="inp np oloc" aria-label="Location"></select>'+
       '<input class="inp np oq" type="number" min="1" step="1" inputmode="numeric" placeholder="Qty" aria-label="Quantity"><button type="button" class="st-mini" aria-label="Remove line">'+ic('ban')+'</button>';
-    d.querySelector('.st-mini').onclick=function(){if(!DLG.busy)d.parentNode.removeChild(d);};box.appendChild(d);};
+    d.querySelector('.st-mini').onclick=function(){if(!DLG.busy)d.parentNode.removeChild(d);};d.querySelector('.oi').addEventListener('change',function(){olf(d);});olf(d);box.appendChild(d);};
   line(sel||items[0].code);
   document.getElementById('oadd').onclick=function(){if(!DLG.busy&&box.children.length<200)line(items[0].code);};
   document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
@@ -1577,6 +1585,7 @@ function errText(m){
     case 'SLOW': return 'Many saves from this login in a short time. Please wait a few minutes and try again.';
     case 'SAVEFAIL': return 'The sheet refused the save: '+esc(k.slice(1).join('|')||'unknown reason')+'. Nothing was saved.';
     case 'NOPDF': return 'There is no PDF of this quote yet. Sales staff make it.';
+    case 'PDFLOCK': return 'A locked quote (job, or not Draft / Sent) gets no new PDF.';
     case 'SENTNOW': return 'This quote was emailed a moment ago. Check before sending it again.';
     case 'SENTNOREC': return 'The email went out, but the system could not record it (status / log). Do not send it again — reload in a minute and check the quote.';
     case 'LIMIT': return 'You have sent many emails today. Please try again tomorrow or ask a Director.';
@@ -2948,7 +2957,7 @@ function qeSave(pdf){
   var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,
     lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
   var cu=qeCust(),si=qeSite(),s={d:d,q:JSON.parse(JSON.stringify(q)),qd:QE.d,cust:cu?cu.name:'',project:si?si.project:'',type:q.type};
-  if(!J)J=QE.job={id:++QB.n,busy:false,next:null,pdf:false,no:q.no||'',ev:q.ev,rid:q.no?'':qeRid()}; /* CR run 13: one request id per new-quote form (kept for its retries) */
+  if(!J)J=QE.job={id:++QB.n,busy:false,next:null,pdf:false,no:q.no||'',ev:q.ev};
   if(pdf)J.pdf=true;
   QE.dirty=false;box.innerHTML=qeSavedMsg(J.pdf);
   if(J.busy){J.next=s;return;}
@@ -2961,7 +2970,6 @@ function qePendHtml(){return Object.keys(QB.lost).map(function(k){var x=QB.lost[
     '<div class="qc">'+esc(s.cust)+'</div><div class="qp">Open to see why and save again</div></button>';}).join('')+Object.keys(QB.pend).map(function(k){var p=QB.pend[k];
   return '<div class="qcard" aria-busy="true"><div class="qrow"><span class="qno"><span class="spin"></span> Saving…</span><span class="sp"></span>'+(p.type?'<span class="pill ty">'+esc(p.type)+'</span>':'')+'</div>'+
     '<div class="qc">'+esc(p.cust)+'</div>'+(p.project?'<div class="qp">'+esc(p.project)+'</div>':'')+'</div>';}).join('');}
-function qeRid(){var s=Date.now().toString(36),a=[];try{a=Array.prototype.slice.call(crypto.getRandomValues(new Uint32Array(3)));}catch(e){a=[Math.random()*4294967295,Math.random()*4294967295];}a.forEach(function(x){s+=(x>>>0).toString(36);});return s.slice(0,40);}
 function qeSend(J,s){
   var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;
   var fail=function(m){
@@ -2974,7 +2982,7 @@ function qeSend(J,s){
     qePark(J,n,m);qeWake(J); /* review H1: the person is busy on another form: keep this one for them */
   };
   if(J.no&&typeof J.ev!=='number'){setTimeout(function(){fail('NOEV');},0);return;} /* CR: the last answer had no version: never send on an unconfirmed one */
-  d.no=J.no||d.no;if(J.no)d.ev=J.ev;else if(J.rid)d.rid=J.rid;
+  d.no=J.no||d.no;if(J.no)d.ev=J.ev;
   if(pk){QB.pend[pk]={cust:s.cust,project:s.project,type:s.type};quotesDraw();}
   call('officeQuoteSave',S.token,d).then(function(r){
     if(ep!==QB.ep)return;r=r||{};if(pk)delete QB.pend[pk];
@@ -2983,7 +2991,7 @@ function qeSend(J,s){
     if(!d.no)J.made=true;if(r.changed!==false)J.chg=true;
     if(J.next){var n=J.next;J.next=null;qeSend(J,n);return;}
     J.busy=false;delete QB.jobs[J.id];var pdf=J.pdf,made=J.made,chg=J.chg;J.pdf=J.made=J.chg=false;
-    toast(r.again===true?'Quote '+no+(r.part===true?' was saved only in part':' had been saved already')+' (the answer to the first try was lost) — please check it.':(made?'Quote '+no+' saved as Draft':'Saved '+no+(r.rev?' · Rev '+r.rev:''))+(!chg?' (nothing changed)':pdf?' — making the PDF…':'.'));
+    toast((made?'Quote '+no+' saved as Draft':'Saved '+no+(r.rev?' · Rev '+r.rev:''))+(!chg?' (nothing changed)':pdf?' — making the PDF…':'.'));
     if(QS.pdfBg)delete QS.pdfBg[no];
     qeWake(J);
     if(here&&!QE.dirty&&!document.getElementById('dlg')){QE.job=null;viewQuote(no,r.view);} /* review L8: an open dialog stays */

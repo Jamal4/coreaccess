@@ -1326,7 +1326,7 @@ function officeQuoteTerm(token, no, tv, op) {
     try { qtSave_(db, { quoteNo: q.QuoteNo, settings: set, clauses: cls, added: add }); }
     catch (e) {
       try { var d2 = env.db() || db; uiPutRow_(d2, 'Quotes', oQRow_(d2, q.QuoteNo), h0); } catch (e1) { /* the error below says try again */ }
-      try { var d3 = env.db() || db; if (keep.length && !qtRows_(d3, q.QuoteNo).length) d3.insert('QuoteTerms', keep); } catch (e2) { /* the error below says try again */ }
+      try { var d3 = env.db() || db, left = qtRows_(d3, q.QuoteNo); if (oQtSig_(left) !== oQtSig_(T.ov)) { uiDelRows_(d3, 'QuoteTerms', left); if (keep.length) d3.insert('QuoteTerms', keep); } } catch (e2) { /* the error below says try again */ } // CR run 15: also a part delete / part write
       oFail_('BUSY');
     }
     oQPdfStale_(env, env.db() || db, q.QuoteNo, true);
@@ -1341,15 +1341,16 @@ function oQPdfMake_(env, db, q) { // -> {url, made}
   try { // CR run 9: the lease is taken inside the try: a failure after it went in (the flush when the lock is let go) lets it go again (owner token checked)
     var d0 = db; // CR run 10: read again once the lease is held (an edit saved after the click is in the render and its fingerprint: no needless BUSY)
     env.lock(function () { var l = env.get(key); if (l && +l.u > env.now()) oFail_('BUSY'); d0 = env.db() || db; oQRevFix_(env, d0, q.QuoteNo); // CR run 8: the revision fix before the lease: a failing fix leaves no lease (no BUSY for 6 min)
-      var q1 = find(d0.rows('Quotes'), 'QuoteNo', q.QuoteNo); if (q1 && !blank(q1.PDF) && oQLocked_(d0, q1)) { hold.keep = String(q1.PDF); return; } // CR run 14: locked since the click: its PDF stays
+      var q1 = find(d0.rows('Quotes'), 'QuoteNo', q.QuoteNo); if (q1 && oQLocked_(d0, q1)) { if (blank(q1.PDF)) oFail_('PDFLOCK'); /* CR run 15: locked with no PDF: none made */ hold.keep = String(q1.PDF); return; } // CR run 14: locked since the click: its PDF stays
       env.put(key, { t: tok, u: env.now() + 360000 }); });
     if (hold.keep) return { url: hold.keep, made: false };
     var v = oQPdfVer_(d0, q.QuoteNo).v, st = QF5_STUB_ || {}, r; OSG_FELL_ = false; // CR8: the fingerprint of the spec this PDF is made from
     try { r = qf5Pdf_(d0, q.QuoteNo, { drive: st.drive, make: function (d, w, n) { var k0 = OPDF_BIN_, bin = OPDF_BIN_ = [], r0; try { r0 = (st.make || makePdf)(d, w, n, { noLink: true }); } finally { OPDF_BIN_ = k0; } oQPdfLinkIf_(env, d, n, r0, v, bin, hold); return r0; } }); }
     catch (e) { if (hold.keep) return { url: hold.keep, made: false }; throw e; } // CR run 14: locked during the render (oQPdfLinkIf_: new files binned, BUSY): qf5Pdf_ binned nothing
-    var f = oQFid_(r.url);
-    env.put('OQP:' + q.QuoteNo, oQPdfRec_(env, q.QuoteNo, v, f));
-    try { env.del('OQPN:' + q.QuoteNo); } catch (e) { /* a pending record of this file only counts while the cell holds it */ }
+    var f = oQFid_(r.url); // CR run 15: the record becomes final holding the script lock, only while it is as this run's publication
+    // left it (an out-of-date mark or another office PDF since keeps its own; records are per file, so a newer panel link is not affected)
+    if (hold.pub != null) try { oScrLock_(function () { var pn = env.get('OQPN:' + q.QuoteNo);
+      if (pn && pn.f === f && JSON.stringify(env.get('OQP:' + q.QuoteNo) || null) === hold.pub) { env.put('OQP:' + q.QuoteNo, oQPdfRec_(env, q.QuoteNo, v, f)); env.del('OQPN:' + q.QuoteNo); } }); } catch (e) { /* the pending record stands for this file (oQPdfFresh_) */ }
     return { url: String(r.url), made: true };
   } finally {
     OSG_FELL_ = false;
@@ -1361,21 +1362,22 @@ function oQPdfMake_(env, db, q) { // -> {url, made}
 // during the ~10 s render found no new link to mark old). Otherwise no link, the new file to the bin, BUSY (try again: made from the new data).
 // CR run 9: the row is found again in that fresh read (rows can move during the render); bin = the old same-named copies makePdf listed
 // (OPDF_BIN_): they go to the bin only once the new link is in, so a refused PDF leaves the cell's link still opening.
+function oQtSig_(a) { return a.map(function (o) { return JSON.stringify(['ClauseID', 'Action', 'Section', 'ClauseNo', 'Title', 'Text', 'SortOrder'].map(function (k) { return oUncell_(o[k]); })); }).sort().join('\n'); } // CR run 15: a quote's override rows, order-free
 function oQPdfRec_(env, no, v, f) { var p0 = env.get('OQP:' + no), k = p0 && p0.ni ? (+p0.k || 0) + 1 : 0; return OSG_FELL_ ? { v: v, f: f, ni: 1, at: env.now(), k: k } : { v: v, f: f }; } // CR4: made without the images
 function oQPnUp_(env, no, cur) { var pn = env.get('OQPN:' + no); if (pn && pn.f && pn.f === oQFid_(cur)) env.put('OQP:' + no, pn); } // CR run 14: the cell's file keeps its record before the next pending one
 function oQPdfLinkIf_(env, d, no, r0, v, bin, hold) { // hold.keep: the quote got locked (its PDF stays)
-  var ok = false, pub = false, wr = false, url = String(r0 && r0.url || ''), ids = oPdfIds_(r0); // CR run 10: pub = the link went in (only then the old copies go)
+  var ok = false, pub = false, wr = false, lk = false, url = String(r0 && r0.url || ''), ids = oPdfIds_(r0); // CR run 10: pub = the link went in (only then the old copies go)
   var drop = function () { ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } }); };
   try {
     oScrLock_(function () {
       var d1 = env.db() || d; ok = !!url && oQPdfVer_(d1, no).v === v;
-      if (ok) { var r = find(d1.rows('Quotes'), 'QuoteNo', no); if (r && !blank(r.PDF) && oQLocked_(d1, r)) { ok = false; if (hold) hold.keep = String(r.PDF); } else if (r && d1.headers('Quotes').indexOf('PDF') >= 0) { if (oPdfNewer_(r.PDF, url)) ok = false; else { oQPnUp_(env, no, r.PDF); env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true; d1.update('Quotes', r, { PDF: url }); pub = true; } } } // CR run 13: pending fingerprint first (a write that threw yet went in)
+      if (ok) { var r = find(d1.rows('Quotes'), 'QuoteNo', no); if (r && oQLocked_(d1, r)) { ok = false; if (blank(r.PDF)) lk = true; else if (hold) hold.keep = String(r.PDF); } else if (r && d1.headers('Quotes').indexOf('PDF') >= 0) { if (oPdfNewer_(r.PDF, url)) ok = false; else { oQPnUp_(env, no, r.PDF); env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true; d1.update('Quotes', r, { PDF: url }); pub = true; if (hold) hold.pub = JSON.stringify(env.get('OQP:' + no) || null); } } } // CR run 13: pending fingerprint first (a write that threw yet went in)
     });
   } catch (e) { if (!wr) drop(); throw e; } // CR run 12: lock refused (BUSY) / the fresh read failed: nothing linked -> the new files go; the write or the flush threw (the link may be in) -> both kept
   if (pub) { oBinNow_(bin, ids); return; }
   if (ok) return; // no PDF column / no row: nothing to link, the old same-named copies kept
   drop();
-  oFail_('BUSY');
+  oFail_(lk ? 'PDFLOCK' : 'BUSY'); // CR run 15: locked during the render, no PDF to keep
 }
 function oQPdfUse_(env, db, q, L) { // -> {url, made}
   var stored = String(q.PDF || ''), fresh = oQPdfFresh_(env, q, oQPdfVer_(db, q.QuoteNo).v);
@@ -2009,9 +2011,12 @@ function oStKit_(db) {
   return m;
 }
 // CR run 11: counted from the raw yard balance (not the 2-place total shown) with the challan's own tolerance (Sets.gs: have >= need - 1e-9)
-function oStMake_(parts, Q, locs) { // sets that can be made from the yard: min over parts of floor(yard / per set)
+function oStMake_(parts, Q, locs) { // sets one challan can issue from the yard: max over yard locations of min over parts of floor(qty there / per set)
   if (!parts || !parts.length || parts.bad) return 0; // a parts list the challan refuses: none can go out
-  return Math.max(0, Math.min.apply(null, parts.map(function (p) { return Math.floor((oStYard_(Q[p.p], locs) + 1e-9) / p.q); })));
+  var best = 0; // CR run 15: the challan checks each part at its one From location (Sets.gs: part|FromLoc), never summed over racks
+  Object.keys(locs).forEach(function (l) { if (OST_GRP_[String(locs[l].Type)] !== 'yard') return;
+    var n = Math.min.apply(null, parts.map(function (p) { var x = (Q[p.p] || {})[l] || 0; return Math.floor((x + 1e-9) / p.q); })); if (n > best) best = n; });
+  return best;
 }
 function oStYard_(q, locs) { var y = 0; Object.keys(q || {}).forEach(function (l) { if (locs[l] && OST_GRP_[String(locs[l].Type)] === 'yard') y += q[l]; }); return y; }
 function oStHas_(q) { return Object.keys(q || {}).some(function (l) { return Math.abs(q[l]) > 1e-9; }); } // CR run 13: stock (or a shortfall) somewhere
@@ -2019,7 +2024,7 @@ function oStLow_(it, g) { var r = oStN_(it.ReorderLevel); return !oStYes_(it.IsS
 function oStEv_(it, M) { return oCuEv_(it, [], M ? OST_EV_.concat(['HireRateMonth', 'SalePrice', 'ReplacementCost', 'RepairRate']) : OST_EV_); } // no prices in a hash sent to a login that may not see them (a guess could be checked against it)
 function oStCard_(it, g, kit, Q, locs, M) {
   var set = oStYes_(it.IsSet), o = { code: String(it.ItemCode), name: oUncell_(it.Name), cat: oUncell_(it.Category), size: oUncell_(it.Size), unit: oUncell_(it.Unit), isSet: set, status: oStSt_(it),
-    reorder: oStN_(it.ReorderLevel) || 0, tracked: oStYes_(it.StockTracked), yard: g.yard, site: g.site, rep: g.rep, lost: g.lost, own: g.own, low: oStLow_(it, g), hz: g.hz };
+    reorder: oStN_(it.ReorderLevel) || 0, tracked: oStYes_(it.StockTracked), yard: g.yard, site: g.site, rep: g.rep, lost: g.lost, own: g.own, low: oStLow_(it, g) && (oStYes_(it.StockTracked) || oStHas_(Q[String(it.ItemCode)])), hz: g.hz }; // CR run 15: a catalogue-only item (untracked, no stock) is not low
   if (set) { o.parts = (kit[o.code] || []).length; o.make = oStMake_(kit[o.code], Q, locs); var kk = kit[o.code] || []; if (!kk.length || kk.bad) o.kitBad = true; } // kitBad: the challan refuses this set (no valid parts / a bad row)
   if (M) { o.cost = oStN_(it.ReplacementCost); if (o.cost != null && !set) o.val = r2(g.raw * o.cost); } // CR run 13: val only to a money login
   return o;
@@ -2044,6 +2049,8 @@ function officeStockList(token) {
   var seen = oStMap_(), rows = db.rows('Items').filter(function (it) { var c = String(it.ItemCode == null ? '' : it.ItemCode); if (!oStCode_(c) || seen[c]) return false; seen[c] = 1; return true; }) // a repeated code: listed once, the first row (as find())
     .map(function (it) { var o = oStCard_(it, oStGroups_(Q[String(it.ItemCode)], locs), kit, Q, locs, M); if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet) || oStHas_(Q[String(it.ItemCode)]))) o.cata = true; return o; }); // cata: catalogue only (untracked, no stock; CR run 13: a balance, not move history): listed under "All items", not counted
   var out = { can: oStCan_(a), head: H, money: M, price: oIsDir_(a), rows: rows, cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit'), defs: oStDefs_(db), today: oDayOf_(env.now()) };
+  if (H) { var op = oStMap_(); db.rows('StockMoves').forEach(function (v) { if (String(v.RefType) !== 'Opening' || blank(v.ToLoc)) return; var c = String(v.ItemCode), a = op[c] = op[c] || []; if (a.indexOf(String(v.ToLoc)) < 0) a.push(String(v.ToLoc)); });
+    rows.forEach(function (o) { if (op[o.code]) o.op = op[o.code]; }); } // CR run 15: item + location already opened (the post refuses them: EXISTS)
   if (H) out.locs = Object.keys(locs).filter(function (k) { var t = String(locs[k].Type); return (t === 'Yard' || t === 'Repair') && String(locs[k].Status || 'Active') === 'Active'; }).map(function (k) { return { code: k, name: oUncell_(locs[k].Name), type: String(locs[k].Type) }; });
   return out;
 }
@@ -2207,6 +2214,7 @@ function officeItemSave(token, x) {
     }
     if (!row && st === 'Yes' && oStPart_(db, code)) oFail_('BADINPUT|set'); // listed as a part of a set already: a set can't be a part
     if (!row && tr === 'No' && oStPart_(db, code)) oFail_('BADINPUT|part tracked'); // listed as a part already: it must be tracked
+    if (st === 'Yes' && tr === 'Yes') oFail_('BADINPUT|set tracked'); // CR run 15: a set's stock is its parts' (Sets.gs: sets StockTracked No; receivePO would post the set code)
     var p = {}, ch = [];
     Object.keys(t).forEach(function (k) { p[k] = oCell_(t[k]); if (!row || String(cur(k) == null ? '' : cur(k)) !== t[k]) ch.push(k); });
     Object.keys(n).forEach(function (k) { p[k] = n[k]; var a = cur(k); if (!row || (k === 'ReorderLevel' ? (n[k] || 0) !== (blank(a) ? 0 : num(a)) : n[k] === '' ? !blank(a) : blank(a) || num(a) !== n[k])) ch.push(k); }); // reorder: blank = 0
@@ -2514,48 +2522,26 @@ function oW4gSame_(db, q, x, ty0) {
     return true;
   } catch (e) { return false; }
 }
-function oQeIns_(db, rq, f) { // CR run 14: the new quote's row gets its request id in the insert that writes the row
-  if (!rq) return f();
-  var own = Object.prototype.hasOwnProperty.call(db, 'insert'), i1 = db.insert;
-  db.insert = function (t, objs) { if (t === 'Quotes') (Array.isArray(objs) ? objs : [objs]).forEach(function (o) { if (o && typeof o === 'object' && blank(o.ReqID)) o.ReqID = rq; }); return i1.apply(db, arguments); };
-  try { return f(); } finally { if (own) db.insert = i1; else delete db.insert; }
-}
 function officeQuoteSave(token, d) {
   officeGate_(token, OQ_NEED_);
   if (!d || typeof d !== 'object' || Array.isArray(d)) oFail_('BADINPUT|quote');
   var res = oQW_(token, function (env, db, L) {
     if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
     var no = d.no == null || d.no === '' ? '' : d.no, q = no ? oQRow_(db, no) : null;
-    // CR run 13/14: a new quote carries the form's request id, written into its own row (ReqID, the same insert: nothing to lose or
-    // leave half-done). When the last row write fails, the quote's version goes into ReqID ('<id>~<ev>'); a retry that finds the quote
-    // still at that version completes it as an edit with the retry's data. Any other state (no version: it failed earlier; another
-    // version: edited since, in the panel, the sheet or here; done ':ok'; not Draft; locked) -> returned as it is (part: not done).
-    // No ReqID column: saved as before.
-    var rc0 = db.headers('Quotes').indexOf('ReqID') >= 0, rq = !no && rc0 && typeof d.rid === 'string' && /^[a-z0-9]{8,40}$/.test(d.rid) ? d.rid + '.' + oQHash_(String(L.email).toLowerCase()) : '', ag = false;
-    var rs = rq, q0 = null, k0 = '', ok0 = false; // rs: this request's id, for the version record below
-    if (rq) db.rows('Quotes').some(function (r) { var k = String(r.ReqID == null ? '' : r.ReqID); if (k === rq || k === rq + ':ok' || k.indexOf(rq + '~') === 0) { q0 = r; k0 = k; return true; } return false; });
-    if (q0 && k0.indexOf(rq + '~') === 0) ok0 = k0 === rq + '~' + oQeEv_(db, q0); // still at the version recorded = touched by nobody since
-    if (q0 && (!ok0 || String(q0.Status || 'Draft') !== 'Draft' || oQLocked_(db, q0))) { var o0 = { no: String(q0.QuoteNo), rev: num(q0.Rev), status: String(q0.Status || 'Draft'), was: '', changed: false, again: true };
-      if (!/:ok$/.test(k0)) o0.part = true;
-      try { o0.ev = oQeEv_(db, q0); } catch (e) { /* the page opens the form again for the next save */ }
-      if (d.pdf !== true) try { o0.view = oQView_(db, env, q0, L); } catch (e) { delete o0.view; }
-      return o0; }
-    if (q0) { no = String(q0.QuoteNo); q = q0; ag = true; rq = ''; }
     if (q) { oQRevFix_(env, db, q.QuoteNo); q = oQRow_(db, no); }
-    if (q) { if (oQLocked_(db, q)) oFail_('QLOCKED'); if (!ag && (typeof d.ev !== 'number' || d.ev !== oQeEv_(db, q))) oFail_('STALE'); oQeOld_(db, q.QuoteNo); }
+    if (q) { if (oQLocked_(db, q)) oFail_('QLOCKED'); if (typeof d.ev !== 'number' || d.ev !== oQeEv_(db, q)) oFail_('STALE'); oQeOld_(db, q.QuoteNo); }
     oQeRate_(env, L);
     if (!oIsDir_(oAcc_(L)) && !(d.prep == null || d.prep === '' || (typeof d.prep === 'string' && !!L.staff && d.prep === String(L.staff)))) oFail_('BADINPUT|prepared by'); // D2: own name only
     var x = oQeArgs_(db, d, q, env), was = q ? String(q.Status || 'Draft') : '', ty0 = q ? oQType_(q) : '';
     if (q && oW4gSame_(db, q, x, ty0)) { // W4g: nothing would change -> no row write, no Log, no refetch; the view from this lock's batch
       var o5 = { no: String(q.QuoteNo), rev: num(q.Rev), status: String(q.Status || 'Draft'), was: was, changed: false, ev: d.ev };
-      if (ag) { o5.again = true; try { o5.ev = oQeEv_(db, q); } catch (e) { delete o5.ev; } uiPutRow_(db, 'Quotes', q, { ReqID: String(q.ReqID).split('~')[0] + ':ok' }); } // CR run 14: complete -> done
       if (d.pdf !== true) try { var db5 = env.db() || db; o5.view = oQView_(db5, env, oQRow_(db5, q.QuoteNo), L); } catch (e) { delete o5.view; }
       return o5;
     }
     if (q) oPeBump_(env, [String(q.QuoteNo)]); // CR run 4/6: counted before anything is written (the pending-revision record too; a new quote has no PDF yet)
     var r, rk = q ? 'OQRV:' + String(q.QuoteNo) : '';
     if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
-    try { r = oQeIns_(db, rq, function () { return UI_ACTIONS_.saveQuoteFull(db, x.a); }); }
+    try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
     catch (e) { if (rk) env.del(rk); var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
     var ref = String(r.ref), d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
     if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }
@@ -2566,12 +2552,9 @@ function officeQuoteSave(token, d) {
       ['PaymentDays', 'NoticeDays', 'LateInterestPct', 'PartPeriodRule'].forEach(function (k) { if (d2.headers('Quotes').indexOf(k) >= 0 && !blank(q2[k])) p[k] = ''; });
     }
     if (was === 'Sent' && changed) { p.Rev = num(q2.Rev) + 1; p.Status = 'Draft'; } // CR10: the OQRV record above is kept until this is written
-    if (rc0 && !blank(q2.ReqID) && !/:ok$/.test(String(q2.ReqID))) p.ReqID = String(q2.ReqID).split('~')[0] + ':ok'; // CR run 14: done, in the same row write as the last follow-up
-    if (Object.keys(p).length) { try { uiPutRow_(d2, 'Quotes', q2, p); } catch (e) { // the version this row now holds, for the retry (one more row write; if that fails too, the retry returns it as it is)
-      if (rs) try { uiPutRow_(d2, 'Quotes', q2, { ReqID: rs + '~' + oQeEv_(d2, q2) }); } catch (e2) { /* no version: returned as it is */ }
-      throw e; } }
+    if (Object.keys(p).length) uiPutRow_(d2, 'Quotes', q2, p);
     if (p.Rev != null) { try { log_(d2, 'Quote revised', ref, 'Rev ' + p.Rev + ' (edited in the web app)'); } catch (e) { /* log only */ } env.del('OQRV:' + ref); }
-    var d3 = env.db() || d2, q3 = must(d3, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed }; if (ag) out.again = true;
+    var d3 = env.db() || d2, q3 = must(d3, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
     try { out.ev = oQeEv_(d3, q3); } catch (e) { /* W4g: the page then opens the form again for the next save */ }
     if (d.pdf !== true) try { var db4 = env.db(); if (db4) out.view = oQView_(db4, env, oQRow_(db4, ref), L); } catch (e) { delete out.view; } // W4f: in the lock = this lock's batch (no 4th read); the save stands either way
     return out;
