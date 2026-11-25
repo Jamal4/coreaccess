@@ -1570,6 +1570,7 @@ function srvGate(m){
 function errText(m){
   var k=code(m).split('|');
   switch(k[0]){
+    case 'SAVEUNSURE': return 'The save of new quote <b>'+esc(k[1]||'')+'</b> could not be confirmed. Press <b>Save</b> again to finish it: it saves into '+esc(k[1]||'')+', never a second quote.';
     case 'DUP': return 'This email already has a login. Find it in the list and use <b>Edit</b>.';
     case 'LASTDIR': return 'There must always be at least one <b>enabled Director</b>. Make another Director first.';
     case 'SELF': return 'You can\'t block yourself or change your own access. Ask another Director.';
@@ -2974,6 +2975,7 @@ function qeSend(J,s){
   var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;
   var fail=function(m){
     if(ep!==QB.ep)return;if(pk){delete QB.pend[pk];quotesDraw();}
+    var u=code(m).split('|');if(u[0]==='SAVEUNSURE'&&!J.no&&u[1]){J.no=u[1];J.ev=/^\d+$/.test(u[2]||'')?+u[2]:null;if(QE.job===J&&QE.q){QE.q.no=J.no;QE.q.ev=J.ev;}} /* CR run 17 L2334: the new quote is there: Save again edits it */
     var n=J.next||s,here=QE.job===J&&!!document.getElementById('qe'),no=J.no||d.no,k=code(m).split('|')[0];J.next=null;J.busy=false;J.pdf=J.made=J.chg=false;delete QB.jobs[J.id];
     if(srvGate(m)){toast((no||'The new quote')+' was not saved — sign in and enter the changes again.');return;} /* review M3 */
     if(k==='QLOCKED'){if(here){QE.dirty=false;QE.job=null;viewQuote(no);}toast(no+' is locked now — nothing saved.');qeWake(J);return;}
@@ -3003,7 +3005,7 @@ function qeWake(J){if(J.wait){var f=J.wait;J.wait=null;setTimeout(f,0);}}
 /* a refused save can take over the screen only when nothing unsaved / in flight / no dialog is there */
 function qeFree(){return !document.getElementById('dlg')&&!(document.getElementById('qe')&&(QE.dirty||(QE.job&&QE.job.busy)));}
 function qePark(J,s,m){var k=J.no||'p'+J.id;QB.lost[k]={J:J,s:s,m:m};quotesDraw();
-  var k=code(m).split('|')[0],why={STALE:'changed by someone meanwhile',NOEV:'version not confirmed',BUSY:'the system was busy'}[k]||k.toLowerCase();
+  var k=code(m).split('|')[0],why={SAVEUNSURE:'the save could not be confirmed',STALE:'changed by someone meanwhile',NOEV:'version not confirmed',BUSY:'the system was busy'}[k]||k.toLowerCase();
   toast((J.no||'The new quote')+' was not saved ('+why+') — your changes are kept: open it from Quotes.');}
 function qeUnpark(k){var x=QB.lost[k];delete QB.lost[k];qeReopen(x.J,x.s);qeErr(x.m,x.J.no||x.s.d.no,false);}
 /* the form again with the data of a refused background save (the person had left it) */

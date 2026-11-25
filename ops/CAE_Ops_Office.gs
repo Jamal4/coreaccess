@@ -1122,6 +1122,7 @@ function oQClauseText_(v) { // one clause: 1..1000 chars, no control chars, at l
   var s = v.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, ' ').replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').replace(/\p{Cf}/gu, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').replace(/[ \t]+/g, ' ').trim();
   return s.length <= 1000 && /[\p{L}\p{N}]/u.test(s) ? s : '';
 }
+function oQRaw_(v) { var s = oUncell_(v); return s ? "'" + s : ''; } // CR run 17: a stored cell put back as it was (text mark, no trim)
 function oQCell_(v) { var s = String(v == null ? '' : v).trim(); return s ? "'" + s : ''; } // always text in the sheet (no formula, no date / number guess)
 function oQFill_(s) { var m = String(s).match(OQ_PH_); return m ? m.length : 0; }
 // the terms as the page shows them + what qtSave_ needs to write them back
@@ -1319,7 +1320,7 @@ function officeQuoteTerm(token, no, tv, op) {
     } else if (op.k === 'resetAll') { Object.keys(set).forEach(function (k) { set[k] = ''; }); cls = []; add = []; }
     else oFail_('BADINPUT|change');
     // qtSave_ deletes this quote's QuoteTerms rows and writes them again: if the sheet fails in between, the old rows go back
-    var raw = qtRows_(db, q.QuoteNo), keep = raw.map(function (o) { /* CR run 16: all stored rows (T.ov leaves out blank ones) */ var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
+    var raw = qtRows_(db, q.QuoteNo), keep = raw.map(function (o) { /* CR run 16: all stored rows (T.ov leaves out blank ones) */ var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQRaw_(o.Title); x.Text = oQRaw_(o.Text); return x; });
     var hd = db.headers('Quotes'), h0 = {}; // CR16: qtSave_ writes the quote row first; on a failure it goes back too
     qtFieldsFor_(oQType_(q)).forEach(function (f) { if (hd.indexOf(f[0]) >= 0) h0[f[0]] = q[f[0]] == null ? '' : q[f[0]]; });
     oPeBump_(env, [String(q.QuoteNo)]); // CR run 4: counted before qtSave_ writes (a sheet-panel PDF made meanwhile does not keep its link)
@@ -2064,7 +2065,7 @@ function officeStockItem(token, code) {
   var M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
   if (!db) oFail_('BUSY');
   var it = oStItem_(db, code), c = String(it.ItemCode), locs = oStLocs_(db), Q = oStQty_(db), kit = oStKit_(db), g = oStGroups_(Q[c], locs), sites = oStSites_(db), items = oStMap_();
-  db.rows('Items').forEach(function (x) { if (!blank(x.ItemCode)) items[String(x.ItemCode)] = x; });
+  db.rows('Items').forEach(function (x) { var k = String(x.ItemCode); if (!blank(x.ItemCode) && !items[k]) items[k] = x; }); // CR run 17: the first row of a repeated code
   var o = oStCard_(it, g, kit, Q, locs, M), ord = { Yard: 0, Site: 1, Repair: 2, Lost: 3, Scrap: 4 };
   o.kg = oStN_(it.WeightKg); o.forHire = oStYes_(it.ForHire); o.forSale = oStYes_(it.ForSale); o.ev = oStEv_(it, M); o.can = oStCan_(a); o.head = oStHead_(a); o.money = M; o.price = oIsDir_(a);
   o.lists = { cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit') }; o.ulk = o.can && oStUnitUsed_(db, c); // ulk: the unit can't change (CR run 4); only for a login that edits items (no extra reads for viewers)
@@ -2132,7 +2133,7 @@ var OST_NUMF_ = ['WeightKg', 'ReorderLevel', 'HireRateMonth', 'SalePrice', 'Repl
 function oStPdfBack_(env, db, po, code, prev) { // CR run 11: also the OQP markers (a quote PDF still current is not left "old")
   if (!po || !(po.undo.length || po.oqp.length)) return;
   // CR run 12: a text field compared as text ('10' and '+010' print differently); numeric equality only for the number fields
-  var same = function (k, a, b) { var x = blank(a) ? '' : String(a).trim(), y = blank(b) ? '' : String(b).trim(); return x === y || (OST_NUMF_.indexOf(k) >= 0 && x !== '' && y !== '' && isFinite(+x) && isFinite(+y) && +x === +y); };
+  var same = function (k, a, b) { var x = blank(a) ? '' : String(a), y = blank(b) ? '' : String(b); if (x === y) return true; x = x.trim(); y = y.trim(); return OST_NUMF_.indexOf(k) >= 0 && x !== '' && y !== '' && isFinite(+x) && isFinite(+y) && +x === +y; }; // CR run 17: text exactly (' 10 mm' is not '10 mm')
   try { var d = env.db(); if (!d) return; var r = find(d.rows('Items'), 'ItemCode', code); if (!r || Object.keys(prev).some(function (k) { return !same(k, r[k], prev[k]); })) return; } catch (e) { return; }
   oStUndo_(env, db, po, code);
 }
@@ -2525,7 +2526,10 @@ function oW4gSame_(db, q, x, ty0) {
 function officeQuoteSave(token, d) {
   officeGate_(token, OQ_NEED_);
   if (!d || typeof d !== 'object' || Array.isArray(d)) oFail_('BADINPUT|quote');
-  var res = oQW_(token, function (env, db, L) {
+  // CR run 17 L2334: a new quote whose write went in, then a later step or the lock-exit flush failed -> SAVEUNSURE|no|ev: the page keeps
+  // the number, so Save again edits that quote (no second Draft). A save that did not get that far keeps its own error.
+  var made = null, res;
+  try { res = oQW_(token, function (env, db, L) {
     if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
     var no = d.no == null || d.no === '' ? '' : d.no, q = no ? oQRow_(db, no) : null;
     if (q) { oQRevFix_(env, db, q.QuoteNo); q = oQRow_(db, no); }
@@ -2543,7 +2547,8 @@ function officeQuoteSave(token, d) {
     if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
     try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
     catch (e) { if (rk) env.del(rk); var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
-    var ref = String(r.ref), d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
+    var ref = String(r.ref); if (!q) made = { no: ref };
+    var d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
     if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }
     var changed = !q || oQeEv_(d2, q2) !== d.ev || ('ValidityDays' in p); // a save that changed nothing makes no new Rev
     if (q && changed) oQPdfStale_(env, d2, ref, true); else if (rk) env.del(rk); // CR7 first, before any other write; CR10 record kept only for a change
@@ -2556,9 +2561,10 @@ function officeQuoteSave(token, d) {
     if (p.Rev != null) { try { log_(d2, 'Quote revised', ref, 'Rev ' + p.Rev + ' (edited in the web app)'); } catch (e) { /* log only */ } env.del('OQRV:' + ref); }
     var d3 = env.db() || d2, q3 = must(d3, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
     try { out.ev = oQeEv_(d3, q3); } catch (e) { /* W4g: the page then opens the form again for the next save */ }
+    if (made) made.ev = out.ev;
     if (d.pdf !== true) try { var db4 = env.db(); if (db4) out.view = oQView_(db4, env, oQRow_(db4, ref), L); } catch (e) { delete out.view; } // W4f: in the lock = this lock's batch (no 4th read); the save stands either way
     return out;
-  });
+  }); } catch (e) { if (made) oFail_('SAVEUNSURE|' + made.no + '|' + (typeof made.ev === 'number' ? made.ev : '')); throw e; }
   if (d.pdf === true) {
     try { var L2 = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db(); res.pdf = String(oQPdfUse_(env, db, oQRow_(db, res.no), L2).url || ''); }
     catch (e) { res.pdf = ''; res.pdfErr = String(e && e.message || e).split('|')[0].slice(0, 40); }
