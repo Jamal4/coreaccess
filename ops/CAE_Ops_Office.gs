@@ -99,7 +99,7 @@ function officeEnv_() {
     cget: function (k) { var v = CacheService.getScriptCache().get(k); return v ? JSON.parse(v) : null; },
     cput: function (k, o, sec) { CacheService.getScriptCache().put(k, JSON.stringify(o), Math.max(1, Math.min(21600, Math.ceil(sec)))); },
     cdel: function (k) { CacheService.getScriptCache().remove(k); },
-    lock: function (fn) { if (OLK_.s) return fn(); var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); } OLK_.s++; OLK_.g++; try { return fn(); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); } },
+    lock: function (fn) { if (OLK_.s) return fn(); var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); } OLK_.s++; OLK_.g++; var ok = false; try { var v = fn(); ok = true; return v; } finally { oLkEnd_(l, ok); } }, // flushed first: the next locked call reads these writes
     who: function () { return { active: Session.getActiveUser().getEmail() || '', effective: Session.getEffectiveUser().getEmail() || '' }; },
     triggerIds: function () { return ScriptApp.getProjectTriggers().map(function (x) { return String(x.getUniqueId()); }); },
     db: function () { // the CAE Ops DB (the bound sheet; by id if a web call has no active sheet)
@@ -116,7 +116,7 @@ if (typeof withLock === 'function' && !withLock.officeLk_) {
   withLock = function (fn) {
     if (OLK_.s || OLK_.np || (typeof LockService === 'undefined' && !OLK_.ls)) return OLK_withLock0_(fn); // a PDF (10-30 s) does not block the web app
     var l = oLs_().getScriptLock(); l.waitLock(30000); OLK_.s++; OLK_.g++;
-    try { return OLK_withLock0_(fn); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); }
+    var ok = false; try { var v = OLK_withLock0_(fn); ok = true; return v; } finally { oLkEnd_(l, ok); } // flushed before the script lock is let go
   };
   withLock.officeLk_ = OLK_withLock0_;
 }
@@ -978,8 +978,19 @@ function oPdfOldBin_(root, what, file, dir, mine) { // mine = ids of the PDF + D
   var pdf = oSubFind_(root, { n: 'PDF' }), old = pdf ? oSubFind_(pdf, { n: OPDF_[what][3] }) : null;
   if (!old || old.getId() === dir.getId()) return;
   var ed = oSubFind_(old, { n: 'Editable' }), doc = file.replace(/\.pdf$/i, '');
-  oIt_(old.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === file) f.setTrashed(true); });
-  if (ed) oIt_(ed.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === doc) f.setTrashed(true); });
+  oIt_(old.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === file) oBin_(f); });
+  if (ed) oIt_(ed.getFiles()).forEach(function (f) { if (ok(f) && f.getName() === doc) oBin_(f); });
+}
+// CR run 9: while a PDF is made whose link is written only afterwards (office app: oQPdfMake_; sheet panel: oPeCheck_), the old same-named
+// copies (makePdf's trashSame_, oPdfOldBin_) are only listed in OPDF_BIN_; oBinNow_ bins them once the new link is in. Refused -> they stay.
+var OPDF_BIN_ = null;
+function oBin_(f) { if (OPDF_BIN_) OPDF_BIN_.push(f); else f.setTrashed(true); }
+function oBinNow_(a, keep) { (Array.isArray(a) ? a : []).forEach(function (f) { try { if ((keep || []).indexOf(f.getId()) < 0 && oAlive_(f)) f.setTrashed(true); } catch (e) { /* an old copy may stay */ } }); }
+function oPdfIds_(r) { return [r && r.url, r && r.doc].map(function (u) { return oPdfIdOf_(u); }).filter(function (x) { return x; }); }
+if (typeof trashSame_ === 'function' && !trashSame_.officeBin_) {
+  var OF_trashSame0_ = trashSame_;
+  trashSame_ = function (folder, name) { if (!OPDF_BIN_) return OF_trashSame0_.apply(this, arguments); var it = folder.getFilesByName(name); while (it.hasNext()) OPDF_BIN_.push(it.next()); };
+  trashSame_.officeBin_ = OF_trashSame0_;
 }
 if (typeof makePdf === 'function' && !makePdf.officePdf_) {
   var OF_makePdf0_ = makePdf;
@@ -1160,8 +1171,9 @@ function oQFid_(u) { var m = String(u || '').match(/\/d\/([\w-]{6,})/) || String
 // (sheet panel: QF5 remakes it on every save) is trusted.
 function oQPdfFresh_(env, q, ver, okNi) { // okNi: a PDF made without the images (export fallback) counts as current
   if (blank(q.PDF)) return '';
-  var p = env.get('OQP:' + q.QuoteNo);
-  if (!p || p.f !== oQFid_(q.PDF)) return String(q.PDF);
+  var p = env.get('OQP:' + q.QuoteNo), fid = oQFid_(q.PDF);
+  if (!p || p.f !== fid) { var pn = env.get('OQPN:' + q.QuoteNo); if (pn && pn.f === fid) p = pn; } // CR run 13: an office PDF whose link write threw yet went in
+  if (!p || p.f !== fid) return String(q.PDF);
   if (p.v !== ver) return '';
   return p.ni && !okNi && env.now() - (+p.at || 0) > 600000 * Math.pow(2, Math.min(+p.k || 0, 7)) ? '' : String(q.PDF); // CR4: tried again with images after 10 min, 20, 40 ... (max ~21 h)
 }
@@ -1175,9 +1187,11 @@ if (typeof qf3Mail_ === 'function' && !qf3Mail_.officeMk_) {
   };
   qf3Mail_.officeMk_ = OQ_mail0_;
 }
-function oQPdfStale_(env, db, no) {
-  var q = find(db.rows('Quotes'), 'QuoteNo', no); if (!q || blank(q.PDF)) return;
-  var p = env.get('OQP:' + no); if (!p || p.f !== oQFid_(q.PDF)) env.put('OQP:' + no, { v: 0, f: oQFid_(q.PDF) });
+function oQPdfStale_(env, db, no, nb) { // nb: the caller counted the change already (oPeBump_). true = it has a PDF (marked old)
+  if (!nb) oPeBump_(env, [no]);
+  var q = find(db.rows('Quotes'), 'QuoteNo', no), u = oPdfNow_(db, 'Quotes', q); if (!u) return false; // the cell as it is now (CR run 3)
+  var p = env.get('OQP:' + no); if (!p || p.f !== oQFid_(u)) env.put('OQP:' + no, { v: 0, f: oQFid_(u) });
+  return true;
 }
 // CR10: a Sent quote whose edited lines were saved but whose Rev +1 / Draft was not written: completed on the next action
 // CR15: an email that went out while its recording failed (OQES nr) is recorded here: Sent + SentAt + Log.
@@ -1185,7 +1199,7 @@ function oQRevFix_(env, db, no) {
   var k = 'OQRV:' + no, p = env.get(k), rk = 'OQES:' + no, rc = env.get(rk), q = (p || rc) ? find(db.rows('Quotes'), 'QuoteNo', no) : null;
   if (p) {
     if (q && String(q.Status) === 'Sent' && num(q.Rev) < num(p.rev) && env.now() - (+p.at || 0) < 864e5) {
-      uiPutRow_(db, 'Quotes', q, { Rev: num(p.rev), Status: 'Draft' }); oQPdfStale_(env, db, no);
+      oPeBump_(env, [no]); uiPutRow_(db, 'Quotes', q, { Rev: num(p.rev), Status: 'Draft' }); oQPdfStale_(env, db, no, true); // CR run 4: counted before the write
       try { log_(db, 'Quote revised', no, 'Rev ' + num(p.rev) + ' (edited in the web app; completed)'); } catch (e) { /* log only */ }
     }
     env.del(k);
@@ -1308,33 +1322,60 @@ function officeQuoteTerm(token, no, tv, op) {
     var keep = T.ov.map(function (o) { var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
     var hd = db.headers('Quotes'), h0 = {}; // CR16: qtSave_ writes the quote row first; on a failure it goes back too
     qtFieldsFor_(oQType_(q)).forEach(function (f) { if (hd.indexOf(f[0]) >= 0) h0[f[0]] = q[f[0]] == null ? '' : q[f[0]]; });
+    oPeBump_(env, [String(q.QuoteNo)]); // CR run 4: counted before qtSave_ writes (a sheet-panel PDF made meanwhile does not keep its link)
     try { qtSave_(db, { quoteNo: q.QuoteNo, settings: set, clauses: cls, added: add }); }
     catch (e) {
       try { var d2 = env.db() || db; uiPutRow_(d2, 'Quotes', oQRow_(d2, q.QuoteNo), h0); } catch (e1) { /* the error below says try again */ }
       try { var d3 = env.db() || db; if (keep.length && !qtRows_(d3, q.QuoteNo).length) d3.insert('QuoteTerms', keep); } catch (e2) { /* the error below says try again */ }
       oFail_('BUSY');
     }
-    oQPdfStale_(env, env.db() || db, q.QuoteNo);
+    oQPdfStale_(env, env.db() || db, q.QuoteNo, true);
     var fresh = env.db() || db; // the sheet as it is now (a row cache can still hold the text marks)
     return oQView_(fresh, env, oQRow_(fresh, no), L);
   });
 }
 // PDF: the stored one while it is current; a locked quote (job, Accepted / Lost ...) never gets a new one; only SC Staff+ make one.
 // Made outside the script lock (a PDF takes ~10 s); one make per quote at a time (BUSY, flag set under the lock).
-function oQPdfMake_(env, db, q) {
-  var key = 'OQPB:' + q.QuoteNo, tok = env.rand().slice(0, 24); // CR12: a lease in Script Properties with an owner token
-  env.lock(function () { var l = env.get(key); if (l && +l.u > env.now()) oFail_('BUSY'); env.put(key, { t: tok, u: env.now() + 360000 }); oQRevFix_(env, db, q.QuoteNo); });
-  try {
-    var v = oQPdfVer_(db, q.QuoteNo).v; OSG_FELL_ = false; // CR8: the fingerprint of the spec this PDF is made from
-    var r = qf5Pdf_(db, q.QuoteNo), f = oQFid_(r.url);
-    var p0 = env.get('OQP:' + q.QuoteNo), k = p0 && p0.ni ? (+p0.k || 0) + 1 : 0;
-    env.put('OQP:' + q.QuoteNo, OSG_FELL_ ? { v: v, f: f, ni: 1, at: env.now(), k: k } : { v: v, f: f }); // CR4: made without the images
-    return String(r.url);
+function oQPdfMake_(env, db, q) { // -> {url, made}
+  var key = 'OQPB:' + q.QuoteNo, tok = env.rand().slice(0, 24), hold = {}; // CR12: a lease in Script Properties with an owner token
+  try { // CR run 9: the lease is taken inside the try: a failure after it went in (the flush when the lock is let go) lets it go again (owner token checked)
+    var d0 = db; // CR run 10: read again once the lease is held (an edit saved after the click is in the render and its fingerprint: no needless BUSY)
+    env.lock(function () { var l = env.get(key); if (l && +l.u > env.now()) oFail_('BUSY'); d0 = env.db() || db; oQRevFix_(env, d0, q.QuoteNo); // CR run 8: the revision fix before the lease: a failing fix leaves no lease (no BUSY for 6 min)
+      var q1 = find(d0.rows('Quotes'), 'QuoteNo', q.QuoteNo); if (q1 && !blank(q1.PDF) && oQLocked_(d0, q1)) { hold.keep = String(q1.PDF); return; } // CR run 14: locked since the click: its PDF stays
+      env.put(key, { t: tok, u: env.now() + 360000 }); });
+    if (hold.keep) return { url: hold.keep, made: false };
+    var v = oQPdfVer_(d0, q.QuoteNo).v, st = QF5_STUB_ || {}, r; OSG_FELL_ = false; // CR8: the fingerprint of the spec this PDF is made from
+    try { r = qf5Pdf_(d0, q.QuoteNo, { drive: st.drive, make: function (d, w, n) { var k0 = OPDF_BIN_, bin = OPDF_BIN_ = [], r0; try { r0 = (st.make || makePdf)(d, w, n, { noLink: true }); } finally { OPDF_BIN_ = k0; } oQPdfLinkIf_(env, d, n, r0, v, bin, hold); return r0; } }); }
+    catch (e) { if (hold.keep) return { url: hold.keep, made: false }; throw e; } // CR run 14: locked during the render (oQPdfLinkIf_: new files binned, BUSY): qf5Pdf_ binned nothing
+    var f = oQFid_(r.url);
+    env.put('OQP:' + q.QuoteNo, oQPdfRec_(env, q.QuoteNo, v, f));
+    try { env.del('OQPN:' + q.QuoteNo); } catch (e) { /* a pending record of this file only counts while the cell holds it */ }
+    return { url: String(r.url), made: true };
   } finally {
     OSG_FELL_ = false;
     var rel = function () { var l = env.get(key); if (l && l.t === tok) env.del(key); };
     try { env.lock(rel); } catch (e) { try { rel(); } catch (e2) { /* the lease runs out by itself */ } }
   }
+}
+// CR run 8: the link goes in only if the quote still prints as this PDF was made (read again from the sheet, holding the script lock: a save
+// during the ~10 s render found no new link to mark old). Otherwise no link, the new file to the bin, BUSY (try again: made from the new data).
+// CR run 9: the row is found again in that fresh read (rows can move during the render); bin = the old same-named copies makePdf listed
+// (OPDF_BIN_): they go to the bin only once the new link is in, so a refused PDF leaves the cell's link still opening.
+function oQPdfRec_(env, no, v, f) { var p0 = env.get('OQP:' + no), k = p0 && p0.ni ? (+p0.k || 0) + 1 : 0; return OSG_FELL_ ? { v: v, f: f, ni: 1, at: env.now(), k: k } : { v: v, f: f }; } // CR4: made without the images
+function oQPnUp_(env, no, cur) { var pn = env.get('OQPN:' + no); if (pn && pn.f && pn.f === oQFid_(cur)) env.put('OQP:' + no, pn); } // CR run 14: the cell's file keeps its record before the next pending one
+function oQPdfLinkIf_(env, d, no, r0, v, bin, hold) { // hold.keep: the quote got locked (its PDF stays)
+  var ok = false, pub = false, wr = false, url = String(r0 && r0.url || ''), ids = oPdfIds_(r0); // CR run 10: pub = the link went in (only then the old copies go)
+  var drop = function () { ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } }); };
+  try {
+    oScrLock_(function () {
+      var d1 = env.db() || d; ok = !!url && oQPdfVer_(d1, no).v === v;
+      if (ok) { var r = find(d1.rows('Quotes'), 'QuoteNo', no); if (r && !blank(r.PDF) && oQLocked_(d1, r)) { ok = false; if (hold) hold.keep = String(r.PDF); } else if (r && d1.headers('Quotes').indexOf('PDF') >= 0) { if (oPdfNewer_(r.PDF, url)) ok = false; else { oQPnUp_(env, no, r.PDF); env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true; d1.update('Quotes', r, { PDF: url }); pub = true; } } } // CR run 13: pending fingerprint first (a write that threw yet went in)
+    });
+  } catch (e) { if (!wr) drop(); throw e; } // CR run 12: lock refused (BUSY) / the fresh read failed: nothing linked -> the new files go; the write or the flush threw (the link may be in) -> both kept
+  if (pub) { oBinNow_(bin, ids); return; }
+  if (ok) return; // no PDF column / no row: nothing to link, the old same-named copies kept
+  drop();
+  oFail_('BUSY');
 }
 function oQPdfUse_(env, db, q, L) { // -> {url, made}
   var stored = String(q.PDF || ''), fresh = oQPdfFresh_(env, q, oQPdfVer_(db, q.QuoteNo).v);
@@ -1342,7 +1383,7 @@ function oQPdfUse_(env, db, q, L) { // -> {url, made}
   if (stored && (oQLocked_(db, q) || !oQCan_(oAcc_(L)))) return { url: stored, made: false };
   if (!oQCan_(oAcc_(L))) oFail_('NOPDF');
   var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
-  try { return { url: oQPdfMake_(env, db, q), made: true }; } finally { OQ_ACT_ = prev; }
+  try { return oQPdfMake_(env, db, q); } finally { OQ_ACT_ = prev; }
 }
 function officeQuotePdf(token, no) {
   var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
@@ -1576,7 +1617,10 @@ function oSiF_(s) { // the project fields of the web forms, checked; absent = ''
 function oSiPatch_(f) { return { project: oCell_(f.project), address: oCell_(f.address), siteRep: oCell_(f.siteRep), siteRepPhone: f.siteRepPhone, startDate: f.startDate }; }
 // CR-M1: ev = hash of the row as the form was opened (STALE when someone saved meanwhile); old panel PDFs of open quotes marked out of date
 function oCuEv_(r, defs, ex) { return oQHash_(JSON.stringify(defs.map(function (d) { return d[1]; }).concat(ex || []).map(function (k) { var x = r[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); }))); }
-function oCuPdfOld_(env, db, key, id) { db.rows('Quotes').forEach(function (q) { if (oQNo_(String(q.QuoteNo)) && String(q[key]) === id && !oQLocked_(db, q)) oQPdfStale_(env, db, String(q.QuoteNo)); }); }
+function oCuPdfOld_(env, db, key, id) {
+  var nos = db.rows('Quotes').filter(function (q) { return oQNo_(String(q.QuoteNo)) && String(q[key]) === id && !oQLocked_(db, q); }).map(function (q) { return String(q.QuoteNo); });
+  oPeBump_(env, nos); nos.forEach(function (no) { oQPdfStale_(env, db, no, true); });
+}
 function oCuQTot_(db, q, no) { try { return typeof q.Total === 'number' && isFinite(q.Total) ? q.Total : quoteTotals(db, no).total; } catch (e) { return null; } } // Total = sheet formula
 function officeCustList(token) {
   var L = officeGate_(token, OQ_NEED_), env = oEnv_(), db = env.db();
@@ -1797,17 +1841,29 @@ function officeContractMake(token, d) {
     return w ? { job: jn, warn: w } : { job: jn };
   });
 }
-function oCtPdfOld_(db, jn) { // documents of the job still open (Draft) that print the WO no.: their PDF link is cleared (old URL kept in the Log)
-  var n = 0;
+function oCtPdfOld_(db, jn, und) { // und: undo list filled as it goes (CR run 11). Documents of the job still open (Draft) that print the WO no.: their PDF link is cleared (old URL kept in the Log)
+  var n = 0, nos = [], clr = [];
   [['Invoices', 'InvNo'], ['Challans', 'ChallanNo'], ['Notes', 'NoteNo']].forEach(function (t) {
     if (!db.hasTab(t[0]) || db.headers(t[0]).indexOf('PDF') < 0) return;
     db.rows(t[0]).forEach(function (r) {
-      if (String(r.JobNo) !== jn || blank(r.PDF) || !(blank(r.Status) || String(r.Status) === 'Draft')) return;
-      var u = String(r.PDF); log_(db, 'PDF out of date', String(r[t[1]]), 'WO no. of ' + jn + ' changed; old PDF ' + u); // logged first: a failed log stops before the link is cleared
-      uiPutRow_(db, t[0], r, { PDF: '' }); n++;
+      if (String(r.JobNo) !== jn || !(blank(r.Status) || String(r.Status) === 'Draft')) return;
+      nos.push(String(r[t[1]])); clr.push([t, r]); // CR run 3: all of them, not only those this read showed with a link
     });
   });
+  oPeBump_(oEnv_(), nos); // first: a sheet-panel PDF of one of them being made right now does not keep its link (also those with no PDF yet)
+  // CR run 11: undo kept as it goes; a throw part way puts back the links cleared so far (the contract is not written yet) and rethrows
+  var u = und || [];
+  try {
+    clr.forEach(function (c) { var t = c[0][0], no = String(c[1][c[0][1]]), was = oPdfNow_(db, t, c[1]); if (was) { log_(db, 'PDF out of date', no, 'WO no. of ' + jn + ' changed; old PDF ' + was); u.push([t, c[1], no, was]); } db.update(t, c[1], { PDF: '' }); if (was) n++; });
+  } catch (e) { oPdfUndo_(db, u, 'WO no. of ' + jn + ' not saved'); throw e; }
   return n;
+}
+// CR run 11: the contract write threw -> the links cleared for the WO change go back, only when a fresh read shows the WO no. as it was
+function oCtPdfBack_(env, db, u, jn, wo0) {
+  if (!u.length) return;
+  var s = function (x) { return blank(x) ? '' : String(x); };
+  try { var d = env.db(); if (!d) return; var r = find(d.rows('Jobs'), 'JobNo', jn); if (!r || s(r.ClientWONo) !== s(wo0)) return; } catch (e) { return; }
+  oPdfUndo_(db, u, 'WO no. of ' + jn + ' not saved');
 }
 function officeContractSave(token, d) {
   officeGate_(token, OQ_NEED_);
@@ -1838,8 +1894,8 @@ function officeContractSave(token, d) {
     oQeRate_(env, L);
     oCtUp_(db); j = must(db, 'Jobs', 'JobNo', jn);
     var patch = {}; ch.forEach(function (k) { patch[k] = p[k]; });
-    var old = ch.indexOf('ClientWONo') >= 0 ? oCtPdfOld_(db, jn) : 0; // CR7 rule: before the write
-    uiPutRow_(db, 'Jobs', j, patch);
+    var cu = [], wo0 = j.ClientWONo, old = ch.indexOf('ClientWONo') >= 0 ? oCtPdfOld_(db, jn, cu) : 0; // CR7 rule: before the write
+    try { uiPutRow_(db, 'Jobs', j, patch); } catch (e) { oCtPdfBack_(env, db, cu, jn, wo0); throw e; } // CR run 11
     var w = oCtLog_(db, 'Contract updated', jn, ch.join(', '));
     return w ? { ok: true, old: old, warn: w } : { ok: true, old: old };
   });
@@ -1880,6 +1936,490 @@ function officeContractAdvance(token, d) {
     var pi = quoteToPI(db, qn, { amount: amt, date: dt, description: ds }); // one row write
     return { pi: pi };
   });
+}
+// ----------------------------------------------------------------- M3 (22 Nov): YW > Stock = Items + Locations + StockMoves (stock = running sum of the moves; never reset)
+// Moves are written only by posts (challans, POs, opening stock). Owned = Yard + Sites + Repair; Lost / Scrap outside owned; Supplier / Sold not shown.
+// See: YW, PS, SC, PR, AC (level 1+) and Directors. Prices / cost only for money logins (oCanSeeMoney_); written only by Directors.
+// officeStockList(token)            -> {can, head, money, price, rows: [item card], cats, units, defs: [[category, for hire, for sale]], locs (Yard / Repair, head only), today}
+// officeStockItem(token, code)      -> one item: groups, where (location -> job / customer), last 50 moves, parts (set) or sets it is in, ev
+// officeItemSave(token, it)         it = {code, ev (none = new), name, cat, size, unit, kg, reorder, status, tracked, isSet, forHire, forSale (Yes / No), hire, sale, repl, repair} (YW 2+) -> {code, old (edits: PDFs marked old)}
+// officeStockOpening(token, d)      d = {date, rows: [{item, loc, qty}]} -> {n}; once per item + location (YW 3+)
+// officeLocList(token)              -> {can, rows: [location]};  officeLocSave(token, l)  l = {code, name, type: Yard | Repair} (YW 3+)
+// An item edit marks the open documents that print a changed field as old (oStPdfOld_); a repair / replacement rate change waits for a Draft debit note of the item (DNOPEN|note).
+// Codes: NOTFOUND, EXISTS|..., STALE, BADINPUT|field, DNOPEN|note, ONORDER|po, NOACCESS, SLOW, BUSY.
+var OST_SEE_ = ['YW', 'PS', 'SC', 'PR', 'AC'];
+var OST_GRP_ = { Yard: 'yard', Site: 'site', Repair: 'rep', Lost: 'lost', Scrap: 'lost' };
+var OST_PRICE_ = { hire: 'HireRateMonth', sale: 'SalePrice', repl: 'ReplacementCost', repair: 'RepairRate' };
+var OST_EV_ = ['ItemCode', 'Name', 'Category', 'Size', 'Unit', 'WeightKg', 'StockTracked', 'IsSet', 'ForHire', 'ForSale', 'ReorderLevel', 'Status'];
+var OST_CODE_ = /^[A-Z0-9][A-Z0-9.-]{1,23}$/; // as the live codes (TC-TUBE-0.5)
+var OST_MOVES_ = 50, OST_LINES_ = 200;
+function oStSee_(a) { return oIsDir_(a) || OST_SEE_.some(function (d) { return (a[d] || 0) >= 1; }); }
+function oStCan_(a) { return oIsDir_(a) || (a.YW || 0) >= 2; }
+function oStHead_(a) { return oIsDir_(a) || (a.YW || 0) >= 3; }
+function oStW_(token, can, fn) { // a write: checked before and again inside the script lock
+  var env = oEnv_(), pre = officeGate_(token, null);
+  if (!can(oAcc_(pre))) oFail_('NOACCESS');
+  return env.lock(function () {
+    var L = officeGate_(token, null);
+    if (!can(oAcc_(L))) oFail_('NOACCESS');
+    var db = env.db(); if (!db) oFail_('BUSY');
+    var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+    try { return fn(env, db, L); } finally { OQ_ACT_ = prev; }
+  });
+}
+function oStCode_(v) { return typeof v === 'string' && OST_CODE_.test(v) ? v : ''; }
+function oStItem_(db, code) { var c = oStCode_(code), it = c ? find(db.rows('Items'), 'ItemCode', c) : null; if (!it || blank(it.ItemCode)) oFail_('NOTFOUND'); return it; }
+function oStYes_(v) { return String(v == null ? '' : v).trim() === 'Yes'; }
+function oStSt_(it) { var s = String(it.Status == null ? '' : it.Status).trim(); return s || 'Active'; }
+function oStN_(v) { return blank(v) || !isFinite(num(v)) ? null : num(v); }
+function oStMap_() { return Object.create(null); } // maps keyed by sheet / page text: no prototype keys (__proto__, constructor)
+function oStLocs_(db) { var m = oStMap_(); db.rows('Locations').forEach(function (l) { var k = String(l.LocID == null ? '' : l.LocID); if (!blank(l.LocID) && !m[k]) m[k] = l; }); return m; } // a repeated LocID: the first row wins (as find() in the challans)
+function oStQty_(db) { // item -> loc -> qty, one read of StockMoves
+  var m = oStMap_();
+  db.rows('StockMoves').forEach(function (v) {
+    if (blank(v.ItemCode)) return;
+    var k = String(v.ItemCode), q = num(v.Qty), x = m[k] = m[k] || oStMap_();
+    if (!isFinite(q) || !q) return;
+    if (!blank(v.ToLoc)) x[String(v.ToLoc)] = (x[String(v.ToLoc)] || 0) + q;
+    if (!blank(v.FromLoc)) x[String(v.FromLoc)] = (x[String(v.FromLoc)] || 0) - q;
+  });
+  return m;
+}
+function oStGroups_(q, locs) {
+  var g = { yard: 0, site: 0, rep: 0, lost: 0 };
+  // CR run 12: summed at full precision and rounded once, for the total shown (two racks of 0.004 = 0.01, not 0 + 0)
+  Object.keys(q || {}).forEach(function (l) { var t = locs[l] ? OST_GRP_[String(locs[l].Type)] : ''; if (t) g[t] += q[l]; });
+  g.raw = g.yard + g.site + g.rep; // CR run 13: owned value = raw balance x cost (not the rounded total)
+  g.ry = g.yard; g.hz = { yard: Math.abs(g.yard) > 1e-9, site: Math.abs(g.site) > 1e-9, rep: Math.abs(g.rep) > 1e-9, lost: Math.abs(g.lost) > 1e-9 }; // CR run 14: raw (low, list filters)
+  g.own = r2(g.raw); g.yard = r2(g.yard); g.site = r2(g.site); g.rep = r2(g.rep); g.lost = r2(g.lost);
+  return g;
+}
+// set -> [{p, q}] (KitParts), empty when the tab is missing. CR run 5: read as the challan reads it (kitParts_, Sets.gs): rows of one part
+// are added up; a row the challan refuses (part missing / blank, itself a set, not stock-tracked, qty not above 0) marks the set bad (.bad).
+function oStKit_(db) {
+  var m = oStMap_(); if (!db.hasTab('KitParts')) return m;
+  var its = oStMap_(); db.rows('Items').forEach(function (i) { var k = String(i.ItemCode == null ? '' : i.ItemCode); if (!blank(i.ItemCode) && !its[k]) its[k] = i; });
+  db.rows('KitParts').forEach(function (k) {
+    var s = String(k.SetCode == null ? '' : k.SetCode); if (!s) return;
+    var a = m[s] = m[s] || [], p = String(k.ItemCode == null ? '' : k.ItemCode), q = num(k.QtyPerSet), x = its[p];
+    if (!x || String(x.IsSet) === 'Yes' || x.StockTracked !== 'Yes' || !(q > 0)) { a.bad = true; return; }
+    for (var i = 0; i < a.length; i++) if (a[i].p === p) { a[i].q += q; return; }
+    a.push({ p: p, q: q });
+  });
+  return m;
+}
+// CR run 11: counted from the raw yard balance (not the 2-place total shown) with the challan's own tolerance (Sets.gs: have >= need - 1e-9)
+function oStMake_(parts, Q, locs) { // sets that can be made from the yard: min over parts of floor(yard / per set)
+  if (!parts || !parts.length || parts.bad) return 0; // a parts list the challan refuses: none can go out
+  return Math.max(0, Math.min.apply(null, parts.map(function (p) { return Math.floor((oStYard_(Q[p.p], locs) + 1e-9) / p.q); })));
+}
+function oStYard_(q, locs) { var y = 0; Object.keys(q || {}).forEach(function (l) { if (locs[l] && OST_GRP_[String(locs[l].Type)] === 'yard') y += q[l]; }); return y; }
+function oStHas_(q) { return Object.keys(q || {}).some(function (l) { return Math.abs(q[l]) > 1e-9; }); } // CR run 13: stock (or a shortfall) somewhere
+function oStLow_(it, g) { var r = oStN_(it.ReorderLevel); return !oStYes_(it.IsSet) && oStSt_(it) === 'Active' && r != null && r > 0 && (g.ry != null ? g.ry : g.yard) < r; }
+function oStEv_(it, M) { return oCuEv_(it, [], M ? OST_EV_.concat(['HireRateMonth', 'SalePrice', 'ReplacementCost', 'RepairRate']) : OST_EV_); } // no prices in a hash sent to a login that may not see them (a guess could be checked against it)
+function oStCard_(it, g, kit, Q, locs, M) {
+  var set = oStYes_(it.IsSet), o = { code: String(it.ItemCode), name: oUncell_(it.Name), cat: oUncell_(it.Category), size: oUncell_(it.Size), unit: oUncell_(it.Unit), isSet: set, status: oStSt_(it),
+    reorder: oStN_(it.ReorderLevel) || 0, tracked: oStYes_(it.StockTracked), yard: g.yard, site: g.site, rep: g.rep, lost: g.lost, own: g.own, low: oStLow_(it, g), hz: g.hz };
+  if (set) { o.parts = (kit[o.code] || []).length; o.make = oStMake_(kit[o.code], Q, locs); var kk = kit[o.code] || []; if (!kk.length || kk.bad) o.kitBad = true; } // kitBad: the challan refuses this set (no valid parts / a bad row)
+  if (M) { o.cost = oStN_(it.ReplacementCost); if (o.cost != null && !set) o.val = r2(g.raw * o.cost); } // CR run 13: val only to a money login
+  return o;
+}
+function oStSites_(db) { // SiteID -> {cust, jobs: open job nos.}
+  var cus = oStMap_(), m = oStMap_();
+  db.rows('Customers').forEach(function (c) { cus[String(c.CustID)] = c; });
+  db.rows('Sites').forEach(function (s) { if (!blank(s.SiteID)) m[String(s.SiteID)] = { cust: oUncell_((cus[String(s.CustID)] || {}).Name || s.CustID || ''), project: oUncell_(s.Project), jobs: [] }; });
+  db.rows('Jobs').forEach(function (j) { var s = m[String(j.SiteID)]; if (s && !blank(j.JobNo) && String(j.Status) !== 'Closed') s.jobs.push(String(j.JobNo)); });
+  return m;
+}
+function oStLocOut_(l, sites) {
+  var o = { code: String(l.LocID), name: oUncell_(l.Name), type: String(l.Type || ''), status: String(l.Status || 'Active') }, s = o.type === 'Site' && !blank(l.SiteID) ? sites[String(l.SiteID)] : null;
+  if (s) { o.cust = s.cust; o.job = s.jobs.sort().join(', '); }
+  return o;
+}
+function officeStockList(token) {
+  var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
+  var M = oCanSeeMoney_(a), H = oStHead_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var locs = oStLocs_(db), Q = oStQty_(db), kit = oStKit_(db);
+  var seen = oStMap_(), rows = db.rows('Items').filter(function (it) { var c = String(it.ItemCode == null ? '' : it.ItemCode); if (!oStCode_(c) || seen[c]) return false; seen[c] = 1; return true; }) // a repeated code: listed once, the first row (as find())
+    .map(function (it) { var o = oStCard_(it, oStGroups_(Q[String(it.ItemCode)], locs), kit, Q, locs, M); if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet) || oStHas_(Q[String(it.ItemCode)]))) o.cata = true; return o; }); // cata: catalogue only (untracked, no stock; CR run 13: a balance, not move history): listed under "All items", not counted
+  var out = { can: oStCan_(a), head: H, money: M, price: oIsDir_(a), rows: rows, cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit'), defs: oStDefs_(db), today: oDayOf_(env.now()) };
+  if (H) out.locs = Object.keys(locs).filter(function (k) { var t = String(locs[k].Type); return (t === 'Yard' || t === 'Repair') && String(locs[k].Status || 'Active') === 'Active'; }).map(function (k) { return { code: k, name: oUncell_(locs[k].Name), type: String(locs[k].Type) }; });
+  return out;
+}
+function oStDefs_(db) { // a new item's starting For hire / For sale: what most items of its category have (none / a tie: hire Yes, sale No)
+  var c = oStMap_(), yn = function (v) { v = String(v == null ? '' : v).trim(); return v === 'Yes' ? 1 : v === 'No' ? -1 : 0; };
+  db.rows('Items').forEach(function (it) { var k = oUncell_(it.Category).trim(); if (!k || blank(it.ItemCode)) return; var x = c[k] = c[k] || [0, 0]; x[0] += yn(it.ForHire); x[1] += yn(it.ForSale); });
+  return Object.keys(c).sort().map(function (k) { return [k, c[k][0] >= 0 ? 'Yes' : 'No', c[k][1] > 0 ? 'Yes' : 'No']; });
+}
+function officeStockItem(token, code) {
+  var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
+  var M = oCanSeeMoney_(a), env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var it = oStItem_(db, code), c = String(it.ItemCode), locs = oStLocs_(db), Q = oStQty_(db), kit = oStKit_(db), g = oStGroups_(Q[c], locs), sites = oStSites_(db), items = oStMap_();
+  db.rows('Items').forEach(function (x) { if (!blank(x.ItemCode)) items[String(x.ItemCode)] = x; });
+  var o = oStCard_(it, g, kit, Q, locs, M), ord = { Yard: 0, Site: 1, Repair: 2, Lost: 3, Scrap: 4 };
+  o.kg = oStN_(it.WeightKg); o.forHire = oStYes_(it.ForHire); o.forSale = oStYes_(it.ForSale); o.ev = oStEv_(it, M); o.can = oStCan_(a); o.head = oStHead_(a); o.money = M; o.price = oIsDir_(a);
+  o.lists = { cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit') }; o.ulk = o.can && oStUnitUsed_(db, c); // ulk: the unit can't change (CR run 4); only for a login that edits items (no extra reads for viewers)
+  if (M) { o.hire = oStN_(it.HireRateMonth); o.sale = oStN_(it.SalePrice); o.repl = oStN_(it.ReplacementCost); o.repair = oStN_(it.RepairRate); o.avg = oStN_(it.AvgCost); }
+  o.where = Object.keys(Q[c] || {}).filter(function (l) { return Q[c][l] && locs[l] && OST_GRP_[String(locs[l].Type)]; })
+    .map(function (l) { var x = oStLocOut_(locs[l], sites); x.qty = r2(Q[c][l]); return x; })
+    .sort(function (x, y) { return (ord[x.type] - ord[y.type]) || (x.code < y.code ? -1 : x.code > y.code ? 1 : 0); });
+  var mv = db.rows('StockMoves').filter(function (v) { return String(v.ItemCode) === c; }).map(function (v) { return { d: oDay_(v.MoveDate), id: String(v.MoveID || ''), f: String(v.FromLoc || ''), t: String(v.ToLoc || ''), q: isFinite(num(v.Qty)) ? num(v.Qty) : 0, ref: oUncell_(v.RefNo), k: String(v.RefType || ''), job: String(v.JobNo || '') }; });
+  mv.sort(function (x, y) { return x.d !== y.d ? (x.d < y.d ? 1 : -1) : (x.id < y.id ? 1 : x.id > y.id ? -1 : 0); });
+  o.moves = mv.slice(0, OST_MOVES_).map(function (m) { delete m.id; return m; }); o.nMoves = mv.length;
+  var pi = function (p) { var x = items[p] || {}; return { code: p, name: oUncell_(x.Name), size: oUncell_(x.Size) }; };
+  if (o.isSet) o.kit = (kit[c] || []).map(function (p) { var x = pi(p.p); x.q = p.q; x.yard = oStGroups_(Q[p.p], locs).yard; x.mk = oStMake_([p], Q, locs); return x; }); // CR run 12: mk = sets this part is enough for (raw balance, as the set total)
+  else o.sets = Object.keys(kit).filter(function (s) { return kit[s].some(function (p) { return p.p === c; }); }).sort().map(function (s) { var x = pi(s); x.q = kit[s].filter(function (p) { return p.p === c; })[0].q; return x; });
+  o.opened = db.rows('StockMoves').filter(function (v) { return String(v.ItemCode) === c && String(v.RefType) === 'Opening' && !blank(v.ToLoc); }).map(function (v) { return String(v.ToLoc); })
+    .filter(function (x, i, A) { return A.indexOf(x) === i; });
+  return o;
+}
+function oStLs_(db, k) { // Lists column k (ItemCategory is not one of uiLists_' keys, so it is read here)
+  if (oHas_(UI_LISTS_DEFAULT_, k)) return uiList_(db, k);
+  if (!db.hasTab('Lists') || db.headers('Lists').indexOf(k) < 0) return [];
+  return db.rows('Lists').map(function (r) { return r[k]; }).filter(function (x, i, A) { return !blank(x) && A.indexOf(x) === i; }).map(String);
+}
+function oStList_(db, k, v, cur, what) { // a value from Lists (or the item's own current value); no list -> plain text
+  var Ls = oStLs_(db, k);
+  if (typeof v === 'string' && cur != null && v === String(cur) && v !== '') return v;
+  if (!Ls.length) return oQeTxt_(v, 40, what, true);
+  if (typeof v !== 'string' || Ls.indexOf(v) < 0) oFail_('BADINPUT|' + what);
+  return v;
+}
+var OST_PRINT_ = { Quotes: ['Size'], Challans: ['Name', 'Unit', 'WeightKg'], POs: ['Name', 'Unit'], Notes: ['Name'] }; // item fields each document prints (PDF.gs specs + the W4 quote grid)
+function oStOpen_(r) { return blank(r.Status) || String(r.Status) === 'Draft'; }
+function oStDraftDN_(db, code) { // a Draft debit note that prints this item's repair / replacement rate (specNote reads Items live; its Amount is stored)
+  if (!db.hasTab('Damage') || !db.hasTab('Notes')) return '';
+  var dn = oStMap_(); db.rows('Damage').forEach(function (d) { if (String(d.ItemCode) === code && !blank(d.DNNo)) dn[String(d.DNNo)] = 1; });
+  var n = db.rows('Notes').filter(function (x) { return dn[String(x.NoteNo)] && oStOpen_(x); })[0];
+  return n ? String(n.NoteNo) : '';
+}
+function oStPdfOld_(env, db, code, ch) { // CR7 rule (before the write): open documents that print a changed field -> quote PDFs marked old, Draft challan / PO / note PDF links cleared (old URL in the Log)
+  var hit = function (t) { return OST_PRINT_[t].some(function (k) { return ch.indexOf(k) >= 0; }); }, n = 0, nos = [], qo = [], clr = [];
+  // CR run 3: every open document is handled, not only those this execution's read showed with a link (a sheet-panel PDF may have written one since)
+  if (hit('Quotes')) {
+    var qs = oStMap_(); db.rows('QuoteLines').forEach(function (l) { if (String(l.ItemCode) === code) qs[String(l.QuoteNo)] = 1; });
+    db.rows('Quotes').forEach(function (q) { var no = String(q.QuoteNo); if (qs[no] && oQNo_(no) && !oQLocked_(db, q)) { nos.push(no); qo.push(no); } });
+  }
+  [['Challans', 'ChallanNo', 'ChallanLines', 'ChallanNo'], ['POs', 'PONo', 'POLines', 'PONo'], ['Notes', 'NoteNo', 'Damage', 'DNNo']].forEach(function (t) {
+    if (!hit(t[0]) || !db.hasTab(t[0]) || !db.hasTab(t[2]) || db.headers(t[0]).indexOf('PDF') < 0) return;
+    var ls = oStMap_(); db.rows(t[2]).forEach(function (l) { if (String(l.ItemCode) === code && !blank(l[t[3]])) ls[String(l[t[3]])] = 1; });
+    db.rows(t[0]).forEach(function (r) { if (!ls[String(r[t[1]])] || !oStOpen_(r)) return; nos.push(String(r[t[1]])); clr.push([t[0], r, String(r[t[1]])]); });
+  });
+  oPeBump_(env, nos); // first: a sheet-panel PDF of one of them being made right now does not keep its link (also those with no PDF yet)
+  // CR run 10: every "PDF out of date" line is logged before any cell is cleared (a failed log clears none); undo = the cleared links
+  var cl = clr.map(function (c) { return [c, oPdfNow_(db, c[0], c[1])]; });
+  cl.forEach(function (x) { if (x[1]) log_(db, 'PDF out of date', x[0][2], 'Item ' + code + ' changed; old PDF ' + x[1]); });
+  // CR run 11: undo kept as it goes (an OQP marker written, a link about to be cleared); a throw part way puts back what was done (the item is not written yet)
+  var po = { n: 0, undo: [], oqp: [] };
+  try {
+    qo.forEach(function (no) { var k = 'OQP:' + no, p0 = env.get(k); if (oQPdfStale_(env, db, no, true)) n++; var p1 = env.get(k); if (JSON.stringify(p1) !== JSON.stringify(p0)) po.oqp.push([k, p0, p1]); });
+    cl.forEach(function (x) { if (x[1]) po.undo.push([x[0][0], x[0][1], x[0][2], x[1]]); db.update(x[0][0], x[0][1], { PDF: '' }); if (x[1]) n++; });
+  } catch (e) { oStUndo_(env, db, po, code); throw e; }
+  po.n = n; return po;
+}
+// CR run 10: the item write threw -> the links cleared for it go back, but only when a fresh read shows the item row as it was (a write
+// that threw yet went in, e.g. a time-out, keeps them cleared: an old link never stays on changed printed data). Unreadable -> cleared.
+var OST_NUMF_ = ['WeightKg', 'ReorderLevel', 'HireRateMonth', 'SalePrice', 'ReplacementCost', 'RepairRate', 'AvgCost']; // item number fields
+function oStPdfBack_(env, db, po, code, prev) { // CR run 11: also the OQP markers (a quote PDF still current is not left "old")
+  if (!po || !(po.undo.length || po.oqp.length)) return;
+  // CR run 12: a text field compared as text ('10' and '+010' print differently); numeric equality only for the number fields
+  var same = function (k, a, b) { var x = blank(a) ? '' : String(a).trim(), y = blank(b) ? '' : String(b).trim(); return x === y || (OST_NUMF_.indexOf(k) >= 0 && x !== '' && y !== '' && isFinite(+x) && isFinite(+y) && +x === +y); };
+  try { var d = env.db(); if (!d) return; var r = find(d.rows('Items'), 'ItemCode', code); if (!r || Object.keys(prev).some(function (k) { return !same(k, r[k], prev[k]); })) return; } catch (e) { return; }
+  oStUndo_(env, db, po, code);
+}
+// CR run 11: put back what oStPdfOld_ did for an item that did not change: an OQP marker only while it is still the one written there, a
+// cleared link only while its cell is still blank (nothing written there since). One that fails stays as it is (old: made again).
+function oStUndo_(env, db, po, code) {
+  po.oqp.forEach(function (x) { try { if (JSON.stringify(env.get(x[0])) !== JSON.stringify(x[2])) return; if (x[1] == null) env.del(x[0]); else env.put(x[0], x[1]); } catch (e) { /* stays marked old */ } });
+  oPdfUndo_(db, po.undo, 'Item ' + code + ' not saved');
+}
+function oPdfUndo_(db, u, why) { // [tab, row, doc no., old link]
+  (u || []).forEach(function (x) { try { if (oPdfNow_(db, x[0], x[1])) return; db.update(x[0], x[1], { PDF: x[3] }); log_(db, 'PDF link kept', x[2], why + '; PDF ' + x[3]); } catch (e) { /* that one stays cleared: make it again */ } });
+}
+function oStPart_(db, code) { // listed as a part (KitParts.ItemCode) of some set: its "Is a set" can't change (a set's stock is kept as its parts)
+  return db.hasTab('KitParts') && db.rows('KitParts').some(function (k) { return !blank(k.SetCode) && String(k.ItemCode == null ? '' : k.ItemCode).trim().toUpperCase() === code; });
+}
+// CR run 3: the PDF cell as the sheet holds it now (a sheet-panel PDF runs without the script lock and may have written it after this execution read the tab)
+function oPdfNow_(db, t, r) {
+  if (!r) return '';
+  if (db.ss && r._r) { var c = db.headers(t).indexOf('PDF'); if (c >= 0) r.PDF = db.sheet(t).getRange(r._r, c + 1).getValue(); }
+  return blank(r.PDF) ? '' : String(r.PDF);
+}
+// open document whose printed data changes: its PDF cell is cleared whatever this execution's read showed; a real link is logged first
+// (a failed log stops before the clear). true = there was a link.
+function oPdfClr_(db, t, r, no, why) {
+  var u = oPdfNow_(db, t, r);
+  if (u) log_(db, 'PDF out of date', no, why + '; old PDF ' + u);
+  db.update(t, r, { PDF: '' }); // this cell only (SheetDb.update writes cell by cell)
+  return !!u;
+}
+// CR run 4: the unit an item's quantities are counted in. Once moves (= any stock) / set parts / challan, damage or PO lines hold quantities
+// of it (they print or post them in Items.Unit), the unit can't change: nothing converts those quantities. Quote lines keep their own unit.
+function oStUnitUsed_(db, code) {
+  if (oStSetRef_(db, code) || oStPart_(db, code)) return true;
+  var cu = String(code).trim().toUpperCase(), me = function (r) { return String(r.ItemCode == null ? '' : r.ItemCode).trim().toUpperCase() === cu; };
+  return ['StockMoves', 'ChallanLines', 'Damage', 'POLines'].some(function (t) { return db.hasTab(t) && db.rows(t).some(me); });
+}
+// CR run 8: KitParts rows that name this item as their set, valid or not (oStKit_ leaves out the rows a challan refuses; they still point here)
+// CR run 9: the first open PO (Draft / Sent / Part received, as the reorder list counts them) that still has this item to receive; '' = none
+function oStOnOrder_(db, code) {
+  if (!db.hasTab('POs') || !db.hasTab('POLines')) return '';
+  var C = function (v) { return String(v == null ? '' : v).trim().toUpperCase(); }, c = C(code), H = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); }, open = {}, ord = {}, got = {};
+  db.rows('POs').forEach(function (p) { if (['Draft', 'Sent', 'Part received', ''].indexOf(String(p.Status == null ? '' : p.Status).trim()) >= 0 && !blank(p.PONo)) open[String(p.PONo)] = 1; });
+  db.rows('POLines').forEach(function (l) { var k = String(l.PONo); if (H(open, k) && C(l.ItemCode) === c) ord[k] = (H(ord, k) ? ord[k] : 0) + num(l.Qty); });
+  if (!Object.keys(ord).length) return '';
+  db.rows('StockMoves').forEach(function (v) { var k = String(v.RefNo); if (String(v.RefType) === 'PO' && H(ord, k) && C(v.ItemCode) === c) got[k] = (H(got, k) ? got[k] : 0) + num(v.Qty); });
+  return Object.keys(ord).filter(function (k) { return ord[k] > (H(got, k) ? got[k] : 0) + 1e-9; })[0] || '';
+}
+function oStSetRef_(db, code) {
+  var cu = String(code).trim().toUpperCase();
+  return db.hasTab('KitParts') && db.rows('KitParts').some(function (k) { return String(k.SetCode == null ? '' : k.SetCode).trim().toUpperCase() === cu; });
+}
+function oStYN_(v, what) { if (v !== 'Yes' && v !== 'No') oFail_('BADINPUT|' + what); return v; }
+function oStNum_(v, lo, hi, dp, what) { return v == null || v === '' ? '' : oQeNum_(v, lo, hi, dp, what); }
+function officeItemSave(token, x) {
+  officeGate_(token, null);
+  return oStW_(token, oStCan_, function (env, db, L) {
+    x = x && typeof x === 'object' && !Array.isArray(x) ? x : {};
+    var nw = x.ev == null, row = null, code;
+    if (nw) {
+      code = oStCode_(x.code); if (!code) oFail_('BADINPUT|item code');
+      if (db.rows('Items').some(function (r) { return String(r.ItemCode == null ? '' : r.ItemCode).trim().toUpperCase() === code; })) oFail_('EXISTS|' + code);
+    } else {
+      row = oStItem_(db, x.code); code = String(row.ItemCode);
+      if (typeof x.ev !== 'number' || x.ev !== oStEv_(row, oCanSeeMoney_(oAcc_(L)))) oFail_('STALE');
+    }
+    var cur = function (k) { return row ? row[k] : null; };
+    var t = { Name: oQeTxt_(x.name, 80, 'name', true), Category: oStList_(db, 'ItemCategory', x.cat, cur('Category'), 'category'), Size: oQeTxt_(x.size, 40, 'size'), Unit: row && x.unit === '' && blank(row.Unit) ? '' : oStList_(db, 'Unit', x.unit, cur('Unit'), 'unit') }; // CR run 13: an unchanged blank unit (legacy item) passes on edit
+    var n = { WeightKg: oStNum_(x.kg, 0, 10000, 3, 'weight'), ReorderLevel: oStNum_(x.reorder, 0, 1e6, 0, 'reorder level') };
+    if (x.status !== 'Active' && x.status !== 'Inactive') oFail_('BADINPUT|status');
+    var tr = oStYN_(x.tracked, 'stock tracked'), st = oStYN_(x.isSet, 'set'), fh = oStYN_(x.forHire, 'for hire'), fs = oStYN_(x.forSale, 'for sale'); // for hire / sale: the quote form offers the item on Rental / Sale quotes
+    if (oIsDir_(oAcc_(L))) Object.keys(OST_PRICE_).forEach(function (k) { n[OST_PRICE_[k]] = oStNum_(x[k], 0, 1e9, 2, { hire: 'hire rate', sale: 'sale price', repl: 'replacement cost', repair: 'repair rate' }[k]); }); // others: kept
+    if (row) { // stock already there must stay readable
+      var q = oStQty_(db)[code] || {}, has = oStHas_(q);
+      var moved = db.rows('StockMoves').some(function (v) { return String(v.ItemCode) === code; }), kitN = oStSetRef_(db, code);
+      if ((st === 'Yes') !== oStYes_(row.IsSet) && (moved || kitN || oStPart_(db, code))) oFail_('BADINPUT|set');
+      if (tr === 'No' && oStYes_(row.StockTracked) && has) oFail_('BADINPUT|stock tracked');
+      if (tr === 'No' && oStYes_(row.StockTracked) && oStPart_(db, code)) oFail_('BADINPUT|part tracked'); // CR run 6: a part of a set must stay tracked (the challan refuses the set)
+      var po = tr === 'No' && oStYes_(row.StockTracked) ? oStOnOrder_(db, code) : ''; if (po) oFail_('ONORDER|' + po); // CR run 9: receivePO takes only tracked items
+    }
+    if (!row && st === 'Yes' && oStPart_(db, code)) oFail_('BADINPUT|set'); // listed as a part of a set already: a set can't be a part
+    if (!row && tr === 'No' && oStPart_(db, code)) oFail_('BADINPUT|part tracked'); // listed as a part already: it must be tracked
+    var p = {}, ch = [];
+    Object.keys(t).forEach(function (k) { p[k] = oCell_(t[k]); if (!row || String(cur(k) == null ? '' : cur(k)) !== t[k]) ch.push(k); });
+    Object.keys(n).forEach(function (k) { p[k] = n[k]; var a = cur(k); if (!row || (k === 'ReorderLevel' ? (n[k] || 0) !== (blank(a) ? 0 : num(a)) : n[k] === '' ? !blank(a) : blank(a) || num(a) !== n[k])) ch.push(k); }); // reorder: blank = 0
+    p.Status = x.status; if (!row || oStSt_(row) !== x.status) ch.push('Status');
+    p.StockTracked = tr; if (!row || oStYes_(row.StockTracked) !== (tr === 'Yes')) ch.push('StockTracked');
+    p.IsSet = st === 'Yes' ? 'Yes' : ''; if (!row || oStYes_(row.IsSet) !== (st === 'Yes')) ch.push('IsSet');
+    [['ForHire', fh], ['ForSale', fs]].forEach(function (f) { p[f[0]] = f[1]; if (!row || String(cur(f[0]) == null ? '' : cur(f[0])).trim() !== f[1]) ch.push(f[0]); }); // a blank cell becomes Yes / No
+    if (row && ch.indexOf('Unit') >= 0 && oStUnitUsed_(db, code)) oFail_('BADINPUT|unit'); // CR run 4: before any write
+    if (row && !ch.length) return { code: code, same: true };
+    var dn = row && (ch.indexOf('RepairRate') >= 0 || ch.indexOf('ReplacementCost') >= 0) ? oStDraftDN_(db, code) : '';
+    if (dn) oFail_('DNOPEN|' + dn); // the draft note would print the new rate next to its stored amount: issue or cancel it first
+    oQeRate_(env, L);
+    var w, old = 0;
+    if (!row) { var r = { ItemCode: code }; Object.keys(p).forEach(function (k) { r[k] = p[k]; }); db.insert('Items', r); w = oCtLog_(db, 'Item added', code, t.Name); }
+    else { var patch = {}; ch.forEach(function (k) { patch[k] = p[k]; }); var prev = {}; ch.forEach(function (k) { prev[k] = row[k]; }); var po = oStPdfOld_(env, db, code, ch); old = po.n; try { uiPutRow_(db, 'Items', row, patch); } catch (e) { oStPdfBack_(env, db, po, code, prev); throw e; } w = oCtLog_(db, 'Item updated', code, ch.join(', ')); }
+    var o = { code: code }; if (row) o.old = old; if (w) o.warn = w;
+    return o;
+  });
+}
+function officeStockOpening(token, d) {
+  officeGate_(token, null);
+  return oStW_(token, oStHead_, function (env, db, L) {
+    d = d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+    if (d.date == null || d.date === '') oFail_('BADINPUT|count date');
+    var dt = oCtDay_(d.date, env, 'count date'); if (d.date > oDayOf_(env.now())) oFail_('BADINPUT|count date');
+    if (!Array.isArray(d.rows) || !d.rows.length || d.rows.length > OST_LINES_) oFail_('BADINPUT|lines');
+    var locs = oStLocs_(db), seen = oStMap_(), done = oStMap_();
+    db.rows('StockMoves').forEach(function (v) { if (String(v.RefType) === 'Opening') done[String(v.ItemCode) + '|' + String(v.ToLoc)] = 1; });
+    var rows = d.rows.map(function (r, i) {
+      var n = 'line ' + (i + 1); r = r && typeof r === 'object' && !Array.isArray(r) ? r : {};
+      var c = oStCode_(r.item), it = c ? find(db.rows('Items'), 'ItemCode', c) : null;
+      if (!it || oStYes_(it.IsSet) || !oStYes_(it.StockTracked) || oStSt_(it) !== 'Active') oFail_('BADINPUT|' + n + ' item');
+      var l = typeof r.loc === 'string' ? locs[r.loc] : null;
+      if (!l || ['Yard', 'Repair'].indexOf(String(l.Type)) < 0 || String(l.Status || 'Active') !== 'Active') oFail_('BADINPUT|' + n + ' location');
+      var q = oQeNum_(r.qty, 1, 1e6, 0, n + ' qty'), k = c + '|' + r.loc; if (!Number.isInteger(q)) oFail_('BADINPUT|' + n + ' qty'); // CR run 9: whole units only (oQeNum_ lets 1.0000001 through)
+      if (seen[k]) oFail_('BADINPUT|' + n + ' (twice)');
+      if (done[k]) oFail_('EXISTS|' + c + '|' + r.loc);
+      seen[k] = 1;
+      return { ItemCode: c, LocID: r.loc, Qty: q };
+    });
+    oQeRate_(env, L);
+    var n0 = db.rows('StockMoves').length;
+    try { postOpeningStock(db, rows, dt); }
+    catch (e) { if (db.rows('StockMoves').length >= n0 + rows.length) return { n: rows.length, warn: 'LOG' }; throw e; } // the moves are in; only the audit line failed (SheetDb.insert writes all the moves in one setValues: never part of them)
+    return { n: rows.length };
+  });
+}
+function officeLocList(token) {
+  var L = officeGate_(token, null); if (!oStSee_(oAcc_(L))) oFail_('NOACCESS');
+  var env = oEnv_(), db = env.db();
+  if (!db) oFail_('BUSY');
+  var sites = oStSites_(db), ord = { Yard: 0, Repair: 1, Site: 2, Lost: 3, Scrap: 4 };
+  var rows = db.rows('Locations').filter(function (l) { return !blank(l.LocID) && oHas_(ord, String(l.Type)); }).map(function (l) { return oStLocOut_(l, sites); })
+    .sort(function (x, y) { return (ord[x.type] - ord[y.type]) || (x.code < y.code ? -1 : x.code > y.code ? 1 : 0); });
+  return { can: oStHead_(oAcc_(L)), rows: rows };
+}
+function officeLocSave(token, x) {
+  officeGate_(token, null);
+  return oStW_(token, oStHead_, function (env, db, L) {
+    x = x && typeof x === 'object' && !Array.isArray(x) ? x : {};
+    var code = oStCode_(x.code); if (!code || /^LOC-S\d+$/.test(code)) oFail_('BADINPUT|location code'); // LOC-S0001 ... = site locations (Sequences LOC)
+    var name = oQeTxt_(x.name, 60, 'location name', true);
+    if (x.type !== 'Yard' && x.type !== 'Repair') oFail_('BADINPUT|location type');
+    var up = code.toUpperCase(); if (db.rows('Locations').some(function (l) { return String(l.LocID == null ? '' : l.LocID).trim().toUpperCase() === up; })) oFail_('EXISTS|' + code);
+    oQeRate_(env, L);
+    db.insert('Locations', { LocID: code, Name: oCell_(name), Type: x.type, SiteID: '', Status: 'Active' });
+    var w = oCtLog_(db, 'Location added', code, x.type + ' · ' + name);
+    return w ? { code: code, warn: w } : { code: code };
+  });
+}
+// CR run 2: a sheet-panel PDF (pdf / quotePdf actions run without the script lock: a PDF takes 10-30 s) of a document an office edit
+// changes meanwhile must not get a link made from the old data. Each edit counts its documents first (OPE: {n, d: [[no, n]], b}, under
+// the script lock, before it writes); the panel reads n before it reads the sheet. CR run 9: the panel run makes the PDF without its link;
+// after the run (its document lock let go) oPeCheck_ writes the link holding the script lock, only for a document not changed since n.
+// The last 120 changes are kept by number; an older one dropped from the list lives on in b (256 buckets by document number: the highest
+// change dropped there), so only a bucket clash makes another document's change count for this one.
+var OPE_K_ = 'OPE', OPE_KEEP_ = 120, OPE_NB_ = 256, OPE_RUN_ = null; // OPE_RUN_ = {n, hit: [no], busy: [no], made: [{db, what, no, r, bin}]} while a panel PDF action runs
+var OPE_DOC_ = { Quote: ['Quotes', 'QuoteNo'], Invoice: ['Invoices', 'InvNo'], Challan: ['Challans', 'ChallanNo'], PO: ['POs', 'PONo'], Note: ['Notes', 'NoteNo'] };
+function oPeH_(no) { var s = String(no), h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000003; return h % OPE_NB_; }
+function oPeGet_(env) {
+  var p = env.get(OPE_K_); p = p && typeof p === 'object' ? p : {};
+  var n = isFinite(+p.n) ? +p.n : 0, d = Array.isArray(p.d) ? p.d : [], b = Array.isArray(p.b) && p.b.length === OPE_NB_ ? p.b.map(function (x) { return isFinite(+x) ? +x : n; }) : null;
+  if (!b) { // a record without buckets (before run 9): what it may have dropped counts as changed, as it did then
+    var f = d.length >= OPE_KEEP_ ? (Array.isArray(d[0]) && isFinite(+d[0][1]) ? +d[0][1] - 1 : n) : (d.length ? 0 : n); b = [];
+    for (var i = 0; i < OPE_NB_; i++) b.push(f > 0 ? f : 0);
+  }
+  return { n: n, d: d, b: b };
+}
+function oPeBump_(env, nos) {
+  var u = (nos || []).filter(function (x, i, A) { return typeof x === 'string' && x && A.indexOf(x) === i; }); if (!u.length) return;
+  var p = oPeGet_(env); u.forEach(function (x) { p.d.push([x, ++p.n]); });
+  while (p.d.length > OPE_KEEP_) { var e = p.d.shift(); if (Array.isArray(e)) { var h = oPeH_(e[0]); if (+e[1] > p.b[h]) p.b[h] = +e[1]; } }
+  env.put(OPE_K_, { n: p.n, d: p.d, b: p.b });
+}
+// CR run 3: the count is read under the script lock (briefly, before the panel's document lock: same order as withLock). Office writes
+// flush before the lock is let go (env.lock), so an edit is wholly before this read (its writes in the sheet) or wholly after it (counted).
+function oPeN_() {
+  var env = oEnv_(); if (OLK_.s || (typeof LockService === 'undefined' && !OLK_.ls)) return oPeGet_(env).n;
+  var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { throw new Error('The office app is busy saving a change. Try the PDF again in a moment.'); }
+  OLK_.s++; OLK_.g++; try { return oPeGet_(env).n; } finally { OLK_.s--; OLK_.g++; l.releaseLock(); }
+}
+function oPeSince_(env, n0, no) { // a change to document no after count n0 (a dropped one: its bucket)
+  var p = oPeGet_(env); if (p.n <= n0) return false;
+  if (p.b[oPeH_(no)] > n0) return true;
+  return p.d.some(function (x) { return Array.isArray(x) && String(x[0]) === String(no) && +x[1] > n0; });
+}
+// CR run 7: the script lock for a short write that must not interleave with another holder of it. A web app gets no document lock
+// (LockService.getDocumentLock() is null there), so the office app's PDF link write and the panel's after-check below both use this one.
+// Held already by this execution -> just runs (no second lock). Flushed before the lock is let go (as env.lock).
+function oScrLock_(fn) {
+  if (OLK_.s || (typeof LockService === 'undefined' && !OLK_.ls)) return fn();
+  var l = oLs_().getScriptLock(); try { l.waitLock(30000); } catch (e) { oFail_('BUSY'); }
+  OLK_.s++; OLK_.g++; var ok = false; try { var v = fn(); ok = true; return v; } finally { oLkEnd_(l, ok); }
+}
+// CR run 10: the exit of a script lock this execution took: count down, flush, let the lock go. A flush that fails after a failed
+// operation does not hide that operation's error (e.g. BUSY after a rollback); after a good one the flush failure is the error.
+function oLkEnd_(l, ok) { OLK_.s--; OLK_.g++; try { SpreadsheetApp.flush(); } catch (e) { if (ok) throw e; } finally { l.releaseLock(); } }
+// CR run 6/7: a PDF link written by the office app (oQPdfMake_ makes outside the locks) goes in holding the script lock. The sheet panel's
+// after-check (oPeCheck_) compares and clears holding the script lock too, after its PDF run let the document lock go -> the two never
+// interleave, and the panel never holds both locks (no order inversion with its normal writes: script, then document).
+// CR run 10: the cell already links a PDF made after this one (a later run published first and bins this one's file), or this file is in
+// the bin already: this one must not be linked. Drive unreadable -> false (linked as before).
+function oPdfNewer_(cur, url) {
+  var a = oPdfIdOf_(cur), b = oPdfIdOf_(url); if (!b) return false;
+  try { var B = DriveApp.getFileById(b); if (B.isTrashed() === true) return true; return !!a && a !== b && DriveApp.getFileById(a).getDateCreated().getTime() > B.getDateCreated().getTime(); } catch (e) { return false; }
+}
+function oPdfLinkSet_(db, t, k, no, url) {
+  oScrLock_(function () { var r = find(db.rows(t), k, no); if (r && db.headers(t).indexOf('PDF') >= 0) db.update(t, r, { PDF: url }); });
+}
+// CR run 9: the panel PDF run's links, written once its document lock is let go, holding the script lock (as the office app's writes; the
+// panel never holds both locks), in the rows as they are now: only for a document with no office change since the run's count. Changed,
+// or the script lock busy for 30 s: no link (the cell keeps what it has now: blank after the change's clear, or a newer office link), the
+// new files to the bin, the panel says to make it again. The old same-named copies go to the bin only once the new link is in.
+function oPeCheck_(R) {
+  var m = R && Array.isArray(R.made) ? R.made.splice(0) : []; if (!m.length) return;
+  if (!Array.isArray(R.hit)) R.hit = []; if (!Array.isArray(R.busy)) R.busy = []; if (!Array.isArray(R.newer)) R.newer = [];
+  var env = oEnv_(), bad = null;
+  try {
+    oScrLock_(function () {
+      m.forEach(function (x) {
+        if (bad) return;
+        if (oPeSince_(env, R.n, x.no)) { x.st = 'old'; return; }
+        try { var p = oPePub_(env, x); x.st = p === 'newer' ? 'newer' : p ? 'in' : 'none'; } catch (e) { x.st = 'fail'; bad = e; }
+      });
+    });
+  } catch (e) { var em = String(e && e.message || e); if (em !== 'BUSY') throw new Error('The PDF was made, but its link may not have been saved (' + em + '). Make the PDF again.'); } // busy: nothing written; CR run 10: another failure (the flush) -> both copies kept, said plainly
+  m.forEach(function (x) {
+    var ids = oPdfIds_(x.r);
+    if (x.st === 'in') { oBinNow_(x.bin, ids); oPeAfter_(x); return; }
+    oPeKeep_(R, x); // CR run 12: not linked -> the previous PDF qf5Pdf_ asked to bin stays (the cell still opens it)
+    if (x.st === 'none') return; // no PDF column / no row: nothing to link (as makePdf)
+    if (x.st === 'newer') { R.newer.push(x.no); ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } }); return; } // CR run 10: a newer PDF is linked
+    (x.st === 'old' ? R.hit : R.busy).push(x.no);
+    if (x.st !== 'fail') ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } });
+    try { log_(x.db, 'PDF out of date', x.no, (x.st === 'old' ? 'Changed in the office app while this PDF was made' : 'The office app was busy when this PDF was made') + '; link not kept (' + x.r.url + ')'); } catch (e) { /* the panel is told */ }
+  });
+  if (bad) throw new Error('The PDF was made, but its link could not be saved (' + (bad && bad.message || bad) + '). Make the PDF again.');
+}
+// CR run 12: in a panel PDF run qf5Pdf_ bins the previous quote PDF through this drive: the bin waits for oPeCheck_ ('in' -> oPeAfter_);
+// a link not kept (office edit, busy, newer, a failed check) keeps that file, so the cell never links a binned file
+function oPeDrive_(R, d0) {
+  var nm = '';
+  return { officePe_: d0, name: function (u) { nm = d0.name(u); return nm; },
+    trash: function (u, b) { var x = R.made[R.made.length - 1], a = { u: u, b: b, nm: nm, d: d0 }; if (x) (x.after = x.after || []).push(a); else (R.kept = R.kept || []).push(nm); } };
+}
+function oPeAfter_(x) { (x.after || []).forEach(function (a) { try { a.d.trash(a.u, a.b); } catch (e) { /* already gone or no access (as qf5Pdf_) */ } }); }
+function oPeKeep_(R, x) { (x.after || []).forEach(function (a) { (R.kept = R.kept || []).push(a.nm); }); }
+function oPePub_(env, x) { // the link written (true); false = no row / no PDF column; 'newer' = a newer PDF is linked already
+  if (typeof x.what !== 'string' || !oHas_(OPE_DOC_, x.what) || !x.r || !x.r.url) return false;
+  var t = OPE_DOC_[x.what], d = env.db() || x.db;
+  if (!d.hasTab(t[0]) || d.headers(t[0]).indexOf('PDF') < 0) return false;
+  var row = find(d.rows(t[0]), t[1], x.no); if (!row) return false;
+  if (oPdfNewer_(row.PDF, x.r.url)) return 'newer'; // CR run 10
+  d.update(t[0], row, { PDF: String(x.r.url) });
+  return true;
+}
+if (typeof makePdf === 'function' && !makePdf.officePe_) {
+  var OPE_makePdf0_ = makePdf;
+  makePdf = function (db, what, no, o) { // CR run 9: in a panel PDF run its link is not written here: oPeCheck_ writes it after the run
+    var R = OPE_RUN_;
+    if (!R || (o && o.noLink) || typeof what !== 'string' || !oHas_(OPE_DOC_, what)) return OPE_makePdf0_.apply(this, arguments);
+    var o2 = {}; if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { o2[k] = o[k]; });
+    var lg = !o2.noLog, k0 = OPDF_BIN_, bin = OPDF_BIN_ = [], r; o2.noLink = true; o2.noLog = true;
+    try { r = OPE_makePdf0_.call(this, db, what, no, o2); } finally { OPDF_BIN_ = k0; }
+    if (r && r.url) R.made.push({ db: db, what: what, no: String(no), r: r, bin: bin });
+    if (lg && r) { try { log_(db, 'PDF', no, r.file + (r.placeholders ? ' · ' + r.placeholders + ' placeholders' : '')); } catch (e) { /* the PDF and its link go on (as the panel's other log lines) */ } } // as makePdf logs it
+    return r;
+  };
+  makePdf.officePe_ = OPE_makePdf0_; makePdf.officePdf_ = OPE_makePdf0_.officePdf_;
+}
+if (typeof uiDo === 'function' && !uiDo.officePe_) {
+  var OPE_uiDo0_ = uiDo;
+  uiDo = function (action, args) {
+    if (action !== 'pdf' && action !== 'quotePdf') return OPE_uiDo0_.apply(this, arguments);
+    var k = OPE_RUN_, R = { n: oPeN_(), hit: [], busy: [], newer: [], made: [], kept: [] }, r, ok = false; OPE_RUN_ = R; // the count is read before the sheet is
+    var dv = typeof QF5_DRIVE_ === 'object' && QF5_DRIVE_ ? QF5_DRIVE_ : null; if (dv) QF5_DRIVE_ = oPeDrive_(R, dv.officePe_ || dv); // CR run 12
+    try { r = OPE_uiDo0_.apply(this, arguments); ok = true; } finally {
+      if (dv) QF5_DRIVE_ = dv;
+      OPE_RUN_ = k; // the run's document lock is let go here
+      if (!ok) { try { oPeCheck_(R); } catch (e) { /* a PDF made before the failure gets its link too; the run's own error is reported */ } }
+    }
+    oPeCheck_(R);
+    if (r && typeof r === 'object' && typeof r.msg === 'string') R.kept.forEach(function (n) { r.msg = r.msg.split(' (the old ' + n + ' went to the bin)').join(' (the old ' + n + ' was kept)'); }); // CR run 12
+    var U = function (a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }).join(', '); };
+    if ((R.hit.length || R.busy.length || R.newer.length) && r && typeof r === 'object') {
+      r.warn = true; r.links = []; // CR run 9: no Open PDF / Doc for files whose link was not kept (they went to the bin)
+      r.msg = String(r.msg == null ? '' : r.msg) + (R.hit.length ? '\n' + U(R.hit) + ' was changed in the office app while this PDF was being made, so its link was not kept. Make the PDF again.' : '')
+        + (R.busy.length ? '\n' + U(R.busy) + ': the office app was busy, so the link was not saved. Make the PDF again.' : '')
+        + (R.newer.length ? '\n' + U(R.newer) + ': a newer PDF was made meanwhile and is the one linked; this one was not kept.' : '');
+    }
+    return r;
+  };
+  uiDo.officePe_ = OPE_uiDo0_; uiDo.officeLk_ = OPE_uiDo0_.officeLk_;
 }
 // d = {no, ev, type, cust, site, attention, subject, date, valid, prep, adv, pdf, lines: [{code, desc, qty, unit, rate, opt, basis, dim}]}
 function oQeArgs_(db, d, q, env) {
@@ -1974,38 +2514,64 @@ function oW4gSame_(db, q, x, ty0) {
     return true;
   } catch (e) { return false; }
 }
+function oQeIns_(db, rq, f) { // CR run 14: the new quote's row gets its request id in the insert that writes the row
+  if (!rq) return f();
+  var own = Object.prototype.hasOwnProperty.call(db, 'insert'), i1 = db.insert;
+  db.insert = function (t, objs) { if (t === 'Quotes') (Array.isArray(objs) ? objs : [objs]).forEach(function (o) { if (o && typeof o === 'object' && blank(o.ReqID)) o.ReqID = rq; }); return i1.apply(db, arguments); };
+  try { return f(); } finally { if (own) db.insert = i1; else delete db.insert; }
+}
 function officeQuoteSave(token, d) {
   officeGate_(token, OQ_NEED_);
   if (!d || typeof d !== 'object' || Array.isArray(d)) oFail_('BADINPUT|quote');
   var res = oQW_(token, function (env, db, L) {
     if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
     var no = d.no == null || d.no === '' ? '' : d.no, q = no ? oQRow_(db, no) : null;
+    // CR run 13/14: a new quote carries the form's request id, written into its own row (ReqID, the same insert: nothing to lose or
+    // leave half-done). When the last row write fails, the quote's version goes into ReqID ('<id>~<ev>'); a retry that finds the quote
+    // still at that version completes it as an edit with the retry's data. Any other state (no version: it failed earlier; another
+    // version: edited since, in the panel, the sheet or here; done ':ok'; not Draft; locked) -> returned as it is (part: not done).
+    // No ReqID column: saved as before.
+    var rc0 = db.headers('Quotes').indexOf('ReqID') >= 0, rq = !no && rc0 && typeof d.rid === 'string' && /^[a-z0-9]{8,40}$/.test(d.rid) ? d.rid + '.' + oQHash_(String(L.email).toLowerCase()) : '', ag = false;
+    var rs = rq, q0 = null, k0 = '', ok0 = false; // rs: this request's id, for the version record below
+    if (rq) db.rows('Quotes').some(function (r) { var k = String(r.ReqID == null ? '' : r.ReqID); if (k === rq || k === rq + ':ok' || k.indexOf(rq + '~') === 0) { q0 = r; k0 = k; return true; } return false; });
+    if (q0 && k0.indexOf(rq + '~') === 0) ok0 = k0 === rq + '~' + oQeEv_(db, q0); // still at the version recorded = touched by nobody since
+    if (q0 && (!ok0 || String(q0.Status || 'Draft') !== 'Draft' || oQLocked_(db, q0))) { var o0 = { no: String(q0.QuoteNo), rev: num(q0.Rev), status: String(q0.Status || 'Draft'), was: '', changed: false, again: true };
+      if (!/:ok$/.test(k0)) o0.part = true;
+      try { o0.ev = oQeEv_(db, q0); } catch (e) { /* the page opens the form again for the next save */ }
+      if (d.pdf !== true) try { o0.view = oQView_(db, env, q0, L); } catch (e) { delete o0.view; }
+      return o0; }
+    if (q0) { no = String(q0.QuoteNo); q = q0; ag = true; rq = ''; }
     if (q) { oQRevFix_(env, db, q.QuoteNo); q = oQRow_(db, no); }
-    if (q) { if (oQLocked_(db, q)) oFail_('QLOCKED'); if (typeof d.ev !== 'number' || d.ev !== oQeEv_(db, q)) oFail_('STALE'); oQeOld_(db, q.QuoteNo); }
+    if (q) { if (oQLocked_(db, q)) oFail_('QLOCKED'); if (!ag && (typeof d.ev !== 'number' || d.ev !== oQeEv_(db, q))) oFail_('STALE'); oQeOld_(db, q.QuoteNo); }
     oQeRate_(env, L);
     if (!oIsDir_(oAcc_(L)) && !(d.prep == null || d.prep === '' || (typeof d.prep === 'string' && !!L.staff && d.prep === String(L.staff)))) oFail_('BADINPUT|prepared by'); // D2: own name only
     var x = oQeArgs_(db, d, q, env), was = q ? String(q.Status || 'Draft') : '', ty0 = q ? oQType_(q) : '';
     if (q && oW4gSame_(db, q, x, ty0)) { // W4g: nothing would change -> no row write, no Log, no refetch; the view from this lock's batch
       var o5 = { no: String(q.QuoteNo), rev: num(q.Rev), status: String(q.Status || 'Draft'), was: was, changed: false, ev: d.ev };
+      if (ag) { o5.again = true; try { o5.ev = oQeEv_(db, q); } catch (e) { delete o5.ev; } uiPutRow_(db, 'Quotes', q, { ReqID: String(q.ReqID).split('~')[0] + ':ok' }); } // CR run 14: complete -> done
       if (d.pdf !== true) try { var db5 = env.db() || db; o5.view = oQView_(db5, env, oQRow_(db5, q.QuoteNo), L); } catch (e) { delete o5.view; }
       return o5;
     }
+    if (q) oPeBump_(env, [String(q.QuoteNo)]); // CR run 4/6: counted before anything is written (the pending-revision record too; a new quote has no PDF yet)
     var r, rk = q ? 'OQRV:' + String(q.QuoteNo) : '';
     if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
-    try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
+    try { r = oQeIns_(db, rq, function () { return UI_ACTIONS_.saveQuoteFull(db, x.a); }); }
     catch (e) { if (rk) env.del(rk); var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
     var ref = String(r.ref), d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
     if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }
     var changed = !q || oQeEv_(d2, q2) !== d.ev || ('ValidityDays' in p); // a save that changed nothing makes no new Rev
-    if (q && changed) oQPdfStale_(env, d2, ref); else if (rk) env.del(rk); // CR7 first, before any other write; CR10 record kept only for a change
+    if (q && changed) oQPdfStale_(env, d2, ref, true); else if (rk) env.del(rk); // CR7 first, before any other write; CR10 record kept only for a change
     if (q && ty0 !== String(x.a.header.QuoteType)) { // CR11: another type = its standard terms (this quote's changes dropped)
       uiDelRows_(d2, 'QuoteTerms', qtRows_(d2, ref));
       ['PaymentDays', 'NoticeDays', 'LateInterestPct', 'PartPeriodRule'].forEach(function (k) { if (d2.headers('Quotes').indexOf(k) >= 0 && !blank(q2[k])) p[k] = ''; });
     }
     if (was === 'Sent' && changed) { p.Rev = num(q2.Rev) + 1; p.Status = 'Draft'; } // CR10: the OQRV record above is kept until this is written
-    if (Object.keys(p).length) uiPutRow_(d2, 'Quotes', q2, p);
+    if (rc0 && !blank(q2.ReqID) && !/:ok$/.test(String(q2.ReqID))) p.ReqID = String(q2.ReqID).split('~')[0] + ':ok'; // CR run 14: done, in the same row write as the last follow-up
+    if (Object.keys(p).length) { try { uiPutRow_(d2, 'Quotes', q2, p); } catch (e) { // the version this row now holds, for the retry (one more row write; if that fails too, the retry returns it as it is)
+      if (rs) try { uiPutRow_(d2, 'Quotes', q2, { ReqID: rs + '~' + oQeEv_(d2, q2) }); } catch (e2) { /* no version: returned as it is */ }
+      throw e; } }
     if (p.Rev != null) { try { log_(d2, 'Quote revised', ref, 'Rev ' + p.Rev + ' (edited in the web app)'); } catch (e) { /* log only */ } env.del('OQRV:' + ref); }
-    var d3 = env.db() || d2, q3 = must(d3, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed };
+    var d3 = env.db() || d2, q3 = must(d3, 'Quotes', 'QuoteNo', ref), out = { no: ref, rev: num(q3.Rev), status: String(q3.Status || 'Draft'), was: was, changed: changed }; if (ag) out.again = true;
     try { out.ev = oQeEv_(d3, q3); } catch (e) { /* W4g: the page then opens the form again for the next save */ }
     if (d.pdf !== true) try { var db4 = env.db(); if (db4) out.view = oQView_(db4, env, oQRow_(db4, ref), L); } catch (e) { delete out.view; } // W4f: in the lock = this lock's batch (no 4th read); the save stands either way
     return out;
@@ -2429,6 +2995,12 @@ if (typeof SheetDb === 'function' && SheetDb.prototype && !SheetDb.prototype.ow4
       return this.c[t];
     };
     P.insert = function (t, objs) {
+      if (OW4C_ON_ && OW4C_NOREAD_[t] && !Object.keys(CALC[t] || {}).length) { // CR run 13: Log = one atomic appendRow per row (no getLastRow + setValues)
+        var ar = Array.isArray(objs) ? objs : [objs]; if (!ar.length) return objs;
+        var sa = this.sheet(t), ha = this.hc[t] || headers0.call(this, t), ca = this.c[t];
+        ar.forEach(function (o) { sa.appendRow(ha.map(function (k) { return cellVal_(o[k]); })); if (ca) ca.push(o); }); // read already: in memory as written
+        return objs;
+      }
       if (!OW4C_ON_ || this.c[t] || !OW4C_NOREAD_[t]) return insert0.call(this, t, objs);
       var arr = Array.isArray(objs) ? objs : [objs];
       if (!arr.length) return objs;
@@ -2653,6 +3225,7 @@ var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // la
   'officeQuoteForm', 'officeCustomerAdd', 'officeSiteAdd', 'officeQuoteSave',
   'officeCustList', 'officeCustGet', 'officeCustomerSave', 'officeSiteSave',
   'officeContractList', 'officeContractGet', 'officeContractMake', 'officeContractSave', 'officeContractFab', 'officeContractAdvance',
+  'officeStockList', 'officeStockItem', 'officeItemSave', 'officeStockOpening', 'officeLocList', 'officeLocSave',
   'officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
@@ -3210,7 +3783,7 @@ function selfTestOffice() {
         name: function (u) { return /^https:\/\/x\/\d+$/.test(u) ? 'PDF ' + u.slice(10) + '.pdf' : ''; },
         blob: function (u) { if (!/^https:\/\/x\/\d+$/.test(u)) throw new Error('gone'); return { getName: function () { return 'PDF ' + u.slice(10) + '.pdf'; } }; },
         send: function (to, s, b, o) { if (boom) throw new Error('Service invoked too many times'); sent.push({ to: to, s: s, b: b, o: o }); } };
-      QF5_STUB_ = { make: function (d, w, n) { var u = 'https://x/' + (++made); d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
+      QF5_STUB_ = { make: function (d, w, n, o) { var u = 'https://x/' + (++made); if (!(o && o.noLink)) d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
         drive: { name: function () { return ''; }, trash: function () {} } };
       QF3_STUB_ = { mail: mail, now: function () { return new Date(2026, 10, 20, 9, 5); } };
       try {
@@ -3324,10 +3897,10 @@ function selfTestOffice() {
         try { f1p = officeQuotePdf(tS, Q2); } finally { qf5Pdf_ = q5k; }
         var ni = e4.get('OQP:' + Q2).ni, f2p = officeQuotePdf(tS, Q2); e4.clock.now += 660000; var f3p = officeQuotePdf(tS, Q2);
         eq('O328 PDF made without the images: current for 10 min, then made again (with images)', [f1p.made, ni, f2p.made, f3p.made, made - mk5, e4.get('OQP:' + Q2).ni].join('|'), 'true|1|false|true|2|');
-        qf5Pdf_ = function () { db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Name: 'Renamed During Export' }); return q5k.apply(this, arguments); };
-        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: '' }); var mk6 = made;
-        try { officeQuotePdf(tS, Q2); } finally { qf5Pdf_ = q5k; }
-        eq('O329 something printed changed during the export -> the next Open makes it again', [officeQuotePdf(tS, Q2).made, made - mk6].join('|'), 'true|2');
+        var sm6 = QF5_STUB_.make, nm6 = []; QF5_STUB_.make = function (d) { nm6.push(String(must(d, 'Customers', 'CustID', 'CUST-0001').Name)); if (nm6.length === 1) db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Name: 'Renamed During Export' }); return sm6.apply(this, arguments); };
+        db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: '' }); var mk6 = made, b329 = '', c329 = '', p329 = null;
+        try { try { officeQuotePdf(tS, Q2); } catch (e) { b329 = String(e && e.message || e); } c329 = String(must(db, 'Quotes', 'QuoteNo', Q2).PDF || ''); p329 = officeQuotePdf(tS, Q2); } finally { QF5_STUB_.make = sm6; }
+        eq('O329 renamed during the render -> that PDF gets no link (BUSY); the next Open renders the new name and links it', [b329, c329, p329.made, made - mk6, nm6[0] !== 'Renamed During Export', nm6[1], must(db, 'Quotes', 'QuoteNo', Q2).PDF === 'https://x/' + made].join('|'), 'BUSY||true|2|true|Renamed During Export|true');
         // CR7: a PDF from the sheet panel (no OQP record) is out of date after a terms change here
         db.update('Quotes', must(db, 'Quotes', 'QuoteNo', Q2), { PDF: 'https://x/88' }); var mk7 = made, t7 = officeQuotePdf(tS, Q2).url;
         op(tS, Q2, { k: 'var', key: 'ValidityDays', value: 22 });
@@ -3373,7 +3946,7 @@ function selfTestOffice() {
       var sq = find(db.rows('Sequences'), 'SeqKey', 'Q-2026'); if (sq) db.update('Sequences', sq, { LastNo: 4 }); else nextIds(db, 'Q', 4, new Date(2026, 10, 20));
       db.update('Customers', must(db, 'Customers', 'CustID', 'CUST-0001'), { Email: 'buyer@client.com' });
       var Q2 = 'CAE/Q/2026/002', Q4 = 'CAE/Q/2026/004', made = 0, boom = false;
-      QF5_STUB_ = { make: function (d, w, n) { if (boom) throw new Error('Drive is down'); var u = 'https://x/' + (++made); d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
+      QF5_STUB_ = { make: function (d, w, n, o) { if (boom) throw new Error('Drive is down'); var u = 'https://x/' + (++made); if (!(o && o.noLink)) d.update('Quotes', must(d, 'Quotes', 'QuoteNo', n), { PDF: u }); return { url: u, file: 'PDF ' + made + '.pdf', placeholders: 0 }; },
         drive: { name: function () { return ''; }, trash: function () {} } };
       var tD = add('dir4@t.com', oDir_()), tS = (function () { var t = add('sales4@t.com', { SC: 2 }), L = e5.get('OL:sales4@t.com'); L.staff = 'STF-0001'; e5.put('OL:sales4@t.com', L); return t; })(), tV = add('scv4@t.com', { SC: 1 }), tY = add('yard4@t.com', { YW: 2, PS: 1 }), tA = add('acc4@t.com', { AC: 2, PR: 2, SC: 1 });
       var j = JSON.stringify, n0 = function () { return db.rows('Quotes').length; };
@@ -3676,7 +4249,7 @@ function selfTestOffice() {
           setValues: function (v) { n++; v.forEach(function (w, i) { var d = D[t][r - 1 + i] || (D[t][r - 1 + i] = []); w.forEach(function (x, k) { d[c - 1 + k] = x; }); }); },
           setValue: function (x) { n++; (D[t][r - 1] || (D[t][r - 1] = []))[c - 1] = x; } }; };
         var sh = function (t) { return { getLastRow: function () { n++; return D[t].length; }, getLastColumn: function () { n++; return D[t].reduce(function (m, w) { return Math.max(m, w.length); }, 0); },
-          getRange: function (r, c, nr, nc) { n++; return rng(t, r, c, nr || 1, nc || 1); }, getDataRange: function () { n++; return rng(t, 1, 1, D[t].length, D[t].reduce(function (m, w) { return Math.max(m, w.length); }, 0)); } }; };
+          appendRow: function (w) { n++; D[t].push(w.slice()); }, getRange: function (r, c, nr, nc) { n++; return rng(t, r, c, nr || 1, nc || 1); }, getDataRange: function () { n++; return rng(t, 1, 1, D[t].length, D[t].reduce(function (m, w) { return Math.max(m, w.length); }, 0)); } }; };
         return { D: D, n: function () { return n; }, ss: { getSheetByName: function (t) { n++; return D[t] ? sh(t) : null; } } };
       };
       var run = function (on) {
@@ -3698,7 +4271,7 @@ function selfTestOffice() {
       var F2 = mk(), d4 = new SheetDb(F2.ss), n0 = F2.n(); d4.rows('Items'); d4.headers('Items'); d4.rows('Items');
       eq('O340 W4c a tab is read once (sheet handle + one data read)', F2.n() - n0, 3);
       var F3 = mk(), d5 = new SheetDb(F3.ss), m0 = F3.n(); d5.insert('Log', { At: 'z', What: 'w' });
-      eq('O341 W4c insert into an unread tab does not read the tab (header row + last row + write)', [F3.n() - m0, F3.D.Log.length, d5.c.Log == null].join('|'), '7|2|true');
+      eq('O341 W4c insert into Log does not read the tab (header row + one atomic append)', [F3.n() - m0, F3.D.Log.length, d5.c.Log == null].join('|'), '5|2|true');
       var F4 = mk(), d6 = new SheetDb(F4.ss); d6.headers('Items'); var h6 = d6.rows('Items');
       eq('O342 W4c headers alone = the header row (as before); rows after it one data read; _r = sheet row', [h6.length, h6[1]._r, h6[1].ItemCode, F4.n()].join('|'), '2|4|A2|6');
       var F5 = mk(), d7 = new SheetDb(F5.ss); d7.headers('Items');
