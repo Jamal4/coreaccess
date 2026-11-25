@@ -1319,14 +1319,14 @@ function officeQuoteTerm(token, no, tv, op) {
     } else if (op.k === 'resetAll') { Object.keys(set).forEach(function (k) { set[k] = ''; }); cls = []; add = []; }
     else oFail_('BADINPUT|change');
     // qtSave_ deletes this quote's QuoteTerms rows and writes them again: if the sheet fails in between, the old rows go back
-    var keep = T.ov.map(function (o) { var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
+    var raw = qtRows_(db, q.QuoteNo), keep = raw.map(function (o) { /* CR run 16: all stored rows (T.ov leaves out blank ones) */ var x = {}; QT_HEAD_.forEach(function (k) { x[k] = o[k]; }); x.Title = oQCell_(o.Title); x.Text = oQCell_(o.Text); return x; });
     var hd = db.headers('Quotes'), h0 = {}; // CR16: qtSave_ writes the quote row first; on a failure it goes back too
     qtFieldsFor_(oQType_(q)).forEach(function (f) { if (hd.indexOf(f[0]) >= 0) h0[f[0]] = q[f[0]] == null ? '' : q[f[0]]; });
     oPeBump_(env, [String(q.QuoteNo)]); // CR run 4: counted before qtSave_ writes (a sheet-panel PDF made meanwhile does not keep its link)
     try { qtSave_(db, { quoteNo: q.QuoteNo, settings: set, clauses: cls, added: add }); }
     catch (e) {
       try { var d2 = env.db() || db; uiPutRow_(d2, 'Quotes', oQRow_(d2, q.QuoteNo), h0); } catch (e1) { /* the error below says try again */ }
-      try { var d3 = env.db() || db, left = qtRows_(d3, q.QuoteNo); if (oQtSig_(left) !== oQtSig_(T.ov)) { uiDelRows_(d3, 'QuoteTerms', left); if (keep.length) d3.insert('QuoteTerms', keep); } } catch (e2) { /* the error below says try again */ } // CR run 15: also a part delete / part write
+      try { var d3 = env.db() || db, left = qtRows_(d3, q.QuoteNo); if (oQtSig_(left) !== oQtSig_(raw)) { uiDelRows_(d3, 'QuoteTerms', left); if (keep.length) d3.insert('QuoteTerms', keep); } } catch (e2) { /* the error below says try again */ } // CR run 15: also a part delete / part write
       oFail_('BUSY');
     }
     oQPdfStale_(env, env.db() || db, q.QuoteNo, true);
@@ -1370,8 +1370,8 @@ function oQPdfLinkIf_(env, d, no, r0, v, bin, hold) { // hold.keep: the quote go
   var drop = function () { ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } }); };
   try {
     oScrLock_(function () {
-      var d1 = env.db() || d; ok = !!url && oQPdfVer_(d1, no).v === v;
-      if (ok) { var r = find(d1.rows('Quotes'), 'QuoteNo', no); if (r && oQLocked_(d1, r)) { ok = false; if (blank(r.PDF)) lk = true; else if (hold) hold.keep = String(r.PDF); } else if (r && d1.headers('Quotes').indexOf('PDF') >= 0) { if (oPdfNewer_(r.PDF, url)) ok = false; else { oQPnUp_(env, no, r.PDF); env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true; d1.update('Quotes', r, { PDF: url }); pub = true; if (hold) hold.pub = JSON.stringify(env.get('OQP:' + no) || null); } } } // CR run 13: pending fingerprint first (a write that threw yet went in)
+      var d1 = env.db() || d, r = find(d1.rows('Quotes'), 'QuoteNo', no); ok = !!url && oQPdfVer_(d1, no).v === v; // CR run 16: the lock rule first (also when the print changed)
+      if (r && oQLocked_(d1, r)) { ok = false; if (blank(r.PDF)) lk = true; else if (hold) hold.keep = String(r.PDF); } else if (ok && r && d1.headers('Quotes').indexOf('PDF') >= 0) { if (oPdfNewer_(r.PDF, url)) ok = false; else { oQPnUp_(env, no, r.PDF); env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true; d1.update('Quotes', r, { PDF: url }); pub = true; if (hold) hold.pub = JSON.stringify(env.get('OQP:' + no) || null); } } // CR run 13: pending fingerprint first (a write that threw yet went in)
     });
   } catch (e) { if (!wr) drop(); throw e; } // CR run 12: lock refused (BUSY) / the fresh read failed: nothing linked -> the new files go; the write or the flush threw (the link may be in) -> both kept
   if (pub) { oBinNow_(bin, ids); return; }
@@ -2019,12 +2019,12 @@ function oStMake_(parts, Q, locs) { // sets one challan can issue from the yard:
   return best;
 }
 function oStYard_(q, locs) { var y = 0; Object.keys(q || {}).forEach(function (l) { if (locs[l] && OST_GRP_[String(locs[l].Type)] === 'yard') y += q[l]; }); return y; }
-function oStHas_(q) { return Object.keys(q || {}).some(function (l) { return Math.abs(q[l]) > 1e-9; }); } // CR run 13: stock (or a shortfall) somewhere
+function oStHas_(q, locs) { return Object.keys(q || {}).some(function (l) { return !!(locs[l] && OST_GRP_[String(locs[l].Type)]) && Math.abs(q[l]) > 1e-9; }); } // CR run 16: Supplier / Sold are not stock // CR run 13: stock (or a shortfall) somewhere
 function oStLow_(it, g) { var r = oStN_(it.ReorderLevel); return !oStYes_(it.IsSet) && oStSt_(it) === 'Active' && r != null && r > 0 && (g.ry != null ? g.ry : g.yard) < r; }
 function oStEv_(it, M) { return oCuEv_(it, [], M ? OST_EV_.concat(['HireRateMonth', 'SalePrice', 'ReplacementCost', 'RepairRate']) : OST_EV_); } // no prices in a hash sent to a login that may not see them (a guess could be checked against it)
 function oStCard_(it, g, kit, Q, locs, M) {
   var set = oStYes_(it.IsSet), o = { code: String(it.ItemCode), name: oUncell_(it.Name), cat: oUncell_(it.Category), size: oUncell_(it.Size), unit: oUncell_(it.Unit), isSet: set, status: oStSt_(it),
-    reorder: oStN_(it.ReorderLevel) || 0, tracked: oStYes_(it.StockTracked), yard: g.yard, site: g.site, rep: g.rep, lost: g.lost, own: g.own, low: oStLow_(it, g) && (oStYes_(it.StockTracked) || oStHas_(Q[String(it.ItemCode)])), hz: g.hz }; // CR run 15: a catalogue-only item (untracked, no stock) is not low
+    reorder: oStN_(it.ReorderLevel) || 0, tracked: oStYes_(it.StockTracked), yard: g.yard, site: g.site, rep: g.rep, lost: g.lost, own: g.own, low: oStLow_(it, g) && (oStYes_(it.StockTracked) || oStHas_(Q[String(it.ItemCode)], locs)), hz: g.hz }; // CR run 15: a catalogue-only item (untracked, no stock) is not low
   if (set) { o.parts = (kit[o.code] || []).length; o.make = oStMake_(kit[o.code], Q, locs); var kk = kit[o.code] || []; if (!kk.length || kk.bad) o.kitBad = true; } // kitBad: the challan refuses this set (no valid parts / a bad row)
   if (M) { o.cost = oStN_(it.ReplacementCost); if (o.cost != null && !set) o.val = r2(g.raw * o.cost); } // CR run 13: val only to a money login
   return o;
@@ -2047,7 +2047,7 @@ function officeStockList(token) {
   if (!db) oFail_('BUSY');
   var locs = oStLocs_(db), Q = oStQty_(db), kit = oStKit_(db);
   var seen = oStMap_(), rows = db.rows('Items').filter(function (it) { var c = String(it.ItemCode == null ? '' : it.ItemCode); if (!oStCode_(c) || seen[c]) return false; seen[c] = 1; return true; }) // a repeated code: listed once, the first row (as find())
-    .map(function (it) { var o = oStCard_(it, oStGroups_(Q[String(it.ItemCode)], locs), kit, Q, locs, M); if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet) || oStHas_(Q[String(it.ItemCode)]))) o.cata = true; return o; }); // cata: catalogue only (untracked, no stock; CR run 13: a balance, not move history): listed under "All items", not counted
+    .map(function (it) { var o = oStCard_(it, oStGroups_(Q[String(it.ItemCode)], locs), kit, Q, locs, M); if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet) || oStHas_(Q[String(it.ItemCode)], locs))) o.cata = true; return o; }); // cata: catalogue only (untracked, no stock; CR run 13: a balance, not move history): listed under "All items", not counted
   var out = { can: oStCan_(a), head: H, money: M, price: oIsDir_(a), rows: rows, cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit'), defs: oStDefs_(db), today: oDayOf_(env.now()) };
   if (H) { var op = oStMap_(); db.rows('StockMoves').forEach(function (v) { if (String(v.RefType) !== 'Opening' || blank(v.ToLoc)) return; var c = String(v.ItemCode), a = op[c] = op[c] || []; if (a.indexOf(String(v.ToLoc)) < 0) a.push(String(v.ToLoc)); });
     rows.forEach(function (o) { if (op[o.code]) o.op = op[o.code]; }); } // CR run 15: item + location already opened (the post refuses them: EXISTS)
@@ -2205,7 +2205,7 @@ function officeItemSave(token, x) {
     var tr = oStYN_(x.tracked, 'stock tracked'), st = oStYN_(x.isSet, 'set'), fh = oStYN_(x.forHire, 'for hire'), fs = oStYN_(x.forSale, 'for sale'); // for hire / sale: the quote form offers the item on Rental / Sale quotes
     if (oIsDir_(oAcc_(L))) Object.keys(OST_PRICE_).forEach(function (k) { n[OST_PRICE_[k]] = oStNum_(x[k], 0, 1e9, 2, { hire: 'hire rate', sale: 'sale price', repl: 'replacement cost', repair: 'repair rate' }[k]); }); // others: kept
     if (row) { // stock already there must stay readable
-      var q = oStQty_(db)[code] || {}, has = oStHas_(q);
+      var q = oStQty_(db)[code] || {}, has = oStHas_(q, oStLocs_(db));
       var moved = db.rows('StockMoves').some(function (v) { return String(v.ItemCode) === code; }), kitN = oStSetRef_(db, code);
       if ((st === 'Yes') !== oStYes_(row.IsSet) && (moved || kitN || oStPart_(db, code))) oFail_('BADINPUT|set');
       if (tr === 'No' && oStYes_(row.StockTracked) && has) oFail_('BADINPUT|stock tracked');

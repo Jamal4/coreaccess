@@ -1494,7 +1494,7 @@ function stOpenDlg(pre,fr){ /* CR run 8: items + locations read fresh each time 
   var opd=function(c){var x=items.filter(function(y){return y.code===c;})[0];return x&&x.op||[];};
   var olf=function(d){var s=d.querySelector('.oloc'),v=s.value,op=opd(d.querySelector('.oi').value),f=locs.filter(function(l){return op.indexOf(l.code)<0;})[0];
     s.innerHTML=locs.map(function(l){return '<option value="'+esc(l.code)+'">'+esc(l.code+' · '+l.name)+(op.indexOf(l.code)>=0?' (opened)':'')+'</option>';}).join('');
-    s.value=v&&locs.some(function(l){return l.code===v;})?v:(f||locs[0]).code;};
+    s.value=v&&op.indexOf(v)<0&&locs.some(function(l){return l.code===v;})?v:(f||locs[0]).code;};
   var line=function(it){var d=document.createElement('div');d.className='st-ol';nl++;
     d.innerHTML='<select class="inp np oi" aria-label="Item">'+items.map(function(x){return '<option value="'+esc(x.code)+'"'+(x.code===it?' selected':'')+'>'+esc(x.code+' · '+[x.name,x.size].filter(Boolean).join(' '))+'</option>';}).join('')+'</select>'+
       '<select class="inp np oloc" aria-label="Location"></select>'+
