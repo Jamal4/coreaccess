@@ -648,6 +648,8 @@ var ODOC_SEED_ = [
   ['CAE-PS-F01', 'Delivery challan', 'PS', 'Form', 'Projects Head', 'Active', 'Challan', ''],
   ['CAE-PS-F02', 'Return challan', 'PS', 'Form', 'Projects Head', 'Active', 'Challan', ''],
   ['CAE-YW-F01', 'Stock transfer note', 'YW', 'Form', 'Yard Head', 'Active', 'Challan', ''],
+  ['CAE-YW-F02', 'Rent-in receipt (goods in from a rental supplier)', 'YW', 'Form', 'Yard Head', 'Active', 'Challan', ''],
+  ['CAE-YW-F03', 'Off-hire note (return to a rental supplier)', 'YW', 'Form', 'Yard Head', 'Active', 'Challan', ''],
   ['CAE-PR-F01', 'Purchase order', 'PR', 'Form', 'Procurement Head', 'Active', 'PO', 'CAE/PO/2026/001'] // first PO to Robi, made by hand (user OK, 17 Nov)
 ];
 // Issued count = record numbers in the source tab that have a PDF link, plus the by-hand numbers (no double count).
@@ -657,6 +659,8 @@ var ODOC_SRC_ = {
   'CAE-PS-F01': ['Challans', 'ChallanNo', function (r) { return r.Kind === 'Delivery' || r.Kind === 'Sale'; }],
   'CAE-PS-F02': ['Challans', 'ChallanNo', function (r) { return r.Kind === 'Return'; }],
   'CAE-YW-F01': ['Challans', 'ChallanNo', function (r) { return r.Kind === 'Transfer'; }],
+  'CAE-YW-F02': ['Challans', 'ChallanNo', function (r) { return r.Kind === 'Hire-in'; }],
+  'CAE-YW-F03': ['Challans', 'ChallanNo', function (r) { return r.Kind === 'Off-hire'; }],
   'CAE-PR-F01': ['POs', 'PONo']
 };
 // Text for a cell: no control / zero-width / text-direction characters, spaces collapsed; a leading = + - @ is kept
@@ -822,7 +826,7 @@ function officeDocStatus(token, code, status, rev, was) {
 var ODOC_PDF_ = {
   Quote: 'CAE-SC-F01', PI: 'CAE-AC-F01', Invoice: 'CAE-AC-F02', PO: 'CAE-PR-F01',
   Note: function (r) { return String(r.Kind) === 'CN' ? 'CAE-AC-F04' : 'CAE-AC-F03'; }, // r = the record's row (missing row: no code)
-  Challan: function (r) { return r.Kind === 'Delivery' || r.Kind === 'Sale' ? 'CAE-PS-F01' : r.Kind === 'Return' ? 'CAE-PS-F02' : r.Kind === 'Transfer' ? 'CAE-YW-F01' : ''; }
+  Challan: function (r) { return r.Kind === 'Delivery' || r.Kind === 'Sale' ? 'CAE-PS-F01' : r.Kind === 'Return' ? 'CAE-PS-F02' : r.Kind === 'Transfer' ? 'CAE-YW-F01' : r.Kind === 'Hire-in' ? 'CAE-YW-F02' : r.Kind === 'Off-hire' ? 'CAE-YW-F03' : ''; }
 }; // same split as ODOC_SRC_ (issued counts)
 var ODOC_MON_ = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function oDayTxt_(s) { if (!oDayOk_(s)) return ''; var p = s.split('-').map(Number); return p[2] + ' ' + ODOC_MON_[p[1] - 1] + ' ' + p[0]; }
@@ -1980,7 +1984,7 @@ function oStLocs_(db) { var m = oStMap_(); db.rows('Locations').forEach(function
 function oStQty_(db) { // item -> loc -> qty, one read of StockMoves
   var m = oStMap_();
   db.rows('StockMoves').forEach(function (v) {
-    if (blank(v.ItemCode)) return;
+    if (blank(v.ItemCode) || !blank(v.Owner)) return; // M8: rented-in items (Owner = SupID) are not our stock
     var k = String(v.ItemCode), q = num(v.Qty), x = m[k] = m[k] || oStMap_();
     if (!isFinite(q) || !q) return;
     if (!blank(v.ToLoc)) x[String(v.ToLoc)] = (x[String(v.ToLoc)] || 0) + q;
@@ -2285,6 +2289,292 @@ function officeLocSave(token, x) {
     var w = oCtLog_(db, 'Location added', code, x.type + ' · ' + name);
     return w ? { code: code, warn: w } : { code: code };
   });
+}
+// ----------------------------------------------------------------- M8 (25 Nov): challans. PS: Delivery / Sale / Return; YW: Transfer / Hire-in / Off-hire (rent-in)
+// Stock moves only on Post (Sets.gs postChallan: sets expand, From checked, owner split: StockMoves.Owner '' = own, SupID = rented in).
+// See: as Stock (YW, PS, SC, PR, AC 1+, Directors). Make / edit / post: that kind's department level 2+; cancel a posted one: its head (3) or a Director.
+// No prices anywhere. Numbering CAE/DC/YYYY/NNN (Sequences DC), the same for every kind.
+// officeChallanList(token)            -> {can, rows: [card], jobs, sups, locs, items, kit, pool: item -> loc -> owner -> qty, hire: job -> item -> qty, hpool, rent, today}
+// officeChallanGet(token, no)         -> one challan: header, lines, ev, al (posted: taken from, per owner), pdf, doc, can*
+// officeChallanSave(token, c)         c = {no + ev (edit) | none (new), kind, job, from, to, sup, sref, date, veh, notes, lines: [{it, q}] | Return [{it, g, dm, l}]} -> {no, ev}
+// officeChallanPost(token, no, ev, veh) -> {no, url};  officeChallanCancel(token, no, ev, why) -> {no, url};  officeChallanPdf(token, no) -> {url, doc}
+// Codes: NOTFOUND, STALE, BADINPUT|field, CHSTATE|status, CHDATE, NOTPOSTED|text, NOCANCEL|text, POSTUNSURE, SAVEUNSURE|no|ev, NOPDF, NOACCESS, SLOW, BUSY.
+var OCH_KINDS_ = ['Delivery', 'Sale', 'Return', 'Transfer', 'Hire-in', 'Off-hire'];
+var OCH_YW_ = ['Transfer', 'Hire-in', 'Off-hire'];
+var OCH_NO_ = /^CAE\/DC\/20\d\d\/\d{3,6}$/, OCH_LINES_ = 200;
+var OCH_COLS_ = [['Challans', 'SupID'], ['Challans', 'SupplierRef'], ['Challans', 'MadeBy'], ['Challans', 'CancelReason'], ['StockMoves', 'Owner']];
+var OCH_EVF_ = ['Kind', 'ChallanDate', 'JobNo', 'FromLoc', 'ToLoc', 'Vehicle', 'Status', 'Notes', 'SupID', 'SupplierRef'];
+function oChDept_(k) { return OCH_YW_.indexOf(k) >= 0 ? 'YW' : 'PS'; }
+function oChCan_(a, k) { return oIsDir_(a) || (a[oChDept_(k)] || 0) >= 2; }
+function oChHead_(a, k) { return oIsDir_(a) || (a[oChDept_(k)] || 0) >= 3; }
+function oChKind_(k) { if (typeof k !== 'string' || OCH_KINDS_.indexOf(k) < 0) oFail_('BADINPUT|kind'); return k; }
+function oChRow_(db, no) { var c = typeof no === 'string' && OCH_NO_.test(no) ? find(db.rows('Challans'), 'ChallanNo', no) : null; if (!c || OCH_KINDS_.indexOf(String(c.Kind)) < 0) oFail_('NOTFOUND'); return c; }
+function oChLines_(db, no) { return db.rows('ChallanLines').filter(function (l) { return String(l.ChallanNo) === no; }); }
+function oChEv_(db, c) {
+  var h = OCH_EVF_.map(function (k) { var x = c[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); });
+  oChLines_(db, String(c.ChallanNo)).forEach(function (l) { h.push(['LineID', 'ItemCode', 'Qty', 'QtyGood', 'QtyDamaged', 'QtyLost'].map(function (k) { return String(l[k] == null ? '' : l[k]); }).join('~')); });
+  return oQHash_(JSON.stringify(h));
+}
+function oChSetup_(env, db) { // new columns at the end + the two new kinds valid in the Kind dropdown (once)
+  if (OCH_COLS_.every(function (x) { return db.headers(x[0]).indexOf(x[1]) >= 0; }) && env.get('OCHSET') === 1) return;
+  OCH_COLS_.forEach(function (x) { db.ensureColumn(x[0], x[1]); });
+  if (db.ss && typeof ensureAllowed_ === 'function') ensureAllowed_(db, 'Challans', 'Kind', OCH_KINDS_);
+  if (db.hasTab(ODOC_REG_)) oDocSetup_(env, db); // M8: the rent-in forms CAE-YW-F02 / F03 join the register
+  env.put('OCHSET', 1);
+}
+function oChItems_(db) { var m = oStMap_(); db.rows('Items').forEach(function (i) { var k = String(i.ItemCode == null ? '' : i.ItemCode); if (oStCode_(k) && !m[k]) m[k] = i; }); return m; }
+function oChKg_(it, q, kit, items) {
+  if (!it) return 0;
+  if (oStYes_(it.IsSet)) return (kit[String(it.ItemCode)] || []).reduce(function (s, p) { return s + p.q * q * num((items[p.p] || {}).WeightKg); }, 0);
+  return q * num(it.WeightKg);
+}
+function oChCard_(c, lines, X) {
+  var k = String(c.Kind), job = X.jobs[String(c.JobNo)] || null, sup = blank(c.SupID) ? '' : String(c.SupID), q = 0, kg = 0;
+  lines.forEach(function (l) { var n = num(l.Qty); q += n; kg += oChKg_(X.items[String(l.ItemCode)], n, X.kit, X.items); });
+  return { no: String(c.ChallanNo), kind: k, st: String(c.Status || 'Draft'), d: oDay_(c.ChallanDate), job: job ? String(job.JobNo) : '', cust: job ? X.cust(job) : '',
+    from: String(c.FromLoc || ''), to: String(c.ToLoc || ''), sup: sup, supName: sup ? oUncell_((X.sups[sup] || {}).Name || sup) : '', sref: oUncell_(c.SupplierRef),
+    veh: oUncell_(c.Vehicle), n: lines.length, qty: r2(q), kg: Math.round(kg), dn: X.dn[String(c.ChallanNo)] || '', by: oUncell_(c.MadeBy) };
+}
+function oChCtx_(db) {
+  var X = { items: oChItems_(db), kit: oStKit_(db), jobs: oStMap_(), sups: oStMap_(), dn: oStMap_(), cus: oStMap_(), sites: oStMap_() };
+  db.rows('Jobs').forEach(function (j) { if (!blank(j.JobNo) && !X.jobs[String(j.JobNo)]) X.jobs[String(j.JobNo)] = j; });
+  if (db.hasTab('Suppliers')) db.rows('Suppliers').forEach(function (s) { if (!blank(s.SupID) && !X.sups[String(s.SupID)]) X.sups[String(s.SupID)] = s; });
+  db.rows('Customers').forEach(function (c) { X.cus[String(c.CustID)] = c; });
+  db.rows('Sites').forEach(function (s) { X.sites[String(s.SiteID)] = s; });
+  db.rows('Damage').forEach(function (d) { if (!blank(d.DNNo) && String(d.Status) !== 'Cancelled' && !X.dn[String(d.ChallanNo)]) X.dn[String(d.ChallanNo)] = String(d.DNNo); });
+  X.cust = function (j) { return oUncell_((X.cus[String(j.CustID)] || {}).Name || j.CustID || ''); };
+  return X;
+}
+function oChPool_(db) { // item|loc -> {owner: qty} (no Owner column: all own)
+  if (chOwnCol_(db)) return chOwnMap_(db);
+  var m = {}, s = stockMap(db); Object.keys(s).forEach(function (k) { m[k] = { '': s[k] }; }); return m;
+}
+function officeChallanList(token) {
+  var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
+  var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
+  var X = oChCtx_(db), locs = oStLocs_(db), byNo = oStMap_();
+  db.rows('ChallanLines').forEach(function (l) { var k = String(l.ChallanNo); (byNo[k] = byNo[k] || []).push(l); });
+  var seen = oStMap_(), rows = db.rows('Challans').filter(function (c) { var n = String(c.ChallanNo); if (!OCH_NO_.test(n) || OCH_KINDS_.indexOf(String(c.Kind)) < 0 || seen[n]) return false; seen[n] = 1; return true; })
+    .map(function (c) { return oChCard_(c, byNo[String(c.ChallanNo)] || [], X); });
+  var jobs = [], hire = {}, hpool = {}, P = oChPool_(db), oc = chOwnCol_(db);
+  Object.keys(X.jobs).forEach(function (n) { var j = X.jobs[n]; if (String(j.Status) === 'Closed') return;
+    var si = X.sites[String(j.SiteID)] || {}, sl = blank(si.LocID) ? '' : String(si.LocID);
+    jobs.push({ no: n, cust: X.cust(j), site: sl, siteName: oUncell_(si.Project || si.Address || ''), type: String(j.JobType || ''), ref: oUncell_(j.ClientWONo), st: String(j.Status || '') });
+    if (String(j.JobType) === 'Sale') return;
+    var h = onHire(db, n), o = {}; Object.keys(h).forEach(function (k) { if (h[k] > 1e-9) o[k] = r2(h[k]); }); if (!Object.keys(o).length) return; hire[n] = o;
+    if (sl && oc) { var jm = chOwnMap_(db, n), hp = {}; Object.keys(o).forEach(function (k) { var x = jm[k + '|' + sl]; if (x) { hp[k] = {}; Object.keys(x).forEach(function (w) { if (x[w] > 1e-9) hp[k][w] = r2(x[w]); }); } }); hpool[n] = hp; } });
+  var pool = {}, rent = oStMap_();
+  Object.keys(P).forEach(function (k) { var p = k.split('|'), l = locs[p[1]], t = l ? String(l.Type) : ''; if (['Yard', 'Repair', 'Lost', 'Site', 'Scrap'].indexOf(t) < 0) return;
+    Object.keys(P[k]).forEach(function (w) { var q = P[k][w]; if (Math.abs(q) < 1e-9) return;
+      if (t !== 'Site') { var x = pool[p[0]] = pool[p[0]] || {}, y = x[p[1]] = x[p[1]] || {}; y[w] = r2(q); }
+      if (w) { var rk = w + '|' + p[0], r = rent[rk] = rent[rk] || { sup: w, it: p[0], yard: 0, rep: 0, site: 0, lost: 0 }; r[OST_GRP_[t]] += q; } }); });
+  var items = Object.keys(X.items).filter(function (c) { var i = X.items[c]; return oStSt_(i) === 'Active' && (oStYes_(i.StockTracked) || oStYes_(i.IsSet)); })
+    .map(function (c) { var i = X.items[c]; return { code: c, name: oUncell_(i.Name), size: oUncell_(i.Size), unit: oUncell_(i.Unit), kg: num(i.WeightKg) || 0, set: oStYes_(i.IsSet) }; });
+  var kit = {}; Object.keys(X.kit).forEach(function (s) { if (!X.kit[s].bad) kit[s] = X.kit[s].map(function (p) { return { p: p.p, q: p.q }; }); });
+  return { can: { PS: oChCan_(a, 'Delivery'), YW: oChCan_(a, 'Transfer'), psH: oChHead_(a, 'Delivery'), ywH: oChHead_(a, 'Transfer') }, rows: rows, jobs: jobs, hire: hire, hpool: hpool, pool: pool,
+    rent: Object.keys(rent).sort().map(function (k) { var r = rent[k]; ['yard', 'rep', 'site', 'lost'].forEach(function (g) { r[g] = r2(r[g]); }); return r; }).filter(function (r) { return r.yard || r.rep || r.site || r.lost; }),
+    sups: Object.keys(X.sups).filter(function (s) { return String(X.sups[s].Status) !== 'Inactive'; }).map(function (s) { return { id: s, name: oUncell_(X.sups[s].Name || s) }; }),
+    locs: Object.keys(locs).filter(function (k) { var t = String(locs[k].Type); return ['Yard', 'Repair', 'Lost', 'Site'].indexOf(t) >= 0 && String(locs[k].Status || 'Active') === 'Active'; }).map(function (k) { return { code: k, name: oUncell_(locs[k].Name), type: String(locs[k].Type) }; }),
+    items: items, kit: kit, today: oDayOf_(env.now()), sup: LOC.SUPPLIER };
+}
+function oChView_(env, db, c, a) {
+  var X = oChCtx_(db), no = String(c.ChallanNo), lines = oChLines_(db, no), k = String(c.Kind), o = oChCard_(c, lines, X), st = o.st;
+  o.lines = lines.map(function (l) { var d = num(l.QtyDamaged), lo = num(l.QtyLost), q = num(l.Qty);
+    return k === 'Return' ? { it: String(l.ItemCode), g: blank(l.QtyGood) ? q - d - lo : num(l.QtyGood), dm: d, l: lo } : { it: String(l.ItemCode), q: q }; });
+  o.notes = oUncell_(c.Notes); o.reason = oUncell_(c.CancelReason); o.ev = oChEv_(db, c);
+  var job = X.jobs[String(c.JobNo)], si = job ? X.sites[String(job.SiteID)] || {} : {};
+  if (job) { o.ref = oUncell_(job.ClientWONo); o.siteName = oUncell_(si.Project || si.Address || ''); o.jst = String(job.Status || ''); o.jtype = String(job.JobType || ''); }
+  if (st !== 'Draft') { var al = {}, mine = db.rows('StockMoves').filter(function (v) { return String(v.RefNo) === no && String(v.RefType) === 'Challan'; });
+    mine.forEach(function (v) { var w = chOwnOf_(v), i = String(v.ItemCode), x = al[i] = al[i] || {};
+      if (k === 'Return') { var t = locType(db, v.ToLoc), j = t === 'Repair' ? 1 : t === 'Lost' ? 2 : 0, y = x[w] = x[w] || [0, 0, 0]; y[j] = r2(y[j] + num(v.Qty)); } else x[w] = r2((x[w] || 0) + num(v.Qty)); });
+    o.al = al; }
+  var p = env.get('OCHP:' + no);
+  o.pdf = blank(c.PDF) ? '' : String(c.PDF); o.pdfOk = !!(o.pdf && p && p.e === o.ev); o.doc = o.pdfOk && typeof p.d === 'string' ? p.d : '';
+  o.canEdit = st === 'Draft' && oChCan_(a, k); o.canPost = o.canEdit; o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : st === 'Draft' && oChCan_(a, k);
+  return o;
+}
+function officeChallanGet(token, no) {
+  var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
+  var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
+  return oChView_(env, db, oChRow_(db, no), a);
+}
+function oChHdr_(env, db, k, x) { // the header fields of a save, checked
+  var date = oCtDay_(x.date, env, 'date'); if (!date) oFail_('BADINPUT|date');
+  var locs = oStLocs_(db), lt = function (id) { var l = typeof id === 'string' && id ? locs[id] : null; return l && String(l.Status || 'Active') === 'Active' ? String(l.Type) : ''; };
+  var pick = function (id, types, what) { if (types.indexOf(lt(id)) < 0) oFail_('BADINPUT|' + what); return id; };
+  var o = { ChallanDate: date, JobNo: '', FromLoc: '', ToLoc: '', Vehicle: oCell_(oQeTxt_(x.veh, 30, 'vehicle no.')), Notes: oCell_(oQeTxt_(x.notes, 300, 'note')), SupID: '', SupplierRef: '' }, sl = '', supNeed = false;
+  if (OCH_YW_.indexOf(k) < 0) {
+    var job = typeof x.job === 'string' && x.job ? find(db.rows('Jobs'), 'JobNo', x.job) : null;
+    if (!job || blank(job.JobNo) || String(job.Status) === 'Closed' || (k === 'Sale') !== (String(job.JobType) === 'Sale')) oFail_('BADINPUT|job');
+    o.JobNo = String(job.JobNo);
+    if (k !== 'Sale') { var si = find(db.rows('Sites'), 'SiteID', job.SiteID); if (!si) oFail_('BADINPUT|job'); sl = ensureSiteLoc(db, si); }
+  }
+  if (k === 'Delivery') { if (x.from === LOC.SUPPLIER && locType(db, LOC.SUPPLIER) === 'Supplier') { o.FromLoc = LOC.SUPPLIER; supNeed = true; } else o.FromLoc = pick(x.from, ['Yard'], 'from'); o.ToLoc = sl; }
+  else if (k === 'Sale') { o.FromLoc = pick(x.from, ['Yard'], 'from'); o.ToLoc = LOC.SOLD; if (locType(db, LOC.SOLD) !== 'Sold') oFail_('BADINPUT|to'); }
+  else if (k === 'Return') { o.FromLoc = sl; o.ToLoc = pick(x.to == null || x.to === '' ? LOC.YARD : x.to, ['Yard'], 'to'); }
+  else if (k === 'Transfer') { o.FromLoc = pick(x.from, ['Yard', 'Repair'], 'from'); o.ToLoc = pick(x.to, ['Yard', 'Repair'], 'to'); if (o.FromLoc === o.ToLoc) oFail_('BADINPUT|to'); }
+  else { if (locType(db, LOC.SUPPLIER) !== 'Supplier') oFail_('BADINPUT|supplier');
+    if (k === 'Hire-in') { o.FromLoc = LOC.SUPPLIER; o.ToLoc = pick(x.to, ['Yard'], 'received into'); supNeed = true; } else { o.FromLoc = pick(x.from, ['Yard', 'Repair', 'Lost'], 'from'); o.ToLoc = LOC.SUPPLIER; } }
+  if (supNeed || k === 'Off-hire') {
+    var s = typeof x.sup === 'string' && x.sup && db.hasTab('Suppliers') ? find(db.rows('Suppliers'), 'SupID', x.sup) : null;
+    if (!s || blank(s.SupID) || String(s.Status) === 'Inactive') oFail_('BADINPUT|supplier');
+    o.SupID = String(s.SupID); o.SupplierRef = oCell_(oQeTxt_(x.sref, 40, 'supplier\'s DO no.', supNeed));
+  }
+  return o;
+}
+function oChLinesIn_(db, k, ls) {
+  if (!Array.isArray(ls) || !ls.length || ls.length > OCH_LINES_) oFail_('BADINPUT|lines');
+  var items = oChItems_(db), seen = oStMap_();
+  return ls.map(function (r, i) {
+    var n = 'line ' + (i + 1); r = r && typeof r === 'object' && !Array.isArray(r) ? r : {};
+    var c = oStCode_(r.it), it = c ? items[c] : null;
+    if (!it || oStSt_(it) !== 'Active' || !(oStYes_(it.StockTracked) || oStYes_(it.IsSet))) oFail_('BADINPUT|' + n + ' item');
+    if (seen[c]) oFail_('BADINPUT|' + n + ' (twice)'); seen[c] = 1;
+    var w = function (v, lo, what) { var q = v == null || v === '' ? 0 : oQeNum_(v, lo, 1e6, 0, n + ' ' + what); if (!Number.isInteger(q)) oFail_('BADINPUT|' + n + ' ' + what); return q; };
+    if (k === 'Return') {
+      var g = w(r.g, 0, 'good'), d = w(r.dm, 0, 'damaged'), lo = w(r.l, 0, 'lost');
+      if (!(g + d + lo > 0)) oFail_('BADINPUT|' + n + ' qty');
+      if (oStYes_(it.IsSet) && (d || lo)) oFail_('BADINPUT|' + n + ' (a set comes back whole)');
+      return { ItemCode: c, Qty: g + d + lo, QtyGood: g, QtyDamaged: d || '', QtyLost: lo || '', Remarks: '' };
+    }
+    var q = w(r.q, 1, 'qty'); if (!(q >= 1)) oFail_('BADINPUT|' + n + ' qty');
+    return { ItemCode: c, Qty: q, QtyGood: '', QtyDamaged: '', QtyLost: '', Remarks: '' };
+  });
+}
+function oChCode_(e) { var m = String(e && e.message || e); return /^[A-Z][A-Z0-9]+(\||$)/.test(m) ? m : ''; } // one of our codes (passed on as it is)
+function officeChallanSave(token, x) {
+  var L = officeGate_(token, null); if (!oStSee_(oAcc_(L))) oFail_('NOACCESS');
+  if (!x || typeof x !== 'object' || Array.isArray(x)) oFail_('BADINPUT|challan');
+  var made = null; // a new challan whose header went in, then a later step / the lock-exit flush failed -> SAVEUNSURE|no|ev (Save again edits it)
+  try {
+    return oStW_(token, oStSee_, function (env, db, L) {
+      var a = oAcc_(L), k = oChKind_(x.kind); if (!oChCan_(a, k)) oFail_('NOACCESS');
+      oChSetup_(env, db);
+      var old = null;
+      if (x.no != null && x.no !== '') {
+        old = oChRow_(db, x.no);
+        if (String(old.Kind) !== k) oFail_('BADINPUT|kind');
+        if (String(old.Status || 'Draft') !== 'Draft') oFail_('CHSTATE|' + String(old.Status));
+        if (typeof x.ev !== 'number' || x.ev !== oChEv_(db, old)) oFail_('STALE');
+      }
+      var h = oChHdr_(env, db, k, x), ls = oChLinesIn_(db, k, x.lines), no;
+      oQeRate_(env, L);
+      if (!old) {
+        no = oChFree_(db, 'Challans', 'ChallanNo', function () { return nextId(db, 'DC', h.ChallanDate); });
+        var row = { ChallanNo: no, Kind: k, Status: 'Draft', Driver: '', ReceivedBy: '', MadeBy: oCell_(String(L.name || L.email)) };
+        Object.keys(h).forEach(function (f) { row[f] = h[f]; });
+        db.insert('Challans', row); made = { no: no };
+        var ids = oChLineIds_(db, ls.length);
+        db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = ids[i]; l.ChallanNo = no; return l; }));
+      } else {
+        no = String(old.ChallanNo);
+        var prev = oChLines_(db, no).slice(), keep = { PDF: old.PDF == null ? '' : old.PDF }, nids = oChLineIds_(db, ls.length);
+        Object.keys(h).forEach(function (f) { keep[f] = old[f] == null ? '' : old[f]; });
+        db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = nids[i]; l.ChallanNo = no; return l; })); // new lines first, then the old ones go
+        try { var p = {}; Object.keys(h).forEach(function (f) { p[f] = h[f]; }); p.PDF = ''; uiPutRow_(db, 'Challans', old, p); uiDelRows_(db, 'ChallanLines', prev); }
+        catch (e) {
+          try { var d2 = env.db() || db, nw = d2.rows('ChallanLines').filter(function (l) { return nids.indexOf(String(l.LineID)) >= 0; }), o2 = find(d2.rows('Challans'), 'ChallanNo', no);
+            if (prev.every(function (l) { return find(d2.rows('ChallanLines'), 'LineID', l.LineID); })) { uiDelRows_(d2, 'ChallanLines', nw); if (o2) uiPutRow_(d2, 'Challans', o2, keep); } } catch (e2) { /* the error below says try again */ }
+          oFail_('BUSY');
+        }
+        if (!blank(keep.PDF)) oCtLog_(db, 'Challan PDF out of date', no, String(keep.PDF));
+      }
+      var w = oCtLog_(db, old ? 'Challan edited' : 'Challan made', no, k + (h.JobNo ? ' · ' + h.JobNo : '') + ' · ' + ls.length + ' lines');
+      var d3 = env.db() || db, out = { no: no };
+      try { out.ev = oChEv_(d3, oChRow_(d3, no)); } catch (e) { /* the page opens the challan again */ }
+      if (made) made.ev = out.ev;
+      if (w) out.warn = w;
+      return out;
+    });
+  } catch (e) { if (made) oFail_('SAVEUNSURE|' + made.no + '|' + (typeof made.ev === 'number' ? made.ev : '')); throw e; }
+}
+function oChFree_(db, t, col, next) { // next() until a number not already in the tab (a counter behind the sheet never reuses one; live 26 Nov: DC/004)
+  for (var i = 0; i < 200; i++) { var v = next(); if (!find(db.rows(t), col, v)) return v; } oFail_('BUSY');
+}
+function oChLineIds_(db, n) { var out = []; while (out.length < n) { var v = oChFree_(db, 'ChallanLines', 'LineID', function () { return nextId(db, 'CL'); }); if (out.indexOf(v) < 0) out.push(v); } return out; }
+function oChMoved_(db, no, t) { return db.rows('StockMoves').some(function (v) { return String(v.RefNo) === no && String(v.RefType) === t; }); }
+function officeChallanPost(token, no, ev, veh) {
+  officeGate_(token, null);
+  var env = oEnv_(), res = oStW_(token, oStSee_, function (env2, db, L) {
+    var a = oAcc_(L), c = oChRow_(db, no), k = String(c.Kind);
+    if (!oChCan_(a, k)) oFail_('NOACCESS');
+    if (String(c.Status || 'Draft') !== 'Draft') oFail_('CHSTATE|' + String(c.Status));
+    if (typeof ev !== 'number' || ev !== oChEv_(db, c)) oFail_('STALE');
+    var day = oDay_(c.ChallanDate); if (!day || day > oDayOf_(env2.now())) oFail_('CHDATE');
+    var v0 = oUncell_(c.Vehicle), v = veh == null || veh === '' ? v0.trim() : oQeTxt_(veh, 30, 'vehicle no.');
+    if ((k === 'Delivery' || k === 'Sale') && !v) oFail_('BADINPUT|vehicle no.');
+    if (!blank(c.JobNo)) { var j = find(db.rows('Jobs'), 'JobNo', c.JobNo); if (!j || String(j.Status) === 'Closed') oFail_('BADINPUT|job'); }
+    oChSetup_(env2, db); c = oChRow_(db, no);
+    oQeRate_(env2, L);
+    if (oChMoved_(db, no, 'Challan')) { db.update('Challans', c, { Status: 'Posted', PostedAt: new Date(env2.now()) }); oCtLog_(db, 'Challan post finished', no, 'moves were in'); return { no: no }; } // an earlier post wrote its moves, then failed: finished, never moved twice
+    if (v !== v0) db.update('Challans', c, { Vehicle: oCell_(v) });
+    try { postChallan(db, no); }
+    catch (e) {
+      if (oChCode_(e)) throw e;
+      var d2 = env2.db() || db; if (oChMoved_(d2, no, 'Challan')) oFail_('POSTUNSURE');
+      try { if (v !== v0) d2.update('Challans', oChRow_(d2, no), { Vehicle: v0 }); } catch (x) { /* the vehicle no. stays; the challan is still a Draft */ }
+      oFail_('NOTPOSTED|' + String(e && e.message || e).replace(/^Not posted:\s*/, '').replace(/\|/g, '/').slice(0, 1500));
+    }
+    return { no: no };
+  });
+  try { var p = oChPdfAs_(env, no, token); res.url = p.url; res.doc = p.doc; } catch (e) { res.url = ''; res.pdfErr = 1; }
+  return res;
+}
+function officeChallanCancel(token, no, ev, why) {
+  officeGate_(token, null);
+  var env = oEnv_(), res = oStW_(token, oStSee_, function (env2, db, L) {
+    var a = oAcc_(L), c = oChRow_(db, no), k = String(c.Kind), st = String(c.Status || 'Draft');
+    if (st !== 'Posted' && st !== 'Draft') oFail_('CHSTATE|' + st);
+    if (st === 'Posted' ? !oChHead_(a, k) : !oChCan_(a, k)) oFail_('NOACCESS');
+    if (typeof ev !== 'number' || ev !== oChEv_(db, c)) oFail_('STALE');
+    var r = oQeTxt_(why, 200, 'reason', true);
+    oChSetup_(env2, db); c = oChRow_(db, no);
+    oQeRate_(env2, L);
+    if (st === 'Posted' && oChMoved_(db, no, 'Challan-Cancel')) { // an earlier cancel reversed the moves, then failed: finished, never reversed twice
+      db.rows('Damage').filter(function (x) { return String(x.ChallanNo) === no && String(x.Status) !== 'Cancelled'; }).forEach(function (x) { db.update('Damage', x, { Status: 'Cancelled' }); });
+      db.update('Challans', c, { Status: 'Cancelled' });
+    } else {
+      try { cancelChallan(db, no); }
+      catch (e) { if (oChCode_(e)) throw e; var d2 = env2.db() || db; if (oChMoved_(d2, no, 'Challan-Cancel')) oFail_('POSTUNSURE'); oFail_('NOCANCEL|' + String(e && e.message || e).replace(/^Cannot cancel:\s*/, '').replace(/\|/g, '/').slice(0, 1500)); }
+    }
+    var out = { no: no, posted: st === 'Posted' };
+    try { var d3 = env2.db() || db; d3.update('Challans', oChRow_(d3, no), { CancelReason: oCell_(r) }); } catch (e) { out.warn = 'REASON'; }
+    var w = oCtLog_(db, 'Challan cancel reason', no, r); if (w) out.warn = w;
+    return out;
+  });
+  if (res.posted) try { var p = oChPdfAs_(env, no, token); res.url = p.url; res.doc = p.doc; } catch (e) { res.pdfErr = 1; }
+  delete res.posted;
+  return res;
+}
+// The PDF is made outside the script lock (~10 s) with no link; the link goes in holding the script lock only if the challan is still as it
+// was rendered (OCHP:no = its ev + the editable Doc); otherwise the new files go to the bin and the old link stays.
+function oChPdf_(env, no) {
+  var db = env.db(); if (!db) oFail_('BUSY');
+  var c = oChRow_(db, no), ev = oChEv_(db, c), bin = [], k0 = OPDF_BIN_, st = QF5_STUB_ || {}, r;
+  OPDF_BIN_ = bin;
+  try { r = (st.make || makePdf)(db, 'Challan', no, { noLink: true }); } finally { OPDF_BIN_ = k0; }
+  var url = String(r && r.url || ''), ids = oPdfIds_(r), ok = false, wr = false;
+  var drop = function () { ids.forEach(function (id) { try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* an unlinked copy may stay */ } }); };
+  try {
+    oScrLock_(function () {
+      var d1 = env.db() || db, c1 = find(d1.rows('Challans'), 'ChallanNo', no);
+      if (!url || !c1 || oChEv_(d1, c1) !== ev || d1.headers('Challans').indexOf('PDF') < 0) return;
+      env.put('OCHP:' + no, { e: ev, d: String(r.doc || '') }); wr = true; d1.update('Challans', c1, { PDF: url }); ok = true;
+    });
+  } catch (e) { if (!wr) drop(); throw e; }
+  if (!ok) { drop(); oFail_('BUSY'); }
+  oBinNow_(bin, ids);
+  return { url: url, doc: String(r.doc || '') };
+}
+function oChPdfAs_(env, no, token) { var L = officeGate_(token, null), prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email; try { return oChPdf_(env, no); } finally { OQ_ACT_ = prev; } }
+function officeChallanPdf(token, no) {
+  var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
+  var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
+  var c = oChRow_(db, no), p = env.get('OCHP:' + String(c.ChallanNo));
+  if (!blank(c.PDF) && p && p.e === oChEv_(db, c)) return { url: String(c.PDF), doc: typeof p.d === 'string' ? p.d : '' };
+  if (!oChCan_(a, String(c.Kind))) { if (!blank(c.PDF)) return { url: String(c.PDF), doc: '' }; oFail_('NOPDF'); }
+  var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
+  try { return oChPdf_(env, String(c.ChallanNo)); } finally { OQ_ACT_ = prev; }
 }
 // CR run 2: a sheet-panel PDF (pdf / quotePdf actions run without the script lock: a PDF takes 10-30 s) of a document an office edit
 // changes meanwhile must not get a link made from the old data. Each edit counts its documents first (OPE: {n, d: [[no, n]], b}, under
@@ -3215,6 +3505,7 @@ var OFFICE_WEB_API_ = ['doGet', 'officeLogin', 'officeMe', 'officeLogout', // la
   'officeCustList', 'officeCustGet', 'officeCustomerSave', 'officeSiteSave',
   'officeContractList', 'officeContractGet', 'officeContractMake', 'officeContractSave', 'officeContractFab', 'officeContractAdvance',
   'officeStockList', 'officeStockItem', 'officeItemSave', 'officeStockOpening', 'officeLocList', 'officeLocSave',
+  'officeChallanList', 'officeChallanGet', 'officeChallanSave', 'officeChallanPost', 'officeChallanCancel', 'officeChallanPdf',
   'officeSigGet', 'officeSigSave', 'officeSigRemove', 'officeStampGet', 'officeStampSave'];
 var OFFICE_OPEN_ = { // triggers: run without a signed-in user only with a real event (JSON from a web page carries no methods)
   onOpen: function (e) { return !!(e && e.source && typeof e.source.getId === 'function'); },
@@ -3568,10 +3859,10 @@ function selfTestOffice() {
       sheetLike(db); e3.clock.db = db; e3.clock.now = Date.UTC(2026, 10, 17, 6, 0, 0);
       var tD = add('dir@t.com', oDir_()), tQ = add('qh@t.com', { QH: 3, PS: 1 }), tV = add('sv@t.com', { QH: 1, PS: 2 }), tA = add('ac@t.com', { AC: 3, SC: 2 });
       eq('O136 list before set-up: NOREG for writes, list says not set up', err(function () { officeDocSave(tD, { isNew: true, dept: 'QH', type: 'Form', title: 'X', status: 'Draft' }); }) + ':' + officeDocList(tD).setup, 'NOREG:false');
-      eq('O137 set-up: 2 tabs + 10 rows + 10 history rows; repeat adds nothing', oDocSetup_(e3, db) + ':' + db.rows(ODOC_REG_).length + ':' + db.rows(ODOC_HIST_).length + ':' + oDocSetup_(e3, db) + ':' + db.rows(ODOC_HIST_).length + ':' + j(db.headers(ODOC_REG_)), '10:10:10:0:10:' + j(ODOC_H_));
+      eq('O137 set-up: 2 tabs + 12 rows + 12 history rows; repeat adds nothing', oDocSetup_(e3, db) + ':' + db.rows(ODOC_REG_).length + ':' + db.rows(ODOC_HIST_).length + ':' + oDocSetup_(e3, db) + ':' + db.rows(ODOC_HIST_).length + ':' + j(db.headers(ODOC_REG_)), '12:12:12:0:12:' + j(ODOC_H_));
       var codes = function (t) { return officeDocList(t).rows.map(function (r) { return r.code; }).join(','); };
-      eq('O138 Director sees all 10, can write; QH Head + PS View sees only QH + PS documents, can write; QH View + PS Staff the same, read only', [officeDocList(tD).rows.length, officeDocList(tD).can, codes(tQ), officeDocList(tQ).can, j(officeDocList(tQ).depts), codes(tV), officeDocList(tV).can].join('|'),
-        '10|true|CAE-QH-P01,CAE-PS-F01,CAE-PS-F02|true|["PS","QH"]|CAE-QH-P01,CAE-PS-F01,CAE-PS-F02|false');
+      eq('O138 Director sees all 12, can write; QH Head + PS View sees only QH + PS documents, can write; QH View + PS Staff the same, read only', [officeDocList(tD).rows.length, officeDocList(tD).can, codes(tQ), officeDocList(tQ).can, j(officeDocList(tQ).depts), codes(tV), officeDocList(tV).can].join('|'),
+        '12|true|CAE-QH-P01,CAE-PS-F01,CAE-PS-F02|true|["PS","QH"]|CAE-QH-P01,CAE-PS-F01,CAE-PS-F02|false');
       eq('O139 list: no / junk token NOSESSION, no QH NOACCESS', [err(function () { officeDocList(); }), err(function () { officeDocList('x'); }), err(function () { officeDocList(tA); })].join(','), 'NOSESSION,NOSESSION,NOACCESS');
       var byC = function (c) { return officeDocList(tD).rows.filter(function (r) { return r.code === c; })[0]; };
       eq('O140 issued = numbers with a PDF (once each) + by-hand numbers, no double count; by kind', ['CAE-SC-F01', 'CAE-AC-F01', 'CAE-AC-F03', 'CAE-AC-F04', 'CAE-PS-F01', 'CAE-PS-F02', 'CAE-YW-F01', 'CAE-PR-F01', 'CAE-QH-P01'].map(function (c) { return byC(c).issued; }).join(','), '2,0,1,2,2,1,0,2,0');
@@ -3605,7 +3896,7 @@ function selfTestOffice() {
         e3.lock = function (fn) { var x = e3.get('OL:qh@t.com'); oSetAcc_(x, { QH: 1, PS: 1 }); e3.put('OL:qh@t.com', x); e3.lock = l0; return fn(); };
         try { var r = err(function () { officeDocRevise(tQ, r2.code, 1, 'late', '2026-11-17'); }); } finally { e3.lock = l0; var y = e3.get('OL:qh@t.com'); oSetAcc_(y, { QH: 3, PS: 1 }); e3.put('OL:qh@t.com', y); }
         return r + ':' + (db.rows(ODOC_HIST_).length - h0) + ':' + byC(r2.code).rev; })(), 'NOACCESS:0:1');
-      eq('O153 history is add-only: every action added exactly one row, none changed', db.rows(ODOC_HIST_).length + ':' + db.rows(ODOC_HIST_).every(function (h) { return h.Code && h.At instanceof Date; }), '21:true');
+      eq('O153 history is add-only: every action added exactly one row, none changed', db.rows(ODOC_HIST_).length + ':' + db.rows(ODOC_HIST_).every(function (h) { return h.Code && h.At instanceof Date; }), '23:true');
       eq('O154 names with marks / XSS come back as text (the page escapes them); control characters removed', (officeDocSave(tD, { isNew: true, dept: 'HR', type: 'Form', title: '<img src=x onerror=alert(1)>\tA\u202eB', status: 'Draft' }), byC('CAE-HR-F01').title), '<img src=x onerror=alert(1)> AB');
       eq('O155 the 4 calls are on the web API list and check the session first', ['officeDocList', 'officeDocSave', 'officeDocRevise', 'officeDocStatus'].every(function (f) { return OFFICE_WEB_API_.indexOf(f) >= 0; }) + ':' + /^function oDocW_\(token, fn\) \{\s*var env = oEnv_\(\), pre = officeGate_\(token, ODOC_NEED_\);/.test(String(oDocW_.officeRaw_ || oDocW_)), 'true:true');
       eq('O157 a Rev cannot be dated before the current one', err(function () { officeDocRevise(tQ, r1.code, 1, 'back', '2026-12-16'); }) + ':' + officeDocRevise(tQ, r1.code, 1, 'same day', '2026-12-17').rev, 'BADINPUT|date:2');
