@@ -2308,7 +2308,7 @@ function officeLocSave(token, x) {
 var OCH_KINDS_ = ['Delivery', 'Sale', 'Return', 'Transfer', 'Hire-in', 'Off-hire'];
 var OCH_YW_ = ['Transfer', 'Hire-in', 'Off-hire'];
 var OCH_NO_ = /^CAE\/DC\/20\d\d\/\d{3,6}$/, OCH_LINES_ = 200;
-var OCH_COLS_ = [['Challans', 'SupID'], ['Challans', 'SupplierRef'], ['Challans', 'MadeBy'], ['Challans', 'CancelReason'], ['StockMoves', 'Owner']];
+var OCH_COLS_ = [['Challans', 'SupID'], ['Challans', 'SupplierRef'], ['Challans', 'MadeBy'], ['Challans', 'CancelReason'], ['StockMoves', 'Owner'], ['Challans', 'MadeByID']]; // MadeByID: the maker's StaffID (signs the PDF)
 var OCH_EVF_ = ['Kind', 'ChallanDate', 'JobNo', 'FromLoc', 'ToLoc', 'Vehicle', 'Status', 'Notes', 'SupID', 'SupplierRef'];
 function oChDept_(k) { return OCH_YW_.indexOf(k) >= 0 ? 'YW' : 'PS'; }
 function oChCan_(a, k) { return oIsDir_(a) || (a[oChDept_(k)] || 0) >= 2; }
@@ -2474,7 +2474,7 @@ function officeChallanSave(token, x) {
       oQeRate_(env, L);
       if (!old) {
         no = oChFree_(db, 'Challans', 'ChallanNo', function () { return nextId(db, 'DC', h.ChallanDate); });
-        var row = { ChallanNo: no, Kind: k, Status: 'Draft', Driver: '', ReceivedBy: '', MadeBy: oCell_(String(L.name || L.email)) };
+        var row = { ChallanNo: no, Kind: k, Status: 'Draft', Driver: '', ReceivedBy: '', MadeBy: oCell_(String(L.name || L.email)), MadeByID: oCell_(String(L.staff || '')) };
         Object.keys(h).forEach(function (f) { row[f] = h[f]; });
         db.insert('Challans', row); made = { no: no };
         var ids = oChLineIds_(db, ls.length);
@@ -3133,13 +3133,14 @@ function oSgWho_(db, what, spec) {
   var q;
   if (what === 'Quote') { q = find(db.rows('Quotes'), 'QuoteNo', spec.id); return q ? q.PreparedBy : ''; }
   if (what === 'PI') { var p = find(db.rows('Proformas'), 'PINo', spec.id); q = p ? find(db.rows('Quotes'), 'QuoteNo', p.QuoteNo) : null; return q ? q.PreparedBy : ''; }
+  if (what === 'Challan') { var c = find(db.rows('Challans'), 'ChallanNo', spec.id); return c ? (oUncell_(c.MadeByID).trim() || c.MadeBy) : ''; } // whoever made the challan signs it (StaffID, else the name)
   return '';
 }
 function oSgIsOurs_(b) { return !!b && b.t === 'sig' && Array.isArray(b.cols) && b.cols.length && /Core Access/.test(String(b.cols[0].head || '')); }
 function oSgApply_(db, what, s) {
   if (!s || !Array.isArray(s.blocks)) return s;
   var env = oEnv_(), st = oSgRec_(env, 'OSG_STAMP'), comm = oHas_(OSG_COMM_, what), pick = typeof OSG_PICK_ === 'string' ? OSG_PICK_ : '';
-  var who = comm ? (oUncell_(oSgWho_(db, what, s)).trim() || pick) : pick;
+  var who = comm || what === 'Challan' ? (oUncell_(oSgWho_(db, what, s)).trim() || pick) : pick;
   var sg = { t: 'osign', head: OSG_HEAD_, s: oSgSigner_(db, who), role: comm ? (who ? 'Prepared by' : '') : (what === 'Challan' ? 'Issued by' : ''), stamp: st ? st.f : '' };
   var i = -1; s.blocks.forEach(function (b, j) { if (i < 0 && oSgIsOurs_(b)) i = j; });
   if (i >= 0 && what === 'Challan' && /^Received by/.test(String(s.blocks[i].cols[0].head))) sg.role = 'Received by'; // D1: return / rent-in receipt
@@ -3171,17 +3172,17 @@ function oSgImgInto_(p, fileId, w, h) {
 if (typeof BLOCKS_ === 'object' && BLOCKS_) BLOCKS_.osign = function (body, b) {
   var s = b.s || null;
   para_(body, b.head || OSG_HEAD_, { size: 9, bold: true, color: 'teal', before: 6, after: 0 });
-  var tb = body.appendTable([['', '']]); tb.setBorderWidth(0); tb.setColumnWidth(0, 250); tb.setColumnWidth(1, BODY_W - 250);
+  var tb = body.appendTable([['', '']]); tb.setBorderWidth(0); tb.setColumnWidth(0, 160); tb.setColumnWidth(1, 80); // the stamp sits right beside the signature (left half, clear of the other side's box)
   var c0 = tb.getCell(0, 0), c1 = tb.getCell(0, 1);
   [c0, c1].forEach(function (c) { c.setPaddingTop(2).setPaddingBottom(2).setPaddingLeft(0).setPaddingRight(4); c.setVerticalAlignment(DocumentApp.VerticalAlignment.BOTTOM); });
-  var p0 = c0.getChild(0).asParagraph(), has = oSgImgInto_(p0, s && s.sig, 160, 46);
+  var p0 = c0.getChild(0).asParagraph(), has = oSgImgInto_(p0, s && s.sig, 150, 46);
   styleP_(p0, '', { before: has ? 4 : 40, after: 0, line: 1 });
   styleP_(c0.appendParagraph('______________________________'), '______________________________', { size: 9, color: 'grey', after: 1 });
   styleP_(c0.appendParagraph(s && s.name ? s.name : 'Name: ______________________'), s && s.name ? s.name : 'Name: ______________________', { size: 9.5, bold: !!(s && s.name), after: 0 });
   var t = s ? [s.title, b.role].filter(function (x) { return !!x; }).join(' · ') : '', tl = t || (s && s.name ? '' : 'Designation: ________________');
   if (tl) styleP_(c0.appendParagraph(tl), tl, { size: 8.5, color: 'grey', after: 0 });
   var p1 = c1.getChild(0).asParagraph();
-  if (!oSgImgInto_(p1, b.stamp, 84, 84)) styleP_(p1, '', { after: 0 });
+  if (!oSgImgInto_(p1, b.stamp, 76, 76)) styleP_(p1, '', { after: 0 });
 };
 // makePdf: o.signer (StaffID) = the name picked by whoever makes the PDF (optional documents, or commercial ones without
 // PreparedBy). Panel "Make a PDF" passes it; the Docs list gets the signer names (_signers).
