@@ -239,20 +239,29 @@ function specChallan(db, no) {
     if (ret) { var d = num(l.QtyDamaged), lo = num(l.QtyLost); r.push(qtyTxt(blank(l.QtyGood) ? num(l.Qty) - d - lo : l.QtyGood), d ? qtyTxt(d) : '—', lo ? qtyTxt(lo) : '—'); }
     r.push(blank(l.Remarks) ? '' : String(l.Remarks)); return r;
   });
-  var title = { Delivery: 'DELIVERY CHALLAN', Return: 'RETURN CHALLAN', Sale: 'DELIVERY CHALLAN', Transfer: 'TRANSFER NOTE' }[c.Kind] || 'CHALLAN';
-  var sub = { Delivery: job.JobType === 'Sale' ? 'Delivery Note · Sale' : 'Delivery Note · Hire', Return: 'Equipment returned', Sale: 'Delivery Note · Sale', Transfer: 'Stock transfer' }[c.Kind] || '';
-  var b = [{ t: 'title', text: title, sub: sub + (c.Status === 'Draft' ? '   ·   DRAFT — not posted' : '') },
-    { t: 'pairs', rows: [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Job / work order', [c.JobNo, job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  '), 'Vehicle no.', c.Vehicle],
-      ['From', loc(c.FromLoc), 'Driver', c.Driver], ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]] },
+  var title = { Delivery: 'DELIVERY CHALLAN', Return: 'RETURN CHALLAN', Sale: 'DELIVERY CHALLAN', Transfer: 'TRANSFER NOTE', 'Hire-in': 'RENT-IN RECEIPT', 'Off-hire': 'OFF-HIRE NOTE' }[c.Kind] || 'CHALLAN';
+  var sub = { Delivery: job.JobType === 'Sale' ? 'Delivery Note · Sale' : 'Delivery Note · Hire', Return: 'Equipment returned', Sale: 'Delivery Note · Sale', Transfer: 'Stock transfer', 'Hire-in': 'Goods received on hire from a rental supplier', 'Off-hire': 'Rented goods returned to the supplier' }[c.Kind] || '';
+  var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier'; // M8 rent-in
+  var pr = rk ? [['Supplier', su.Name, 'Challan No.', c.ChallanNo], ['Supplier\'s DO / ref', c.SupplierRef, 'Date', longDate(c.ChallanDate)], ['From', loc(c.FromLoc) + (c.Kind === 'Hire-in' ? ' (' + dash(su.Name) + ')' : ''), 'Vehicle no.', c.Vehicle],
+      ['To', c.Kind === 'Off-hire' ? dash(su.Name) : loc(c.ToLoc), 'Driver', c.Driver]]
+    : c.Kind === 'Transfer' && blank(c.JobNo) ? [['From', loc(c.FromLoc), 'Challan No.', c.ChallanNo], ['To', loc(c.ToLoc), 'Date', longDate(c.ChallanDate)], ['Vehicle no.', c.Vehicle, 'Driver', c.Driver]]
+    : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Job / work order', [c.JobNo, job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  '), 'Vehicle no.', c.Vehicle],
+      ['From', direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
+  var b = [{ t: 'title', text: title, sub: sub + (c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') },
+    { t: 'pairs', rows: pr },
     { t: 'p', text: '', after: 6 }, { t: 'grid', cols: cols, rows: rows },
     { t: 'p', text: [['Total quantity:  ', { bold: true }], [qtyTxt(qty) + (kg ? '      Approx. weight:  ' + tk(kg, 0) + ' kg' : ''), {}]], size: 9, before: 6, after: 4 }];
   if (!blank(c.Notes)) b.push({ t: 'p', text: [['Notes:  ', { bold: true }], [String(c.Notes), {}]], size: 9, after: 4 });
-  b.push({ t: 'p', text: ret
-    ? 'Return count and condition as recorded above are final unless disputed in writing within 48 hours. Damaged and lost items are charged at our current repair or replacement rates.'
+  b.push({ t: 'p', text: rk
+    ? (c.Kind === 'Hire-in' ? 'Goods received on hire from the supplier above, counted and checked at our gate. They remain the supplier\'s property; hire terms and charges are as agreed with the supplier.' : 'Rented goods returned to the supplier above. Quantities as counted at handover; any difference is noted on this note before signing.')
+    : ret ? 'Return count and condition as recorded above are final unless disputed in writing within 48 hours. Damaged and lost items are charged at our current repair or replacement rates.'
     : (job.JobType === 'Sale' || c.Kind === 'Sale') ? 'Received the above goods in good condition and correct quantity. Goods remain our property until paid for in full.'
       : 'Received the above equipment in good condition and correct quantity. The equipment remains the property of Core Access Engineering Ltd. and is at the client’s risk until collected.', size: 8.5, italic: true, color: 'grey', before: 4, after: 12 });
   var three = [['Name', ''], ['Signature', ''], ['Date / time', '']];
-  b.push({ t: 'sig', cols: [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: ret ? 'Returned by (client)' : 'Received by (client)', rows: three }] });
+  b.push({ t: 'sig', cols: c.Kind === 'Hire-in' ? [{ head: 'Delivered by (supplier)', rows: three }, { head: 'Driver', rows: three }, { head: 'Received by (Core Access)', rows: three }]
+    : c.Kind === 'Off-hire' ? [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: 'Received by (supplier)', rows: three }]
+      : c.Kind === 'Transfer' ? [{ head: 'Issued by', rows: three }, { head: 'Driver / carrier', rows: three }, { head: 'Received by', rows: three }]
+        : [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: ret ? 'Returned by (client)' : 'Received by (client)', rows: three }] });
   return { kind: 'Challans', key: 'ChallanNo', id: no, folder: 'Challans', file: fileName_(c.ChallanNo, c.Kind), docTitle: title.charAt(0) + title.slice(1).toLowerCase(), docNo: c.ChallanNo, blocks: b };
 }
 

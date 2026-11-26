@@ -183,15 +183,64 @@ function setAvail_(db, code, loc, bal) {
 }
 
 // ======================================================================= challans with sets (replaces Core's)
+// M8 rent-in: StockMoves.Owner = '' (Core Access own stock) or the SupID of the supplier the items are rented from. Rows without the
+// column / blank = own. Totals (stockMap) are unchanged; a post takes own first then rented (Delivery, Transfer), own only (Sale), that
+// supplier only (Off-hire) and rented first (Return, from the job's own site balance); a cancel checks and reverses per owner.
+var CH_YK_ = ['Transfer', 'Hire-in', 'Off-hire']; // kinds without a job
+function chOwnCol_(db) { return db.hasTab('StockMoves') && db.headers('StockMoves').indexOf('Owner') >= 0; }
+function chOwnOf_(v) { return blank(v.Owner) ? '' : String(v.Owner); }
+function chOwnMap_(db, jobNo) { // item|loc -> {owner: qty}; jobNo: only that job's moves
+  var m = {}, add = function (k, o, q) { var x = m[k] = m[k] || {}; x[o] = (x[o] || 0) + q; };
+  db.rows('StockMoves').forEach(function (v) {
+    if (jobNo != null && v.JobNo !== jobNo) return;
+    var q = num(v.Qty), o = chOwnOf_(v); if (!q) return;
+    if (!blank(v.ToLoc)) add(v.ItemCode + '|' + v.ToLoc, o, q);
+    if (!blank(v.FromLoc)) add(v.ItemCode + '|' + v.FromLoc, o, -q);
+  });
+  return m;
+}
+function chOwners_(kind, sup, pool) { // owners a post may take from, in order
+  var rent = Object.keys(pool || {}).filter(function (o) { return o; }).sort();
+  if (kind === 'Sale') return [''];
+  if (kind === 'Off-hire') return [sup];
+  if (kind === 'Return') return rent.concat(['']);
+  return [''].concat(rent);
+}
+function chBal_(db, kind, sup) { // item|loc -> qty this kind may take (the checks below)
+  if (kind !== 'Sale' && kind !== 'Off-hire') return stockMap(db);
+  var om = chOwnCol_(db) ? chOwnMap_(db) : null, out = {};
+  if (!om) return kind === 'Sale' ? stockMap(db) : out; // no Owner column: everything is own
+  Object.keys(om).forEach(function (k) { out[k] = om[k][kind === 'Sale' ? '' : sup] || 0; });
+  return out;
+}
+// mv = [[item, qty, from, to, set]] -> the same with the owner as [5], split where one move takes from two owners
+function chSplit_(db, c, kind, sup, mv, jobNo, errs) {
+  var supIn = function (loc) { return locType(db, loc) === 'Supplier'; }, om = chOwnMap_(db), jm = kind === 'Return' ? chOwnMap_(db, jobNo) : null, out = [];
+  mv.forEach(function (m) {
+    if (supIn(m[2])) { out.push(m.slice(0, 5).concat([kind === 'Hire-in' || kind === 'Delivery' ? sup : ''])); return; }
+    var k = m[0] + '|' + m[2], pool = (jm || om)[k] = (jm || om)[k] || {}, left = m[1];
+    chOwners_(kind, sup, pool).forEach(function (o) {
+      var have = Math.max(0, pool[o] || 0), t = Math.min(left, have); if (!(t > 1e-9)) return;
+      out.push([m[0], t, m[2], m[3], m[4], o]); pool[o] = have - t; left -= t;
+      if (jm && om[k]) om[k][o] = (om[k][o] || 0) - t;
+    });
+    if (left > 1e-9) { if (kind === 'Return' || kind === 'Transfer' || kind === 'Delivery') out.push([m[0], left, m[2], m[3], m[4], '']); else errs.push(m[0] + ': only ' + (m[1] - left) + (kind === 'Sale' ? ' of our own stock' : ' of ' + sup + '\'s items') + ' at ' + m[2] + ', needs ' + m[1]); }
+  });
+  return out;
+}
 function postChallan(db, no, o) {
   o = o || {};
   var c = must(db, 'Challans', 'ChallanNo', no);
   if (c.Status !== 'Draft' && !blank(c.Status)) throw new Error(no + ' is ' + c.Status + ', only Draft challans can be posted');
-  var job = must(db, 'Jobs', 'JobNo', c.JobNo), kind = c.Kind, date = c.ChallanDate ? toDate(c.ChallanDate) : today(), ret = kind === 'Return';
+  var kind = c.Kind, yk = CH_YK_.indexOf(kind) >= 0, job = yk && blank(c.JobNo) ? null : must(db, 'Jobs', 'JobNo', c.JobNo), jn = job ? job.JobNo : '';
+  var date = c.ChallanDate ? toDate(c.ChallanDate) : today(), ret = kind === 'Return', sup = blank(c.SupID) ? '' : String(c.SupID), oc = chOwnCol_(db);
   var lines = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === no; });
   if (!lines.length) throw new Error(no + ' has no lines');
   ['FromLoc', 'ToLoc'].forEach(function (k) { if (!locType(db, c[k])) throw new Error(no + ': unknown location ' + c[k]); });
-  var items = db.rows('Items'), bal = stockMap(db), hire = onHire(db, job.JobNo), errs = [], mv = [], dmg = [];
+  if ((kind === 'Hire-in' || kind === 'Off-hire') && (!oc || !sup)) throw new Error(no + ': ' + kind + ' needs the supplier and the StockMoves Owner column');
+  if (kind === 'Hire-in' && locType(db, c.FromLoc) !== 'Supplier') throw new Error(no + ': Hire-in comes from the supplier location');
+  if (kind === 'Off-hire' && (locType(db, c.ToLoc) !== 'Supplier' || locType(db, c.FromLoc) === 'Supplier')) throw new Error(no + ': Off-hire goes from our location to the supplier location');
+  var items = db.rows('Items'), bal = chBal_(db, kind, sup), hire = job ? onHire(db, jn) : {}, errs = [], mv = [], dmg = [];
   var fromSupplier = locType(db, c.FromLoc) === 'Supplier', tag = db.headers('StockMoves').indexOf('SetCode') >= 0;
   var exp = {}, order = [], loose = [], rc = {}, anySet = false;
   lines.forEach(function (l) {
@@ -202,7 +251,7 @@ function postChallan(db, no, o) {
       if (!(q > 0) || Math.abs(q - Math.round(q)) > 1e-9) { errs.push(l.ItemCode + ': number of sets must be a whole number more than 0'); return; }
       if (ret && (d || lo || (!blank(l.QtyGood) && Math.abs(num(l.QtyGood) - q) > 1e-9))) { errs.push(l.ItemCode + ': a set line counts whole sets — put a damaged / lost part on its own line with Qty 0 (e.g. platform board: Qty 0, damaged 1)'); return; }
       if (ret) {
-        if ((hire[l.ItemCode] || 0) < q - 1e-9) { errs.push(l.ItemCode + ': only ' + (hire[l.ItemCode] || 0) + ' set(s) on hire for ' + job.JobNo); return; }
+        if ((hire[l.ItemCode] || 0) < q - 1e-9) { errs.push(l.ItemCode + ': only ' + (hire[l.ItemCode] || 0) + ' set(s) on hire for ' + jn); return; }
         hire[l.ItemCode] -= q;
       }
       try { kitParts_(db, l.ItemCode).forEach(function (p) { if (!exp[p.item]) { exp[p.item] = []; order.push(p.item); } exp[p.item].push({ set: l.ItemCode, qty: q * p.qty }); }); }
@@ -232,7 +281,7 @@ function postChallan(db, no, o) {
       if (a > 1e-9) mv.push([code, a, c.FromLoc, LOC.REPAIR, e.set]);
       if (b > 1e-9) mv.push([code, b, c.FromLoc, LOC.LOST, e.set]);
     });
-    if (d0 || lo0) dmg.push({ ChallanNo: no, JobNo: job.JobNo, ItemCode: code, QtyDamaged: d0 || '', QtyLost: lo0 || '', Status: 'Open' });
+    if (d0 || lo0) dmg.push({ ChallanNo: no, JobNo: jn, ItemCode: code, QtyDamaged: d0 || '', QtyLost: lo0 || '', Status: 'Open' });
   });
   var sets = setMap_(db), inSets = function (code) {
     return Object.keys(hire).some(function (S) { if (!sets[S] || !(hire[S] > 1e-9)) return false; try { return kitParts_(db, S).some(function (p) { return p.item === code; }); } catch (e) { return false; } });
@@ -243,35 +292,36 @@ function postChallan(db, no, o) {
       var d = num(l.QtyDamaged), lo = num(l.QtyLost), g = blank(l.QtyGood) ? q - d - lo : num(l.QtyGood);
       if (g < 0 || Math.abs(g + d + lo - q) > 1e-9) { errs.push(l.ItemCode + ': good + damaged + lost must equal qty ' + q); return; }
       if ((hire[l.ItemCode] || 0) < q - 1e-9) {
-        errs.push(l.ItemCode + ': only ' + (hire[l.ItemCode] || 0) + ' on hire for ' + job.JobNo + (inSets(l.ItemCode) ? ' outside sets — parts of a set come back on the set line; a damaged / lost part goes on a line with Qty 0' : ''));
+        errs.push(l.ItemCode + ': only ' + (hire[l.ItemCode] || 0) + ' on hire for ' + jn + (inSets(l.ItemCode) ? ' outside sets — parts of a set come back on the set line; a damaged / lost part goes on a line with Qty 0' : ''));
         return;
       }
       hire[l.ItemCode] -= q;
       if (g) mv.push([l.ItemCode, g, c.FromLoc, c.ToLoc, '']);
       if (d) mv.push([l.ItemCode, d, c.FromLoc, LOC.REPAIR, '']);
       if (lo) mv.push([l.ItemCode, lo, c.FromLoc, LOC.LOST, '']);
-      if (d || lo) dmg.push({ ChallanNo: no, JobNo: job.JobNo, ItemCode: l.ItemCode, QtyDamaged: d || '', QtyLost: lo || '', Status: 'Open' });
+      if (d || lo) dmg.push({ ChallanNo: no, JobNo: jn, ItemCode: l.ItemCode, QtyDamaged: d || '', QtyLost: lo || '', Status: 'Open' });
     } else {
       var k = l.ItemCode + '|' + c.FromLoc, have = bal[k] || 0;
-      if (!fromSupplier && have < q - 1e-9 && !o.allowNegative) { errs.push(l.ItemCode + ': only ' + have + ' at ' + c.FromLoc + ', challan needs ' + q); return; }
+      if (!fromSupplier && have < q - 1e-9 && !o.allowNegative) { errs.push(l.ItemCode + ': only ' + have + (kind === 'Sale' && oc ? ' of our own stock' : kind === 'Off-hire' ? ' of ' + sup + '\'s items' : '') + ' at ' + c.FromLoc + ', challan needs ' + q); return; }
       bal[k] = have - q;
       mv.push([l.ItemCode, q, c.FromLoc, c.ToLoc, '']);
     }
   });
+  if (oc && !errs.length) mv = chSplit_(db, c, kind, sup, mv, jn, errs);
   if (errs.length) throw new Error('Not posted:\n' + errs.join('\n'));
   var now = new Date(), ids = nextIds(db, 'MV', mv.length);
   db.insert('StockMoves', mv.map(function (m, i) {
-    var r = { MoveID: ids[i], MoveDate: date, ItemCode: m[0], Qty: m[1], FromLoc: m[2], ToLoc: m[3], RefType: 'Challan', RefNo: no, JobNo: job.JobNo, PostedBy: user_(), PostedAt: now };
-    if (tag) r.SetCode = m[4] || ''; return r;
+    var r = { MoveID: ids[i], MoveDate: date, ItemCode: m[0], Qty: m[1], FromLoc: m[2], ToLoc: m[3], RefType: 'Challan', RefNo: no, JobNo: jn, PostedBy: user_(), PostedAt: now };
+    if (tag) r.SetCode = m[4] || ''; if (oc) r.Owner = m[5] || ''; return r;
   }));
   if (dmg.length) {
     var dids = nextIds(db, 'DMG', dmg.length), ch = db.headers('Damage').indexOf('Chargeable') >= 0;
-    dmg.forEach(function (x, i) { x.DamageID = dids[i]; if (ch) x.Chargeable = job.JobType === 'Rental' ? 'Yes' : ''; });
+    dmg.forEach(function (x, i) { x.DamageID = dids[i]; if (ch) x.Chargeable = job && job.JobType === 'Rental' ? 'Yes' : ''; });
     db.insert('Damage', dmg);
   }
   db.update('Challans', c, { Status: 'Posted', PostedAt: now });
-  if (kind === 'Delivery' && (job.JobType === 'Rental' || job.JobType === 'Project') && ['Awaiting order', 'Mobilising', ''].indexOf(job.Status) >= 0) db.update('Jobs', job, { Status: 'On hire' });
-  if (ret && job.Status === 'On hire') {
+  if (job && kind === 'Delivery' && (job.JobType === 'Rental' || job.JobType === 'Project') && ['Awaiting order', 'Mobilising', ''].indexOf(job.Status) >= 0) db.update('Jobs', job, { Status: 'On hire' });
+  if (job && ret && job.Status === 'On hire') {
     var left = onHire(db, job.JobNo), any = Object.keys(left).some(function (k) { return left[k] > 0; });
     if (!any && find(db.rows('OffHire').filter(function (x) { return x.JobNo === job.JobNo; }), 'Scope', 'Full')) db.update('Jobs', job, { Status: 'Off-hire' });
   }
@@ -284,17 +334,18 @@ function cancelChallan(db, no) {
   if (c.Status === 'Posted') {
     var dm = db.rows('Damage').filter(function (x) { return x.ChallanNo === no && x.Status !== 'Cancelled'; });
     if (dm.some(function (x) { return !blank(x.DNNo); })) throw new Error(no + ': damage already charged on a debit note — cancel the note first');
-    var mv = db.rows('StockMoves').filter(function (v) { return v.RefNo === no && v.RefType === 'Challan'; }), bal = stockMap(db), errs = [];
+    var oc = chOwnCol_(db), mv = db.rows('StockMoves').filter(function (v) { return v.RefNo === no && v.RefType === 'Challan'; }), bal = oc ? {} : stockMap(db), errs = [];
+    if (oc) { var om = chOwnMap_(db); Object.keys(om).forEach(function (k) { Object.keys(om[k]).forEach(function (o) { bal[k + '|' + o] = om[k][o]; }); }); }
     mv.forEach(function (v) {
-      var k = v.ItemCode + '|' + v.ToLoc;
-      if (locType(db, v.ToLoc) !== 'Sold' && (bal[k] || 0) < num(v.Qty) - 1e-9) errs.push(v.ItemCode + ': only ' + (bal[k] || 0) + ' left at ' + v.ToLoc);
+      var k = v.ItemCode + '|' + v.ToLoc + (oc ? '|' + chOwnOf_(v) : ''), t = locType(db, v.ToLoc);
+      if (t !== 'Sold' && t !== 'Supplier' && (bal[k] || 0) < num(v.Qty) - 1e-9) errs.push(v.ItemCode + (oc && chOwnOf_(v) ? ' (' + chOwnOf_(v) + ')' : '') + ': only ' + (bal[k] || 0) + ' left at ' + v.ToLoc);
       bal[k] = (bal[k] || 0) - num(v.Qty);
     });
     if (errs.length) throw new Error('Cannot cancel:\n' + errs.join('\n'));
     var ids = nextIds(db, 'MV', mv.length), now = new Date(), tag = db.headers('StockMoves').indexOf('SetCode') >= 0;
     db.insert('StockMoves', mv.map(function (v, i) {
       var r = { MoveID: ids[i], MoveDate: v.MoveDate, ItemCode: v.ItemCode, Qty: num(v.Qty), FromLoc: v.ToLoc, ToLoc: v.FromLoc, RefType: 'Challan-Cancel', RefNo: no, JobNo: v.JobNo, PostedBy: user_(), PostedAt: now };
-      if (tag) r.SetCode = v.SetCode || ''; return r;
+      if (tag) r.SetCode = v.SetCode || ''; if (oc) r.Owner = chOwnOf_(v); return r;
     }));
     dm.forEach(function (x) { db.update('Damage', x, { Status: 'Cancelled' }); });
   }
