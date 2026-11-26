@@ -189,9 +189,14 @@ function appSweep() {
     if (j > 0 && n > 1 && s.getRange(2, j, n - 1, 1).getValues().some(function (r) { return r[0] === x[2]; })) any = true;
   });
   if (!any) return;
-  var lock = LockService.getDocumentLock();
-  if (!lock.tryLock(20000)) return;
-  try { appSweepRun_({ db: db, deadline: deadline_() }); SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+  var sl = LockService.getScriptLock(); // CR M8 run 1: the office posts holding the script lock -> the sweep takes it first, then the document lock (as the panel)
+  if (!sl.tryLock(20000)) return;
+  var ol = typeof OLK_ === 'object' && OLK_ ? OLK_ : null; if (ol) ol.s++; // held: a nested office write runs inside it
+  try {
+    var lock = LockService.getDocumentLock();
+    if (!lock.tryLock(20000)) return;
+    try { appSweepRun_({ db: db, deadline: deadline_() }); SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
+  } finally { if (ol) ol.s--; sl.releaseLock(); }
 }
 
 // ======================================================================= self-test (in memory, your data is not touched)

@@ -2379,7 +2379,8 @@ function officeChallanList(token) {
   var kit = {}; Object.keys(X.kit).forEach(function (s) { if (!X.kit[s].bad) kit[s] = X.kit[s].map(function (p) { return { p: p.p, q: p.q }; }); });
   return { can: { PS: oChCan_(a, 'Delivery'), YW: oChCan_(a, 'Transfer'), psH: oChHead_(a, 'Delivery'), ywH: oChHead_(a, 'Transfer') }, rows: rows, jobs: jobs, hire: hire, hpool: hpool, pool: pool,
     rent: Object.keys(rent).sort().map(function (k) { var r = rent[k]; ['yard', 'rep', 'site', 'lost'].forEach(function (g) { r[g] = r2(r[g]); }); return r; }).filter(function (r) { return r.yard || r.rep || r.site || r.lost; }),
-    sups: Object.keys(X.sups).filter(function (s) { return String(X.sups[s].Status) !== 'Inactive'; }).map(function (s) { return { id: s, name: oUncell_(X.sups[s].Name || s) }; }),
+    sups: Object.keys(X.sups).filter(function (s) { return String(X.sups[s].Status) !== 'Inactive' || Object.keys(rent).some(function (k) { var r = rent[k]; return r.sup === s && (r.yard > 1e-9 || r.rep > 1e-9 || r.lost > 1e-9); }); })
+      .map(function (s) { var o = { id: s, name: oUncell_(X.sups[s].Name || s) }; if (String(X.sups[s].Status) === 'Inactive') o.off = true; return o; }), // CR M8 run 1: off = Off-hire only
     locs: Object.keys(locs).filter(function (k) { var t = String(locs[k].Type); return ['Yard', 'Repair', 'Lost', 'Site'].indexOf(t) >= 0 && String(locs[k].Status || 'Active') === 'Active'; }).map(function (k) { return { code: k, name: oUncell_(locs[k].Name), type: String(locs[k].Type) }; }),
     items: items, kit: kit, today: oDayOf_(env.now()), sup: LOC.SUPPLIER };
 }
@@ -2393,7 +2394,7 @@ function oChOfJob_(db, jn) { // C5: cards of one job's challans, newest first (s
 function oChView_(env, db, c, a) {
   var X = oChCtx_(db), no = String(c.ChallanNo), lines = oChLines_(db, no), k = String(c.Kind), o = oChCard_(c, lines, X), st = o.st;
   o.lines = lines.map(function (l) { var d = num(l.QtyDamaged), lo = num(l.QtyLost), q = num(l.Qty);
-    return k === 'Return' ? { it: String(l.ItemCode), g: blank(l.QtyGood) ? q - d - lo : num(l.QtyGood), dm: d, l: lo } : { it: String(l.ItemCode), q: q }; });
+    return k === 'Return' ? { it: String(l.ItemCode), g: blank(l.QtyGood) ? Math.max(0, q - d - lo) : num(l.QtyGood), dm: d, l: lo } : { it: String(l.ItemCode), q: q }; });
   o.notes = oUncell_(c.Notes); o.reason = oUncell_(c.CancelReason); o.ev = oChEv_(db, c);
   var job = X.jobs[String(c.JobNo)], si = job ? X.sites[String(job.SiteID)] || {} : {};
   if (job) { o.ref = oUncell_(job.ClientWONo); o.siteName = oUncell_(si.Project || si.Address || ''); o.jst = String(job.Status || ''); o.jtype = String(job.JobType || ''); }
@@ -2403,7 +2404,9 @@ function oChView_(env, db, c, a) {
     o.al = al; }
   var p = env.get('OCHP:' + no);
   o.pdf = blank(c.PDF) ? '' : String(c.PDF); o.pdfOk = !!(o.pdf && p && p.e === o.ev); o.doc = o.pdfOk && typeof p.d === 'string' ? p.d : '';
-  o.canEdit = st === 'Draft' && oChCan_(a, k); o.canPost = o.canEdit; o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : st === 'Draft' && oChCan_(a, k);
+  var can = st === 'Draft' && oChCan_(a, k); // CR M8 run 1: unfin = its moves went in, the post did not finish (Post finishes it); sheet = a Qty 0 set-part damage line
+  o.unfin = st === 'Draft' && oChMoved_(db, no, 'Challan'); o.sheet = k === 'Return' && lines.some(function (l) { return !(num(l.Qty) > 0); });
+  o.canEdit = can && !o.unfin && !o.sheet; o.canPost = can; o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : can && !o.unfin;
   return o;
 }
 function officeChallanGet(token, no) {
@@ -2430,10 +2433,14 @@ function oChHdr_(env, db, k, x) { // the header fields of a save, checked
     if (k === 'Hire-in') { o.FromLoc = LOC.SUPPLIER; o.ToLoc = pick(x.to, ['Yard'], 'received into'); supNeed = true; } else { o.FromLoc = pick(x.from, ['Yard', 'Repair', 'Lost'], 'from'); o.ToLoc = LOC.SUPPLIER; } }
   if (supNeed || k === 'Off-hire') {
     var s = typeof x.sup === 'string' && x.sup && db.hasTab('Suppliers') ? find(db.rows('Suppliers'), 'SupID', x.sup) : null;
-    if (!s || blank(s.SupID) || String(s.Status) === 'Inactive') oFail_('BADINPUT|supplier');
+    if (!s || blank(s.SupID) || (String(s.Status) === 'Inactive' && !(k === 'Off-hire' && oChHeld_(db, String(s.SupID))))) oFail_('BADINPUT|supplier');
     o.SupID = String(s.SupID); o.SupplierRef = oCell_(oQeTxt_(x.sref, 40, 'supplier\'s DO no.', supNeed));
   }
   return o;
+}
+function oChHeld_(db, sup) { // CR M8 run 1: that supplier's items still with us (yard / repair / lost): an Inactive supplier can still be off-hired
+  if (!chOwnCol_(db)) return false; var m = chOwnMap_(db);
+  return Object.keys(m).some(function (k) { return (m[k][sup] || 0) > 1e-9 && ['Yard', 'Repair', 'Lost'].indexOf(locType(db, k.split('|')[1])) >= 0; });
 }
 function oChLinesIn_(db, k, ls) {
   if (!Array.isArray(ls) || !ls.length || ls.length > OCH_LINES_) oFail_('BADINPUT|lines');
@@ -2469,6 +2476,8 @@ function officeChallanSave(token, x) {
         if (String(old.Kind) !== k) oFail_('BADINPUT|kind');
         if (String(old.Status || 'Draft') !== 'Draft') oFail_('CHSTATE|' + String(old.Status));
         if (typeof x.ev !== 'number' || x.ev !== oChEv_(db, old)) oFail_('STALE');
+        if (oChMoved_(db, String(old.ChallanNo), 'Challan')) oFail_('CHPART'); // CR M8 run 1: its moves are in -> Post finishes it, no edit
+        if (k === 'Return' && oChLines_(db, String(old.ChallanNo)).some(function (l) { return !(num(l.Qty) > 0); })) oFail_('CHSHEET'); // a Qty 0 set-part damage line: the sheet panel edits it
       }
       var h = oChHdr_(env, db, k, x), ls = oChLinesIn_(db, k, x.lines), no;
       oQeRate_(env, L);
@@ -2487,7 +2496,9 @@ function officeChallanSave(token, x) {
         try { var p = {}; Object.keys(h).forEach(function (f) { p[f] = h[f]; }); p.PDF = ''; uiPutRow_(db, 'Challans', old, p); uiDelRows_(db, 'ChallanLines', prev); }
         catch (e) {
           try { var d2 = env.db() || db, nw = d2.rows('ChallanLines').filter(function (l) { return nids.indexOf(String(l.LineID)) >= 0; }), o2 = find(d2.rows('Challans'), 'ChallanNo', no);
-            if (prev.every(function (l) { return find(d2.rows('ChallanLines'), 'LineID', l.LineID); })) { uiDelRows_(d2, 'ChallanLines', nw); if (o2) uiPutRow_(d2, 'Challans', o2, keep); } } catch (e2) { /* the error below says try again */ }
+            var left = prev.map(function (l) { return find(d2.rows('ChallanLines'), 'LineID', l.LineID); }).filter(function (l) { return l; });
+            if (left.length === prev.length) { uiDelRows_(d2, 'ChallanLines', nw); if (o2) uiPutRow_(d2, 'Challans', o2, keep); }
+            else if (left.length) uiDelRows_(d2, 'ChallanLines', left); } catch (e2) { /* the error below says try again */ } // CR M8 run 1: part of the old lines went (the header is new): the rest go too
           oFail_('BUSY');
         }
         if (!blank(keep.PDF)) oCtLog_(db, 'Challan PDF out of date', no, String(keep.PDF));
@@ -2519,7 +2530,11 @@ function officeChallanPost(token, no, ev, veh) {
     if (!blank(c.JobNo)) { var j = find(db.rows('Jobs'), 'JobNo', c.JobNo); if (!j || String(j.Status) === 'Closed') oFail_('BADINPUT|job'); }
     oChSetup_(env2, db); c = oChRow_(db, no);
     oQeRate_(env2, L);
-    if (oChMoved_(db, no, 'Challan')) { db.update('Challans', c, { Status: 'Posted', PostedAt: new Date(env2.now()) }); oCtLog_(db, 'Challan post finished', no, 'moves were in'); return { no: no }; } // an earlier post wrote its moves, then failed: finished, never moved twice
+    if (oChMoved_(db, no, 'Challan')) { // an earlier post wrote its moves, then failed: CR M8 run 1: the rest of the post (Damage rows, job status, Posted), never moved twice
+      var f; try { f = chFinishPost_(db, no); } catch (e) { if (oChCode_(e)) throw e; oFail_('POSTUNSURE'); }
+      oCtLog_(db, 'Challan post finished', no, 'moves were in' + (f.damage ? ' · ' + f.damage + ' damage/loss' : '')); return { no: no }; }
+    var IT = oChItems_(db), skip = oChLines_(db, no).filter(function (l) { var it = IT[String(l.ItemCode)]; return it && !(oStYes_(it.StockTracked) || oStYes_(it.IsSet)); }); // CR M8 run 1: a line nothing would move for
+    if (skip.length) oFail_('NOTPOSTED|' + skip.map(function (l) { return String(l.ItemCode) + ': not a stock item now (stock tracking is off), nothing would move for it'; }).join('\n').replace(/\|/g, '/').slice(0, 1500));
     if (v !== v0) db.update('Challans', c, { Vehicle: oCell_(v) });
     try { postChallan(db, no); }
     catch (e) {
@@ -2540,6 +2555,7 @@ function officeChallanCancel(token, no, ev, why) {
     if (st !== 'Posted' && st !== 'Draft') oFail_('CHSTATE|' + st);
     if (st === 'Posted' ? !oChHead_(a, k) : !oChCan_(a, k)) oFail_('NOACCESS');
     if (typeof ev !== 'number' || ev !== oChEv_(db, c)) oFail_('STALE');
+    if (st === 'Draft' && oChMoved_(db, no, 'Challan')) oFail_('CHPART'); // CR M8 run 1: its moves are in (a discard would not reverse them) -> Post finishes it
     var r = oQeTxt_(why, 200, 'reason', true);
     oChSetup_(env2, db); c = oChRow_(db, no);
     oQeRate_(env2, L);
@@ -2563,7 +2579,7 @@ function officeChallanCancel(token, no, ev, why) {
 // was rendered (OCHP:no = its ev + the editable Doc); otherwise the new files go to the bin and the old link stays.
 function oChPdf_(env, no) {
   var db = env.db(); if (!db) oFail_('BUSY');
-  var c = oChRow_(db, no), ev = oChEv_(db, c), bin = [], k0 = OPDF_BIN_, st = QF5_STUB_ || {}, r;
+  var c = oChRow_(db, no), ev = oChEv_(db, c), fp = oChFp_(db, no), bin = [], k0 = OPDF_BIN_, st = QF5_STUB_ || {}, r, kept = null;
   OPDF_BIN_ = bin;
   try { r = (st.make || makePdf)(db, 'Challan', no, { noLink: true }); } finally { OPDF_BIN_ = k0; }
   var url = String(r && r.url || ''), ids = oPdfIds_(r), ok = false, wr = false;
@@ -2571,14 +2587,16 @@ function oChPdf_(env, no) {
   try {
     oScrLock_(function () {
       var d1 = env.db() || db, c1 = find(d1.rows('Challans'), 'ChallanNo', no);
-      if (!url || !c1 || oChEv_(d1, c1) !== ev || d1.headers('Challans').indexOf('PDF') < 0) return;
+      if (!url || !c1 || oChEv_(d1, c1) !== ev || d1.headers('Challans').indexOf('PDF') < 0 || oChFp_(d1, no) !== fp) return; // CR M8 run 1: + what it prints (job / site / customer) unchanged
+      if (oPdfNewer_(c1.PDF, url)) { var p1 = env.get('OCHP:' + no); if (!blank(c1.PDF) && p1 && p1.e === ev) kept = { url: String(c1.PDF), doc: typeof p1.d === 'string' ? p1.d : '' }; return; } // CR M8 run 1: a later render published first
       env.put('OCHP:' + no, { e: ev, d: String(r.doc || '') }); wr = true; d1.update('Challans', c1, { PDF: url }); ok = true;
     });
   } catch (e) { if (!wr) drop(); throw e; }
-  if (!ok) { drop(); oFail_('BUSY'); }
+  if (!ok) { drop(); if (kept) return kept; oFail_('BUSY'); }
   oBinNow_(bin, ids);
   return { url: url, doc: String(r.doc || '') };
 }
+function oChFp_(db, no) { return oQHash_(JSON.stringify(PDF_SPECS.Challan(db, no))); } // CR M8 run 1: what the challan PDF prints
 function oChPdfAs_(env, no, token) { var L = officeGate_(token, null), prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email; try { return oChPdf_(env, no); } finally { OQ_ACT_ = prev; } }
 function officeChallanPdf(token, no) {
   var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
@@ -2848,8 +2866,11 @@ function officeQuoteSave(token, d) {
     if (q) oPeBump_(env, [String(q.QuoteNo)]); // CR run 4/6: counted before anything is written (the pending-revision record too; a new quote has no PDF yet)
     var r, rk = q ? 'OQRV:' + String(q.QuoteNo) : '';
     if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
+    var had = null; if (!q) { had = oStMap_(); db.rows('Quotes').forEach(function (z) { had[String(z.QuoteNo)] = 1; }); } // CR M8 run 1: a new quote that went in, then a later step threw
     try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
-    catch (e) { if (rk) env.del(rk); var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
+    catch (e) { if (rk) env.del(rk);
+      if (had) try { var dN = env.db() || db, nq = dN.rows('Quotes').filter(function (z) { return !blank(z.QuoteNo) && !had[String(z.QuoteNo)]; }); if (nq.length === 1) made = { no: String(nq[0].QuoteNo) }; } catch (e3) { /* not known: the error as it is */ }
+      var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
     var ref = String(r.ref); if (!q) made = { no: ref };
     var d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
     if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }

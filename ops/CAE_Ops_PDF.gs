@@ -251,7 +251,7 @@ function specChallan(db, no) {
     : c.Kind === 'Transfer' && blank(c.JobNo) ? [['From', loc(c.FromLoc), 'Challan No.', c.ChallanNo], ['To', loc(c.ToLoc), 'Date', longDate(c.ChallanDate)], ['Vehicle no.', c.Vehicle, 'Driver', c.Driver]]
     : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Site contact', [si.SiteRep, si.SiteRepPhone].filter(function (x) { return !blank(x); }).join(', '), 'Quotation / ' + ok, qwo],
       ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ['From', direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ret ? ['To', loc(c.ToLoc), 'Related challan', rel] : ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
-  var b = [{ t: 'title', text: title, sub: sub + (c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') }];
+  var b = [{ t: 'title', text: title, sub: sub + (blank(c.Status) || c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') }];
   if (client) b.push({ t: 'p', text: [[(ret ? '☐' : '☒') + ' Delivery to site' + (sale ? ' (sale)' : '') + '          ', { bold: true }], [(ret ? '☒' : '☐') + ' Return to yard', { bold: true }]], size: 10, after: 4 });
   b = b.concat([
     { t: 'pairs', rows: pr },

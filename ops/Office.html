@@ -1295,7 +1295,7 @@ function chN(v){v=+v;return isFinite(v)?v:0;}
 function chNorm(r){
   r=chObj(r);var o={rows:cuArr(r.rows).map(function(c){c=chObj(c);return {no:cuS(c.no),kind:cuS(c.kind),st:cuS(c.st)||'Draft',d:isDay(c.d)?c.d:'',job:cuS(c.job),cust:cuS(c.cust),from:cuS(c.from),to:cuS(c.to),sup:cuS(c.sup),supName:cuS(c.supName),sref:cuS(c.sref),veh:cuS(c.veh),n:chN(c.n),qty:chN(c.qty),kg:chN(c.kg),dn:cuS(c.dn),by:cuS(c.by)};}).filter(function(c){return c.no;})};
   o.jobs=cuArr(r.jobs).map(function(j){j=chObj(j);return {no:cuS(j.no),cust:cuS(j.cust),site:cuS(j.site),siteName:cuS(j.siteName),type:cuS(j.type),ref:cuS(j.ref),st:cuS(j.st)};}).filter(function(j){return j.no;});
-  o.sups=cuArr(r.sups).map(function(s){s=chObj(s);return {id:cuS(s.id),name:cuS(s.name)};}).filter(function(s){return s.id;});
+  o.sups=cuArr(r.sups).map(function(s){s=chObj(s);return {id:cuS(s.id),name:cuS(s.name),off:s.off===true};}).filter(function(s){return s.id;});
   o.locs=cuArr(r.locs).map(function(l){l=chObj(l);return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type)};}).filter(function(l){return l.code;});
   o.items=cuArr(r.items).map(function(i){i=chObj(i);return {code:cuS(i.code),name:cuS(i.name),size:cuS(i.size),unit:cuS(i.unit),kg:chN(i.kg),set:i.set===true};}).filter(function(i){return i.code;});
   o.kit=chObj(r.kit);o.pool=chObj(r.pool);o.hire=chObj(r.hire);o.hpool=chObj(r.hpool);o.rent=cuArr(r.rent).map(chObj);
@@ -1328,6 +1328,8 @@ function chErr(m){var k=code(m).split('|');
     case 'NOCANCEL': return 'Can\'t cancel — nothing changed:<ul><li>'+esc(k.slice(1).join('|')).split('\n').join('</li><li>')+'</li></ul>';
     case 'CHSTATE': return 'This challan is <b>'+esc(k[1]||'not a draft')+'</b> now. It has been reloaded.';
     case 'CHDATE': return 'The challan date is in the future. Change the date (Edit draft) or post it on that day.';
+    case 'CHPART': return 'The stock moves of this draft went in but its post did not finish. Press <b>Post</b> to finish it (nothing moves twice). It can\'t be edited or discarded now. It has been reloaded.';
+    case 'CHSHEET': return 'This return has a damaged / lost set-part line (Qty 0) made in the sheet panel. Edit it there.';
     case 'POSTUNSURE': return 'The stock moves went in but the challan could not be marked. Press the button again to finish it — nothing moves twice.';
     case 'SAVEUNSURE': return 'The save of new challan <b>'+esc(k[1]||'')+'</b> could not be confirmed. Press <b>Save</b> again: it saves into '+esc(k[1]||'')+', never a second challan.';
     case 'NOPDF': return 'There is no PDF of this challan yet. Its department makes it.';
@@ -1385,7 +1387,7 @@ function chNormOne(r){r=chObj(r);var o=chNorm({rows:[r]}).rows[0]||{no:''};
   o.lines=cuArr(r.lines).map(function(l){l=chObj(l);return {it:cuS(l.it),q:chN(l.q),g:chN(l.g),dm:chN(l.dm),l:chN(l.l)};}).filter(function(l){return l.it;});
   o.notes=cuS(r.notes);o.reason=cuS(r.reason);o.ev=typeof r.ev==='number'?r.ev:null;o.ref=cuS(r.ref);o.siteName=cuS(r.siteName);o.jst=cuS(r.jst);o.jtype=cuS(r.jtype);o.al=chObj(r.al);
   o.pdf=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.pdf))?cuS(r.pdf):'';o.pdfOk=r.pdfOk===true&&!!o.pdf;o.doc=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.doc))?cuS(r.doc):'';
-  o.canEdit=r.canEdit===true;o.canPost=r.canPost===true;o.canCancel=r.canCancel===true;return o;}
+  o.canEdit=r.canEdit===true;o.canPost=r.canPost===true;o.canCancel=r.canCancel===true;o.unfin=r.unfin===true;o.sheet=r.sheet===true;return o;}
 function chTileOf(k){return k==='Return'?'returns':chY(k)?'tr':'dos';}
 function chBack(){var b=CH.back;if(b){CH.back=null;b.go();}else viewCh(CH.tile);} /* C5: back to the contract / item it was opened from */
 function chView(no,back){
@@ -1412,7 +1414,9 @@ function chViewDraw(c){
   if(c.job)h+='<div class="box"><h4>Job</h4>'+chKv([['Job',esc(c.job)],['Customer',esc(c.cust)],['Site',esc(c.to&&!isR?c.to:c.from)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref',esc(c.ref||'—')],['Job status',esc(c.jst)]])+'</div>';
   h+='</div>';
   if(c.st==='Cancelled')h+='<div class="msg warn">'+ic('alert')+'<div>Cancelled'+(c.reason?' — '+esc(c.reason):'')+'. Its stock moves (if it was posted) were reversed.</div></div>';
-  if(dr)h+='<div class="msg warn">'+ic('alert')+'<div>Draft — no stock has moved yet. <b>Post</b> moves stock and makes the PDF.</div></div>';
+  if(dr&&c.unfin)h+='<div class="msg warn">'+ic('alert')+'<div>Its stock moves went in but the post did not finish. Press <b>Post</b> to finish it — nothing moves twice.</div></div>';
+  else if(dr)h+='<div class="msg warn">'+ic('alert')+'<div>Draft — no stock has moved yet. <b>Post</b> moves stock and makes the PDF.</div></div>';
+  if(dr&&c.sheet&&!c.unfin)h+='<div class="msg warn">'+ic('alert')+'<div>A damaged / lost set-part line (Qty 0) is on this return: edit it in the sheet panel.</div></div>';
   var A=dr&&!isR&&!isH?chAlloc(c):null,showU=!!A&&!direct;
   h+='<div class="box"><h4>Lines</h4><div class="tblw"><table class="ltab"><thead><tr><th>Item</th>'+(isR?'<th class="r">Good</th><th class="r">Damaged</th><th class="r">Lost</th><th class="r">Total</th>':'<th class="r">Qty</th>'+(showU?'<th class="r">Usable at '+esc(c.from)+'</th>':''))+'</tr></thead><tbody>';
   var tot=0;
@@ -1452,7 +1456,7 @@ function chSend(c,isNew,mid,btn){
   call('officeChallanSave',S.token,p).then(function(r){busyBtn(btn,false);r=chObj(r);var no=cuS(r.no);CH.d=null;chView(no);toast((isNew?'Draft '+no+' saved.':'Draft saved.')+(r.warn?' (The log line could not be written.)':''));},
     function(m){busyBtn(btn,false);if(srvGate(m))return;var k=code(m).split('|');
       if(k[0]==='SAVEUNSURE'&&k[1]){c.no=k[1];c.ev=/^\d+$/.test(k[2]||'')?+k[2]:null;if(c.ev==null){CH.d=null;chView(c.no);toast('Check '+c.no+' and save it again if needed.');return;}}
-      if(k[0]==='STALE'||k[0]==='CHSTATE'){CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}
+      if(k[0]==='STALE'||k[0]==='CHSTATE'||k[0]==='CHPART'||k[0]==='CHSHEET'){CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}
       chMsg(mid,chErr(m));});
 }
 function chEdit(c0,kind){
@@ -1462,7 +1466,7 @@ function chEdit(c0,kind){
     :{kind:kind,job:'',from:isH?D.SUP:'LOC-YARD',to:isT?'':isH?'LOC-YARD':'',sup:'',sref:'',d:D.today,veh:'',notes:'',lines:[{it:'',q:''}]};
   var oj=D.jobs.filter(function(j){return kind==='Sale'?j.type==='Sale':j.type!=='Sale';});
   var yl=D.locs.filter(function(l){return l.type==='Yard'||((isT||isO)&&l.type==='Repair')||(isO&&l.type==='Lost');}).map(function(l){return {v:l.code,t:l.code+' · '+l.name};});
-  var so=[{v:'',t:'— pick the supplier —'}].concat(D.sups.map(function(s){return {v:s.id,t:s.name+' · '+s.id};}));
+  var so=[{v:'',t:'— pick the supplier —'}].concat(D.sups.filter(function(s){return isO||!s.off;}).map(function(s){return {v:s.id,t:s.name+' · '+s.id+(s.off?' (inactive)':'')};}));
   var sub=isT?'Yard ↔ repair / rack ↔ rack, no job.':isH?'Items rented in from a supplier, received into our yard. They stay the supplier\'s until off-hired.':isO?'Rented items going back to their supplier. Only that supplier\'s items can be listed.':kind==='Sale'?'Sale jobs only, from our own stock (rented items can\'t be sold).':'Open jobs only. From the yard takes own stock first, then rented; or pick “Direct from a rental supplier”.';
   var h='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="ceb">'+ic('back')+' '+(isNew?'Challans':'Back')+'</button></div><div class="qhead"><div><h2>'+(isNew?'New '+esc(kind.toLowerCase()):'Edit '+esc(c.no))+'</h2><div class="sub">'+sub+' Saved as a draft; stock moves on Post.</div></div></div><div id="cem"></div><div class="box" style="margin-bottom:12px"><h4>Header</h4>';
   if(!yk)h+='<div class="f2">'+chSel('cej','Job',[{v:'',t:'— pick an open job —'}].concat(oj.map(function(j){return {v:j.no,t:j.no+' · '+j.cust+' · '+j.type};})),c.job,kind==='Sale'?'Goods leave stock (sold).':'Sale jobs use “New sale”.')+chFld('cet','To (job site)','','picked from the job','text','',true)+'</div>';
@@ -1559,7 +1563,7 @@ function chPostDlg(c){
       if(/^https:\/\/(docs|drive)\.google\.com\//.test(u)){if(w)w.location.href=u;}else if(w)try{w.close();}catch(x){}
       CH.d=null;chView(c.no);toast('Posted. Stock moved'+(u?' · PDF made.':' · the PDF could not be made now — press PDF.'));},
       function(m){if(w)try{w.close();}catch(x){}if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k=code(m).split('|')[0];
-        if(k==='STALE'||k==='CHSTATE'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
+        if(k==='STALE'||k==='CHSTATE'||k==='CHPART'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
   setTimeout(function(){if(my===DLG.seq)yes.focus();},30);
 }
 function chCancelDlg(c){
@@ -1571,7 +1575,7 @@ function chCancelDlg(c){
     DLG.busy=true;busyBtn(yes,true,'Working…');
     call('officeChallanCancel',S.token,c.no,c.ev,r).then(function(x){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();CH.d=null;chView(c.no);toast(c.no+(dr?' discarded.':' cancelled, stock moves reversed.')+(chObj(x).warn?' (The reason could not be written.)':''));},
       function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k=code(m).split('|')[0];
-        if(k==='STALE'||k==='CHSTATE'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
+        if(k==='STALE'||k==='CHSTATE'||k==='CHPART'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
 }
 /* ======================= YW › stock (M3) ======================= */
 var ST={rows:[],loaded:false,can:false,head:false,money:false,price:false,cats:[],units:[],defs:[],locs:[],today:'',q:'',f:'all',low:false,seq:0,c:null};

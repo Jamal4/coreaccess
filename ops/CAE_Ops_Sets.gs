@@ -314,19 +314,42 @@ function postChallan(db, no, o) {
     var r = { MoveID: ids[i], MoveDate: date, ItemCode: m[0], Qty: m[1], FromLoc: m[2], ToLoc: m[3], RefType: 'Challan', RefNo: no, JobNo: jn, PostedBy: user_(), PostedAt: now };
     if (tag) r.SetCode = m[4] || ''; if (oc) r.Owner = m[5] || ''; return r;
   }));
+  chPostTail_(db, c, job, dmg, now);
+  log_(db, 'Challan posted', no, kind + ' · ' + mv.length + ' moves' + (dmg.length ? ' · ' + dmg.length + ' damage/loss' : ''));
+  return { moves: mv.length, damage: dmg.length };
+}
+// CR M8 run 1: what a post writes after its moves (Damage rows, job status, then Posted last), so chFinishPost_ can run it alone.
+function chPostTail_(db, c, job, dmg, now) {
+  var kind = c.Kind, ret = kind === 'Return';
   if (dmg.length) {
     var dids = nextIds(db, 'DMG', dmg.length), ch = db.headers('Damage').indexOf('Chargeable') >= 0;
     dmg.forEach(function (x, i) { x.DamageID = dids[i]; if (ch) x.Chargeable = job && job.JobType === 'Rental' ? 'Yes' : ''; });
     db.insert('Damage', dmg);
   }
-  db.update('Challans', c, { Status: 'Posted', PostedAt: now });
   if (job && kind === 'Delivery' && (job.JobType === 'Rental' || job.JobType === 'Project') && ['Awaiting order', 'Mobilising', ''].indexOf(job.Status) >= 0) db.update('Jobs', job, { Status: 'On hire' });
   if (job && ret && job.Status === 'On hire') {
     var left = onHire(db, job.JobNo), any = Object.keys(left).some(function (k) { return left[k] > 0; });
     if (!any && find(db.rows('OffHire').filter(function (x) { return x.JobNo === job.JobNo; }), 'Scope', 'Full')) db.update('Jobs', job, { Status: 'Off-hire' });
   }
-  log_(db, 'Challan posted', no, kind + ' · ' + mv.length + ' moves' + (dmg.length ? ' · ' + dmg.length + ' damage/loss' : ''));
-  return { moves: mv.length, damage: dmg.length };
+  db.update('Challans', c, { Status: 'Posted', PostedAt: now });
+}
+// CR M8 run 1: a post whose moves went in, then failed: the rest of it, never moving again. The Damage rows are counted from the lines
+// as postChallan counts them (loose and Qty 0 set-part lines of stock items, per item) and written only if none of this challan's are in.
+function chFinishPost_(db, no) {
+  var c = must(db, 'Challans', 'ChallanNo', no), job = blank(c.JobNo) ? null : find(db.rows('Jobs'), 'JobNo', c.JobNo), jn = job ? job.JobNo : '', dmg = [];
+  if (c.Kind === 'Return' && !db.rows('Damage').some(function (x) { return x.ChallanNo === no; })) {
+    var items = db.rows('Items'), by = {};
+    db.rows('ChallanLines').forEach(function (l) {
+      if (l.ChallanNo !== no) return;
+      var it = find(items, 'ItemCode', l.ItemCode), d = num(l.QtyDamaged), lo = num(l.QtyLost);
+      if (!it || isSet_(it) || it.StockTracked !== 'Yes' || !(d || lo)) return;
+      var x = by[l.ItemCode]; if (!x) { x = by[l.ItemCode] = { ChallanNo: no, JobNo: jn, ItemCode: l.ItemCode, QtyDamaged: 0, QtyLost: 0, Status: 'Open' }; dmg.push(x); }
+      x.QtyDamaged += d; x.QtyLost += lo;
+    });
+    dmg.forEach(function (x) { x.QtyDamaged = x.QtyDamaged || ''; x.QtyLost = x.QtyLost || ''; });
+  }
+  chPostTail_(db, c, job, dmg, new Date());
+  return { damage: dmg.length };
 }
 function cancelChallan(db, no) {
   var c = must(db, 'Challans', 'ChallanNo', no);
