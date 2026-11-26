@@ -1039,7 +1039,7 @@ function nctFull(r){
   o.lines=cuArr(r.lines).map(function(l){l=l||{};return {id:cuS(l.id),n:+l.n||0,desc:cuS(l.desc),size:cuS(l.size),unit:cuS(l.unit),qty:ctNum(l.qty),months:ctNum(l.months),fab:l.fab===true,rate:ctNum(l.rate),amount:ctNum(l.amount)};}).filter(function(l){return l.id;});
   o.fab=o.lines.filter(function(l){return l.fab;}).length;
   o.lists={status:cuArr(L.status).map(cuS).filter(Boolean),sd:cuArr(L.sd).map(cuS).filter(Boolean)};o.staff=cuArr(r.staff).map(nctStaff).filter(function(s){return s.id;});
-  o.advPct=ctNum(r.advPct);o.set=ctNum(r.set)||0;
+  o.advPct=ctNum(r.advPct);o.set=ctNum(r.set)||0;o.ch=Array.isArray(r.ch)?chNorm({rows:r.ch}).rows:null;
   o.pi=r.pi&&typeof r.pi==='object'&&r.pi.no?{no:cuS(r.pi.no),status:cuS(r.pi.status)||'Draft',amount:ctNum(r.pi.amount)}:null;
   o.sd={amount:ctNum(sd.amount)||0,cheque:cuS(sd.cheque),status:cuS(sd.status)||'None'};
   return o;
@@ -1137,9 +1137,13 @@ function ctDraw(){
         (M?'<td class="r ra">'+ctTk(l.rate)+'</td><td class="r">'+ctTk(l.amount)+'</td>':'')+
         '<td>'+(E?'<button type="button" class="fab'+(l.fab?' on':'')+'" data-l="'+esc(l.id)+'" aria-pressed="'+l.fab+'"'+(c.pend&&c.pend[l.id]?' disabled':'')+'>'+ic('wrench')+t+'</button>':'<span class="fab'+(l.fab?' on':'')+'">'+t+'</span>')+'</td></tr>';}).join('')+
     '</tbody></table></div>':'<div class="empty">No lines.</div>')+'<div class="note">'+ic('alert')+'<span>"Needs fabrication" is for our own planning (feeds the fabrication work orders later). It is not printed on the quote or any client document.</span></div></div>';
+  if(c.ch)h+='<div class="box" style="margin-top:12px"><h4>Challans ('+c.ch.length+')</h4>'+(c.ch.length?'<div class="qlist" id="tch">'+c.ch.map(function(x){
+      return '<button type="button" class="qcard ch-c ch-'+esc(x.kind)+(x.st==='Cancelled'?' ch-cx':'')+'" data-c="'+esc(x.no)+'"><div class="qrow"><span class="qno">'+esc(x.no)+'</span><span class="sp"></span>'+chPill(x)+'</div><div class="qrow"><span class="tag">'+fmtDay(x.d)+' · '+x.n+' line'+(x.n===1?'':'s')+' · '+stQ(x.qty)+' qty'+(x.kg?' · ~'+stQ(x.kg)+' kg':'')+'</span><span class="sp"></span>'+(x.dn?'<span class="tag" style="color:var(--orange)">damage on '+esc(x.dn)+'</span>':'')+(x.veh?'<span class="tag">'+esc(x.veh)+'</span>':'')+'</div></button>';}).join('')+'</div>':'<div class="tag">No challans for this job yet.</div>')+'</div>';
   if(c.notes)h+='<div class="box" style="margin-top:12px"><h4>Notes</h4><div style="white-space:pre-line">'+esc(c.notes)+'</div></div>';
   V.innerHTML=h;
   var qb=document.getElementById('tquote');if(qb)qb.onclick=function(){viewQuote(c.quote);};
+  var tc=document.getElementById('tch');if(tc)tc.onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;var x=c.ch.filter(function(y){return y.no===b.getAttribute('data-c');})[0];
+    CH.tile=x?chTileOf(x.kind):'dos';var jn=c.job;chView(b.getAttribute('data-c'),{t:'Contract '+jn,go:function(){viewContract(jn);}});};
   if(!E)return;
   document.getElementById('tedit').onclick=function(){ctEditDlg(c);};
   var ab=document.getElementById('tadv');if(ab)ab.onclick=function(){ctAdvDlg(c);};
@@ -1282,8 +1286,8 @@ function ctAdvDlg(c){
 }
 /* ======================= PS › delivery orders + returns, YW › transfers & rent-in (M8 challans) ======================= */
 I.cx='<path d="M6 6l12 12M18 6 6 18"/>';I.dl='<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>';
-var CH={seq:0,vs:0,tile:'dos',d:null,q:'',k:'all',s:'all',job:'',cur:null};
-var CH_YK=['Transfer','Hire-in','Off-hire'];
+var CH={seq:0,vs:0,tile:'dos',back:null,d:null,q:'',k:'all',s:'all',job:'',cur:null};
+var CH_YK=['Transfer','Hire-in','Off-hire'],CH_NO=/^CAE\/DC\/20\d\d\/\d{3,6}$/;
 function chY(k){return CH_YK.indexOf(k)>=0;}
 function chCanNew(k){var c=CH.d&&CH.d.can||{};return chY(k)?c.YW===true:c.PS===true;}
 function chObj(x){return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}
@@ -1330,7 +1334,7 @@ function chErr(m){var k=code(m).split('|');
     default: return errText(m);
   }}
 function viewCh(tile){
-  CH.tile=tile||'dos';CH.k='all';CH.s='all';CH.job='';CH.q='';CH.cur=null;document.title='Core Access · '+(CH.tile==='tr'?'Transfers & rent-in':CH.tile==='returns'?'Returns':'Delivery orders');
+  CH.tile=tile||'dos';CH.back=null;CH.k='all';CH.s='all';CH.job='';CH.q='';CH.cur=null;document.title='Core Access · '+(CH.tile==='tr'?'Transfers & rent-in':CH.tile==='returns'?'Returns':'Delivery orders');
   shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="chb">'+ic('back')+' '+(CH.tile==='tr'?'Stock':'Home')+'</button>'+
     '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="chq" type="search" placeholder="Search challan no, job, customer, supplier, item or vehicle" autocomplete="off" aria-label="Search challans"></div>'+
     (CH.tile==='tr'?'':'<select class="inp sm np" id="chj" style="width:auto" aria-label="Job"><option value="">All jobs</option></select>')+'<span id="chn"></span></div>'+
@@ -1382,12 +1386,14 @@ function chNormOne(r){r=chObj(r);var o=chNorm({rows:[r]}).rows[0]||{no:''};
   o.notes=cuS(r.notes);o.reason=cuS(r.reason);o.ev=typeof r.ev==='number'?r.ev:null;o.ref=cuS(r.ref);o.siteName=cuS(r.siteName);o.jst=cuS(r.jst);o.jtype=cuS(r.jtype);o.al=chObj(r.al);
   o.pdf=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.pdf))?cuS(r.pdf):'';o.pdfOk=r.pdfOk===true&&!!o.pdf;o.doc=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.doc))?cuS(r.doc):'';
   o.canEdit=r.canEdit===true;o.canPost=r.canPost===true;o.canCancel=r.canCancel===true;return o;}
-function chView(no){
-  no=cuS(no);var my=++CH.vs;CH.cur=null;document.title='Core Access · '+no;
-  shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="cvb">'+ic('back')+' Challans</button></div><div id="cv"><div class="empty">Loading '+esc(no)+'…</div></div>');
-  document.getElementById('cvb').onclick=function(){viewCh(CH.tile);};
-  var go=function(){call('officeChallanGet',S.token,no).then(function(r){if(my!==CH.vs||!document.getElementById('cv'))return;var c=chNormOne(r);if(c.no!==no){viewCh(CH.tile);return;}CH.cur=c;chViewDraw(c);},
-    function(m){if(my!==CH.vs)return;if(srvGate(m))return;if(code(m).split('|')[0]==='NOTFOUND'){viewCh(CH.tile);toast(no+' no longer exists.');return;}
+function chTileOf(k){return k==='Return'?'returns':chY(k)?'tr':'dos';}
+function chBack(){var b=CH.back;if(b){CH.back=null;b.go();}else viewCh(CH.tile);} /* C5: back to the contract / item it was opened from */
+function chView(no,back){
+  no=cuS(no);var my=++CH.vs;CH.cur=null;if(back)CH.back=back;document.title='Core Access · '+no;
+  shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="cvb">'+ic('back')+' '+esc(CH.back?CH.back.t:'Challans')+'</button></div><div id="cv"><div class="empty">Loading '+esc(no)+'…</div></div>');
+  document.getElementById('cvb').onclick=chBack;
+  var go=function(){call('officeChallanGet',S.token,no).then(function(r){if(my!==CH.vs||!document.getElementById('cv'))return;var c=chNormOne(r);if(c.no!==no){chBack();return;}CH.cur=c;chViewDraw(c);},
+    function(m){if(my!==CH.vs)return;if(srvGate(m))return;if(code(m).split('|')[0]==='NOTFOUND'){chBack();toast(no+' no longer exists.');return;}
       var v=document.getElementById('cv');if(v){v.innerHTML='<div class="empty">Could not open '+esc(no)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="cvr">Try again</button></div>';document.getElementById('cvr').onclick=go;}});};
   if(CH.d)go();else chLoad(go,function(m){var v=document.getElementById('cv');if(v)v.innerHTML='<div class="empty">Could not load: '+esc(code(m))+'</div>';});
 }
@@ -1691,12 +1697,13 @@ function stItDraw(){
     if(o.sets.length)h+='<div class="box"><h4>Part of sets</h4>'+stTab('<th>Set</th><th class="r">Per set</th>',o.sets.map(function(s){
       return '<tr class="go" data-i="'+esc(s.code)+'"><td><button type="button" class="st-mono st-lnk" aria-label="Open set '+esc(s.code)+'">'+esc(s.code)+'</button><small>'+esc([s.name,s.size].filter(Boolean).join(' · '))+'</small></td><td class="r">'+stQ(s.q)+' per set</td></tr>';}),'')+'</div>';
     h+='<div class="box"><h4>Last moves ('+(o.nMoves>o.moves.length?o.moves.length+' of '+o.nMoves:o.moves.length)+')</h4>'+stTab('<th>Date</th><th>From → to</th><th>Ref</th><th class="r">Qty</th>',o.moves.map(function(m){
-      return '<tr><td>'+fmtDay(m.d)+'</td><td>'+(m.f?esc(m.f):'<span class="tag">—</span>')+' → '+(m.t?esc(m.t):'—')+'<small>'+esc(m.k)+(m.job?' · '+esc(m.job):'')+'</small></td><td class="st-mono">'+esc(m.ref)+'</td><td class="r">'+stQ(m.q)+'</td></tr>';}),'No moves yet.')+
+      return '<tr><td>'+fmtDay(m.d)+'</td><td>'+(m.f?esc(m.f):'<span class="tag">—</span>')+' → '+(m.t?esc(m.t):'—')+'<small>'+esc(m.k)+(m.job?' · '+esc(m.job):'')+'</small></td><td class="st-mono">'+(CH_NO.test(m.ref)?'<button type="button" class="st-mono st-lnk" data-ch="'+esc(m.ref)+'" aria-label="Open challan '+esc(m.ref)+'">'+esc(m.ref)+'</button>':esc(m.ref))+'</td><td class="r">'+stQ(m.q)+'</td></tr>';}),'No moves yet.')+
       '<div class="note">'+ic('alert')+'<span>Moves come only from posted challans, receipts and opening stock. Yard ↔ repair transfers use a Transfer challan.</span></div></div>';
   }
   V.innerHTML=h;
   var e=document.getElementById('ie');if(e)e.onclick=function(){stItemDlg(o);};
   var oo=document.getElementById('io');if(oo)oo.onclick=function(){stOpenDlg(o.code);};
+  [].forEach.call(V.querySelectorAll('button[data-ch]'),function(b){b.onclick=function(){var ic0=o.code;CH.tile='tr';chView(b.getAttribute('data-ch'),{t:'Item '+ic0,go:function(){viewItem(ic0);}});};});
   [].forEach.call(V.querySelectorAll('tr.go'),function(r){var go=function(){viewItem(r.getAttribute('data-i'));};r.onclick=go;r.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();go();}};});
 }
 function stSeg(id,lab,opts,v){return '<span class="seg t-amber" id="'+id+'" role="radiogroup" aria-label="'+esc(lab)+'">'+opts.map(function(o){return '<button type="button" role="radio" data-v="'+o+'" aria-checked="'+(o===v)+'"'+(o===v?' class="on"':'')+'>'+o+'</button>';}).join('')+'</span>';}
@@ -2215,7 +2222,7 @@ function ndoc(r){
   r=r||{};var rev=+r.rev;
   return {code:String(r.code||''),title:String(r.title||'—'),dept:deptOf(r.dept)?r.dept:'',type:DTYPES.indexOf(r.type)>=0?r.type:'Form',
     rev:(rev>=0&&rev===Math.floor(rev))?rev:0,revDate:isDay(r.revDate)?r.revDate:'',owner:String(r.owner||''),
-    status:DSTAT.indexOf(r.status)>=0?r.status:'Draft',sys:RECEX[r.sys]?String(r.sys):'',issued:(+r.issued>0)?Math.floor(+r.issued):0,
+    status:DSTAT.indexOf(r.status)>=0?r.status:'Draft',sys:RECEX[r.sys]?String(r.sys):'',issued:(+r.issued>0)?Math.floor(+r.issued):0,blank:/^https:\/\/docs\.google\.com\/document\/d\/[A-Za-z0-9_-]{25,80}\/edit$/.test(cuS(r.blank))?cuS(r.blank):'',
     hist:(Array.isArray(r.hist)?r.hist:[]).map(function(h){h=h||{};return {rev:+h.rev||0,date:isDay(h.date)?h.date:'',by:String(h.by||'—'),note:String(h.note||'')};})};
 }
 function footerTxt(d){return '<b>'+esc(d.code)+'</b> · Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+' · Page 1 / 2 · '+(d.sys?esc(RECEX[d.sys]):'record no.');}
@@ -2297,7 +2304,8 @@ function docsDraw(){
       '<div class="meta"><span>Revision</span><b>Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+'</b>'+
         '<span>Department</span><b>'+esc(D.d)+(D.n?' · '+esc(D.n):'')+'</b>'+
         '<span>Owner</span><b>'+(d.owner?esc(d.owner):'—')+'</b>'+
-        '<span>Made by</span><b>'+(d.sys?'System — auto PDF · '+d.issued+' issued':'By hand (not in the system yet)')+'</b></div>'+
+        '<span>Made by</span><b>'+(d.sys?'System — auto PDF · '+d.issued+' issued':'By hand (not in the system yet)')+'</b>'+
+        (d.blank?'<span>Blank form</span><b><a class="st-lnk" href="'+esc(d.blank)+'" target="_blank" rel="noopener">Open template (Google Doc)</a> <small class="tag">for hand use when the system is down</small></b>':'')+'</div>'+
       '<div class="fpv" title="Footer printed on every page">PDF footer: '+footerTxt(d)+'</div>'+
       '<div class="acts">'+acts+'</div></article>';
   }).join('');

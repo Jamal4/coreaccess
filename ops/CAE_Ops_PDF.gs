@@ -231,37 +231,55 @@ function specChallan(db, no) {
   var ret = c.Kind === 'Return', loc = function (id) { var l = find(db.rows('Locations'), 'LocID', id); return l ? l.Name : dash(id); };
   var cols = ret
     ? [{ h: 'No.', w: 26, al: 'C' }, { h: 'Item code', w: 70 }, { h: 'Description', w: 150 }, { h: 'Unit', w: 32 }, { h: 'Qty', w: 38, al: 'R' }, { h: 'Good', w: 38, al: 'R' }, { h: 'Damaged', w: 44, al: 'R' }, { h: 'Lost', w: 34, al: 'R' }, { h: 'Remarks', w: 50 }]
-    : [{ h: 'No.', w: 28, al: 'C' }, { h: 'Item code', w: 80 }, { h: 'Description', w: 200 }, { h: 'Unit', w: 40 }, { h: 'Qty', w: 50, al: 'R' }, { h: 'Remarks', w: 84 }];
+    : [{ h: 'No.', w: 26, al: 'C' }, { h: 'Item code', w: 72 }, { h: 'Description', w: 150 }, { h: 'Size / spec.', w: 66 }, { h: 'Unit', w: 32 }, { h: 'Qty', w: 44, al: 'R' }, { h: 'Condition / remarks', w: 92 }]; // D1: as the 31 Oct template
   var kg = 0, qty = 0;
   var rows = lines.map(function (l, i) {
     var it = find(items, 'ItemCode', l.ItemCode) || {}; qty += num(l.Qty); kg += num(l.Qty) * num(it.WeightKg);
-    var r = [String(i + 1), dash(l.ItemCode), dash(it.Name), dash(it.Unit), qtyTxt(l.Qty)];
+    var r = ret ? [String(i + 1), dash(l.ItemCode), dash(it.Name) + (blank(it.Size) ? '' : ', ' + it.Size), dash(it.Unit), qtyTxt(l.Qty)] : [String(i + 1), dash(l.ItemCode), dash(it.Name), dash(it.Size), dash(it.Unit), qtyTxt(l.Qty)];
     if (ret) { var d = num(l.QtyDamaged), lo = num(l.QtyLost); r.push(qtyTxt(blank(l.QtyGood) ? num(l.Qty) - d - lo : l.QtyGood), d ? qtyTxt(d) : '—', lo ? qtyTxt(lo) : '—'); }
     r.push(blank(l.Remarks) ? '' : String(l.Remarks)); return r;
   });
   var title = { Delivery: 'DELIVERY CHALLAN', Return: 'RETURN CHALLAN', Sale: 'DELIVERY CHALLAN', Transfer: 'TRANSFER NOTE', 'Hire-in': 'RENT-IN RECEIPT', 'Off-hire': 'OFF-HIRE NOTE' }[c.Kind] || 'CHALLAN';
   var sub = { Delivery: job.JobType === 'Sale' ? 'Delivery Note · Sale' : 'Delivery Note · Hire', Return: 'Equipment returned', Sale: 'Delivery Note · Sale', Transfer: 'Stock transfer', 'Hire-in': 'Goods received on hire from a rental supplier', 'Off-hire': 'Rented goods returned to the supplier' }[c.Kind] || '';
   var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier'; // M8 rent-in
+  var si = find(db.rows('Sites'), 'SiteID', job.SiteID) || {}, ok = String(job.OrderKind || '') === 'PO' ? 'PO' : 'WO', sale = job.JobType === 'Sale' || c.Kind === 'Sale', client = ['Delivery', 'Sale', 'Return'].indexOf(c.Kind) >= 0; // D1
+  var qwo = [job.QuoteNo, blank(job.ClientWONo) ? '' : ok + ' ' + job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  ');
+  var rel = ''; if (ret) { var dl = db.rows('Challans').filter(function (x) { return x.JobNo === c.JobNo && x.Kind === 'Delivery' && x.Status === 'Posted'; }).map(function (x) { return String(x.ChallanNo); }).sort();
+    rel = dl.slice(0, 3).join(', ') + (dl.length > 3 ? ' +' + (dl.length - 3) + ' more' : ''); }
   var pr = rk ? [['Supplier', su.Name, 'Challan No.', c.ChallanNo], ['Supplier\'s DO / ref', c.SupplierRef, 'Date', longDate(c.ChallanDate)], ['From', loc(c.FromLoc) + (c.Kind === 'Hire-in' ? ' (' + dash(su.Name) + ')' : ''), 'Vehicle no.', c.Vehicle],
       ['To', c.Kind === 'Off-hire' ? dash(su.Name) : loc(c.ToLoc), 'Driver', c.Driver]]
     : c.Kind === 'Transfer' && blank(c.JobNo) ? [['From', loc(c.FromLoc), 'Challan No.', c.ChallanNo], ['To', loc(c.ToLoc), 'Date', longDate(c.ChallanDate)], ['Vehicle no.', c.Vehicle, 'Driver', c.Driver]]
-    : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Job / work order', [c.JobNo, job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  '), 'Vehicle no.', c.Vehicle],
-      ['From', direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
-  var b = [{ t: 'title', text: title, sub: sub + (c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') },
+    : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Site contact', [si.SiteRep, si.SiteRepPhone].filter(function (x) { return !blank(x); }).join(', '), 'Quotation / ' + ok, qwo],
+      ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ['From', direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ret ? ['To', loc(c.ToLoc), 'Related challan', rel] : ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
+  var b = [{ t: 'title', text: title, sub: sub + (c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') }];
+  if (client) b.push({ t: 'p', text: [[(ret ? '☐' : '☒') + ' Delivery to site' + (sale ? ' (sale)' : '') + '          ', { bold: true }], [(ret ? '☒' : '☐') + ' Return to yard', { bold: true }]], size: 10, after: 4 });
+  b = b.concat([
     { t: 'pairs', rows: pr },
-    { t: 'p', text: '', after: 6 }, { t: 'grid', cols: cols, rows: rows },
-    { t: 'p', text: [['Total quantity:  ', { bold: true }], [qtyTxt(qty) + (kg ? '      Approx. weight:  ' + tk(kg, 0) + ' kg' : ''), {}]], size: 9, before: 6, after: 4 }];
-  if (!blank(c.Notes)) b.push({ t: 'p', text: [['Notes:  ', { bold: true }], [String(c.Notes), {}]], size: 9, after: 4 });
-  b.push({ t: 'p', text: rk
+    { t: 'p', text: '', size: 2, after: 0 }, { t: 'grid', cols: cols, rows: rows },
+    { t: 'p', text: [['Total quantity:  ', { bold: true }], [qtyTxt(qty) + (kg ? '      Approx. weight:  ' + tk(kg, 0) + ' kg' : ''), {}]], size: 9, before: 4, after: 2 }]);
+  if (!blank(c.Notes)) b.push({ t: 'p', text: [[client ? 'Remarks:  ' : 'Notes:  ', { bold: true }], [String(c.Notes), {}]], size: 9, after: 4 });
+  if (client) { // D1: notes 1–4 of the 31 Oct template (hire / sale / return wording; no supplier is ever named)
+    var qn = blank(job.QuoteNo) ? 'the agreed order' : 'Quotation No. ' + job.QuoteNo;
+    var ck = 'Count and check before signing. Note any shortage or damage under remarks; otherwise the above is accepted as correct.'; // one line each: the challan stays on one page
+    var nt = sale ? ['Sold under ' + qn + '. Items pass to the client on payment in full.', ck, 'Sold items are at the client\'s risk from delivery.']
+      : ret ? ['Items returned from hire under ' + qn + '.', 'Return count and condition as recorded above are final unless disputed in writing within 48 hours.', 'Damaged and lost items are charged as set out in the quotation terms.']
+        : ['Supplied on hire under ' + qn + '. Hired equipment never becomes the client\'s property.', ck,
+          'The client is responsible for the equipment on site until collection. Loss or damage is charged under the quotation terms.', 'Do not alter, remove or move any part of an erected scaffold; report any change needed to our scaffold supervisor.'];
+    b.push({ t: 'p', text: [['Notes', { bold: true }]], size: 9, before: 2, after: 1 });
+    nt.forEach(function (x, i) { b.push({ t: 'p', text: (i + 1) + '. ' + x, size: 8.5, after: i === nt.length - 1 ? 6 : 1 }); });
+  } else b.push({ t: 'p', text: rk
     ? (c.Kind === 'Hire-in' ? 'Goods received on hire from the supplier above, counted and checked at our gate. They remain the supplier\'s property; hire terms and charges are as agreed with the supplier.' : 'Rented goods returned to the supplier above. Quantities as counted at handover; any difference is noted on this note before signing.')
     : ret ? 'Return count and condition as recorded above are final unless disputed in writing within 48 hours. Damaged and lost items are charged at our current repair or replacement rates.'
     : (job.JobType === 'Sale' || c.Kind === 'Sale') ? 'Received the above goods in good condition and correct quantity. Goods remain our property until paid for in full.'
       : 'Received the above equipment in good condition and correct quantity. The equipment remains the property of Core Access Engineering Ltd. and is at the client’s risk until collected.', size: 8.5, italic: true, color: 'grey', before: 4, after: 12 });
   var three = [['Name', ''], ['Signature', ''], ['Date / time', '']];
-  b.push({ t: 'sig', cols: c.Kind === 'Hire-in' ? [{ head: 'Delivered by (supplier)', rows: three }, { head: 'Driver', rows: three }, { head: 'Received by (Core Access)', rows: three }]
+  b.push({ t: 'sig', cols: c.Kind === 'Hire-in' ? [{ head: 'Received by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: 'Delivered by (supplier)', rows: three }] // Core Access first: the office signature goes there
     : c.Kind === 'Off-hire' ? [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: 'Received by (supplier)', rows: three }]
       : c.Kind === 'Transfer' ? [{ head: 'Issued by', rows: three }, { head: 'Driver / carrier', rows: three }, { head: 'Received by', rows: three }]
-        : [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Driver', rows: three }, { head: ret ? 'Returned by (client)' : 'Received by (client)', rows: three }] });
+        : ret ? [{ head: 'Received by (Core Access)', rows: three }, { head: 'Transporter / driver', rows: three }, { head: 'Handed over by (client)', rows: three }]
+          : [{ head: 'Issued by (Core Access)', rows: three }, { head: 'Transporter / driver', rows: three }, { head: 'Received by (client, with seal)', rows: three }] });
+  b.push({ t: 'p', text: client ? 'Copy 1: client  ·  Copy 2: Core Access store  ·  Copy 3: accounts (attach to invoice)' : rk ? 'Copy 1: supplier  ·  Copy 2: Core Access store  ·  Copy 3: accounts' : 'Copy 1: issuing store  ·  Copy 2: receiving store',
+    size: 7.5, italic: true, color: 'grey', before: 4, after: 0 }); // D1: copy distribution
   return { kind: 'Challans', key: 'ChallanNo', id: no, folder: 'Challans', file: fileName_(c.ChallanNo, c.Kind), docTitle: title.charAt(0) + title.slice(1).toLowerCase(), docNo: c.ChallanNo, blocks: b };
 }
 

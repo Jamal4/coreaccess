@@ -731,7 +731,12 @@ function officeDocSetup() { var env = oEnv_(), n = env.lock(function () { return
 function menuOfficeDocSetup() { var n = officeDocSetup(); SpreadsheetApp.getUi().alert('Document register: ' + n + ' row' + (n === 1 ? '' : 's') + ' added' + (n ? '.' : ' (all there already).')); }
 function oDocPub_(db, r, hist) {
   return { code: String(r.Code), title: oUncell_(r.Title), dept: String(r.Dept), type: String(r.Type), rev: +r.Rev || 0, revDate: oDay_(r.RevDate),
-    owner: oUncell_(r.Owner), status: String(r.Status), sys: String(r.Sys || ''), issued: r.Sys ? oDocIssued_(db, String(r.Code), r.ByHand) : 0, hist: hist || [] };
+    owner: oUncell_(r.Owner), status: String(r.Status), sys: String(r.Sys || ''), issued: r.Sys ? oDocIssued_(db, String(r.Code), r.ByHand) : 0, hist: hist || [], blank: oDocBlank_(db, String(r.Code)) };
+}
+var ODOC_BLANK_ = { 'CAE-PS-F01': 'ChallanTemplateID', 'CAE-PS-F02': 'ChallanTemplateID', 'CAE-YW-F01': 'ChallanTemplateID' }; // D2: blank forms for hand use (Settings key -> Google Doc id)
+function oDocBlank_(db, code) {
+  var k = Object.prototype.hasOwnProperty.call(ODOC_BLANK_, code) && db.hasTab('Settings') ? ODOC_BLANK_[code] : '', id = k ? String(S(db, k, '')).trim() : '';
+  return /^[A-Za-z0-9_-]{25,80}$/.test(id) ? 'https://docs.google.com/document/d/' + id + '/edit' : '';
 }
 function officeDocList(token) {
   var L = officeGate_(token, ODOC_NEED_), a = oAcc_(L), env = oEnv_(), db = env.db();
@@ -1819,6 +1824,7 @@ function officeContractGet(token, no) {
     type: String(j.JobType || (q ? oQType_(q) : '')), kind: oCtKind_(j), no: oUncell_(j.ClientWONo), date: oDay_(j.ClientWODate), pm: blank(j.PM) ? '' : String(j.PM), pmName: pm ? oUncell_(pm.Name) : '',
     status: String(j.Status || 'Awaiting order'), notes: oUncell_(j.Notes), closed: cl, ev: oCtEvX_(db, j), money: M, can: oQCan_(a) && !cl, lines: lines, qStatus: q ? String(q.Status || '') : '', today: oDayOf_(env.now()),
     fab: lines.filter(function (l) { return l.fab; }).length, lists: { status: uiList_(db, 'JobStatus'), sd: uiList_(db, 'SecDepStatus') }, staff: oCtStaff_(db) };
+  if (oStSee_(a)) o.ch = oChOfJob_(db, o.job); // C5: this job's challans (no prices), for logins that see Stock
   if (M) {
     var m = oCtMoney_(db, j, q, qn ? oCtPis_(db, qn) : []);
     o.value = m.value; o.advPct = m.advPct; o.adv = m.adv; o.paid = m.paid; o.set = m.set; o.pi = m.pi;
@@ -2376,6 +2382,13 @@ function officeChallanList(token) {
     sups: Object.keys(X.sups).filter(function (s) { return String(X.sups[s].Status) !== 'Inactive'; }).map(function (s) { return { id: s, name: oUncell_(X.sups[s].Name || s) }; }),
     locs: Object.keys(locs).filter(function (k) { var t = String(locs[k].Type); return ['Yard', 'Repair', 'Lost', 'Site'].indexOf(t) >= 0 && String(locs[k].Status || 'Active') === 'Active'; }).map(function (k) { return { code: k, name: oUncell_(locs[k].Name), type: String(locs[k].Type) }; }),
     items: items, kit: kit, today: oDayOf_(env.now()), sup: LOC.SUPPLIER };
+}
+function oChOfJob_(db, jn) { // C5: cards of one job's challans, newest first (same card as the list)
+  var seen = oStMap_(), cs = db.rows('Challans').filter(function (c) { var n = String(c.ChallanNo); if (String(c.JobNo) !== jn || !OCH_NO_.test(n) || OCH_KINDS_.indexOf(String(c.Kind)) < 0 || seen[n]) return false; seen[n] = 1; return true; });
+  if (!cs.length) return [];
+  var X = oChCtx_(db), by = oStMap_();
+  db.rows('ChallanLines').forEach(function (l) { var k = String(l.ChallanNo); if (seen[k]) (by[k] = by[k] || []).push(l); });
+  return cs.map(function (c) { return oChCard_(c, by[String(c.ChallanNo)] || [], X); }).sort(function (x, y) { return x.no < y.no ? 1 : x.no > y.no ? -1 : 0; });
 }
 function oChView_(env, db, c, a) {
   var X = oChCtx_(db), no = String(c.ChallanNo), lines = oChLines_(db, no), k = String(c.Kind), o = oChCard_(c, lines, X), st = o.st;
@@ -3129,6 +3142,7 @@ function oSgApply_(db, what, s) {
   var who = comm ? (oUncell_(oSgWho_(db, what, s)).trim() || pick) : pick;
   var sg = { t: 'osign', head: OSG_HEAD_, s: oSgSigner_(db, who), role: comm ? (who ? 'Prepared by' : '') : (what === 'Challan' ? 'Issued by' : ''), stamp: st ? st.f : '' };
   var i = -1; s.blocks.forEach(function (b, j) { if (i < 0 && oSgIsOurs_(b)) i = j; });
+  if (i >= 0 && what === 'Challan' && /^Received by/.test(String(s.blocks[i].cols[0].head))) sg.role = 'Received by'; // D1: return / rent-in receipt
   if (i >= 0) {
     var rest = s.blocks[i].cols.slice(1);
     s.blocks.splice.apply(s.blocks, [i, 1, sg].concat(rest.length ? [{ t: 'sig', cols: rest }] : []));
@@ -4459,7 +4473,7 @@ function selfTestOffice() {
         eq('O309 no pick: invoice unsigned (empty lines); challan: our block + Driver / Received by kept; PO keeps the supplier side',
           [j(os(sp('Invoice'))[0].s), os(ch)[0].role, chs.cols.map(function (c) { return c.head; }).join('+'),
             sp('PO').blocks.filter(function (b) { return b.t === 'sig'; })[0].cols[0].head, ['PI', 'Invoice', 'Note', 'PO', 'Challan'].every(function (k) { var s = sp(k); return s.blocks[s.blocks.length - 1].text === OSG_LINE_; })].join('|'),
-          'null|Issued by|Driver+Received by (client)|Supplier acceptance|true');
+          'null|Issued by|Transporter / driver+Received by (client, with seal)|Supplier acceptance|true');
         db.update('Quotes', q, { PreparedBy: 'left person' });
         var a1 = os(sp('Quote'))[0].s; db.update('Quotes', q, { PreparedBy: 'A. Stranger' }); var a2 = os(sp('Quote'))[0].s;
         e6.put('OSG:STF-102', { f: made[0], by: 'x', at: 1 });
