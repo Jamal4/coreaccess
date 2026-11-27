@@ -1575,7 +1575,7 @@ function chPostDlg(c){
     DLG.busy=true;busyBtn(yes,true,'Posting…');var w=null;if(LIVE)try{w=window.open('','_blank');}catch(x){}
     call('officeChallanPost',S.token,c.no,c.ev,veh).then(function(r){if(my!==DLG.seq){if(w)try{w.close();}catch(x){}return;}DLG.busy=false;closeDlg();r=chObj(r);var u=cuS(r.url);
       if(/^https:\/\/(docs|drive)\.google\.com\//.test(u)){if(w)w.location.href=u;}else if(w)try{w.close();}catch(x){}
-      CH.d=null;chView(c.no);toast('Posted. Stock moved'+(u?' · PDF made.':' · the PDF could not be made now — press PDF.'));},
+      CH.d=null;chView(c.no);toast('Posted. '+(vd?'No stock moved (vendor rental)':'Stock moved')+(u?' · PDF made.':' · the PDF could not be made now — press PDF.'));},
       function(m){if(w)try{w.close();}catch(x){}if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k=code(m).split('|')[0];
         if(k==='STALE'||k==='CHSTATE'||k==='CHPART'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
   setTimeout(function(){if(my===DLG.seq)yes.focus();},30);

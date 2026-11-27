@@ -80,6 +80,7 @@ V(`PD.insert('Quotes', { QuoteNo: 'CAE/Q/2026/951', Rev: 0, QuoteType: 'Rental',
   click($('#cvo')); await wait(30); click($('#dyes')); await wait(300);
   const st = V(`(function(){var c=PD.rows('Challans').filter(function(c){return c.MatSource==='Vendor';}).pop();return c.Status+'|'+c.JobNo+'|'+PD.rows('StockMoves').filter(function(v){return v.RefNo===c.ChallanNo;}).length;})()`);
   ok('F2h posted with no vehicle no.: job made, 0 moves', /^Posted\|CAE\/J\/.+\|0$/.test(st), [st, (global.ERRS || []).slice(-2)]);
+  ok('F2i vendor post toast says no stock moved (E3b-2)', /No stock moved/.test(toast()) && !/Stock moved/.test(toast()), toast());
   ok('F no JS errors', !jsErr.length, jsErr);
   console.log('page-f ' + pass + '/' + (pass + fail));
 })();
