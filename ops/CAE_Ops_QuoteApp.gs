@@ -228,6 +228,11 @@ function qaLater_(L, dl) {
       withLock(function () {
         var d = new SheetDb();
         if (q) {
+          if (d.hasTab('AppQuotes')) d.rows('AppQuotes').forEach(function (a) { // CR M8 run 3: the app quote's ' · PDF being made' gets its result (Status kept); step R: before AppPdf, so a failed write leaves it Requested (the next run finishes both)
+            if (String(a.QuoteNo) !== j.no || String(a.AppMsg).indexOf(' · PDF being made') < 0) return;
+            var t = er ? ' · PDF not made: ' + er + ' (use Make PDF)' : ' · PDF made';
+            d.update('AppQuotes', a, { AppMsg: String(a.AppMsg).replace(' · PDF being made', function () { return t; }).slice(0, 480) });
+          });
           var x = find(d.rows('Quotes'), 'QuoteNo', j.no); if (x) d.update('Quotes', x, { AppPdf: er ? ('Error: ' + er).slice(0, 480) : 'Made ' + qaStamp_() });
           log_(d, er ? 'App quote PDF refused' : 'App quote PDF', j.no, j.by + (er ? ' · ' + er : ''));
         } else if (er) { var c = find(d.rows('Challans'), 'ChallanNo', j.no); if (c) d.update('Challans', c, { AppMsg: ('Posted; PDF not made: ' + er).slice(0, 480) }); }
