@@ -455,7 +455,7 @@ function baseDocId_(db) {
   if (!it.hasNext()) throw new Error('Google Doc "CAE Doc Base" not found in Templates (or set Settings › DocBaseID)');
   return it.next().getId();
 }
-function trashSame_(folder, name) { var it = folder.getFilesByName(name); while (it.hasNext()) it.next().setTrashed(true); }
+function trashSame_(folder, name, keep) { var it = folder.getFilesByName(name); while (it.hasNext()) { var f = it.next(); if (!keep || keep.indexOf(f.getId()) < 0) f.setTrashed(true); } } // CR M8 run 2: keep = ids not to bin (the new copy of the same name)
 // Builds the document, saves the PDF and writes its link to the row (when the tab has a PDF column).
 function makePdf(db, what, no, o) {
   o = o || {};

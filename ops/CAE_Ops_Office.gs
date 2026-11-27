@@ -998,7 +998,7 @@ function oBinNow_(a, keep) { (Array.isArray(a) ? a : []).forEach(function (f) { 
 function oPdfIds_(r) { return [r && r.url, r && r.doc].map(function (u) { return oPdfIdOf_(u); }).filter(function (x) { return x; }); }
 if (typeof trashSame_ === 'function' && !trashSame_.officeBin_) {
   var OF_trashSame0_ = trashSame_;
-  trashSame_ = function (folder, name) { if (!OPDF_BIN_) return OF_trashSame0_.apply(this, arguments); var it = folder.getFilesByName(name); while (it.hasNext()) OPDF_BIN_.push(it.next()); };
+  trashSame_ = function (folder, name, keep) { if (!OPDF_BIN_) return OF_trashSame0_.apply(this, arguments); var it = folder.getFilesByName(name); while (it.hasNext()) { var f = it.next(); if (!keep || keep.indexOf(f.getId()) < 0) OPDF_BIN_.push(f); } }; // CR M8 run 2: keep = the new copy's ids
   trashSame_.officeBin_ = OF_trashSame0_;
 }
 if (typeof makePdf === 'function' && !makePdf.officePdf_) {
@@ -2025,9 +2025,14 @@ function oStKit_(db) {
 function oStMake_(parts, Q, locs) { // sets one challan can issue from the yard: max over yard locations of min over parts of floor(qty there / per set)
   if (!parts || !parts.length || parts.bad) return 0; // a parts list the challan refuses: none can go out
   var best = 0; // CR run 15: the challan checks each part at its one From location (Sets.gs: part|FromLoc), never summed over racks
-  Object.keys(locs).forEach(function (l) { if (OST_GRP_[String(locs[l].Type)] !== 'yard') return;
+  Object.keys(locs).forEach(function (l) { if (OST_GRP_[String(locs[l].Type)] !== 'yard' || String(locs[l].Status || 'Active') !== 'Active') return; // CR M8 run 2: an Active yard only (as oChHdr_)
     var n = Math.min.apply(null, parts.map(function (p) { var x = (Q[p.p] || {})[l] || 0; return Math.floor((x + 1e-9) / p.q); })); if (n > best) best = n; });
   return best;
+}
+function oStRentHas_(db, code) { // CR M8 run 2: supplier-owned units of this item still with us (any stock location, as oStHas_ for own)
+  if (!chOwnCol_(db)) return false; var m = chOwnMap_(db), q = oStMap_();
+  Object.keys(m).forEach(function (k) { var i = k.indexOf('|'); if (k.slice(0, i) !== code) return; var l = k.slice(i + 1); Object.keys(m[k]).forEach(function (o) { if (o) q[l] = (q[l] || 0) + m[k][o]; }); });
+  return oStHas_(q, oStLocs_(db));
 }
 function oStYard_(q, locs) { var y = 0; Object.keys(q || {}).forEach(function (l) { if (locs[l] && OST_GRP_[String(locs[l].Type)] === 'yard') y += q[l]; }); return y; }
 function oStHas_(q, locs) { return Object.keys(q || {}).some(function (l) { return !!(locs[l] && OST_GRP_[String(locs[l].Type)]) && Math.abs(q[l]) > 1e-9; }); } // CR run 16: Supplier / Sold are not stock // CR run 13: stock (or a shortfall) somewhere
@@ -2220,6 +2225,7 @@ function officeItemSave(token, x) {
       var moved = db.rows('StockMoves').some(function (v) { return String(v.ItemCode) === code; }), kitN = oStSetRef_(db, code);
       if ((st === 'Yes') !== oStYes_(row.IsSet) && (moved || kitN || oStPart_(db, code))) oFail_('BADINPUT|set');
       if (tr === 'No' && oStYes_(row.StockTracked) && has) oFail_('BADINPUT|stock tracked');
+      if (tr === 'No' && oStYes_(row.StockTracked) && oStRentHas_(db, code)) oFail_('BADINPUT|stock tracked'); // CR M8 run 2: rented-in items still with us (oStQty_ counts own only): off-hire needs tracking
       if (tr === 'No' && oStYes_(row.StockTracked) && oStPart_(db, code)) oFail_('BADINPUT|part tracked'); // CR run 6: a part of a set must stay tracked (the challan refuses the set)
       var po = tr === 'No' && oStYes_(row.StockTracked) ? oStOnOrder_(db, code) : ''; if (po) oFail_('ONORDER|' + po); // CR run 9: receivePO takes only tracked items
     }
@@ -2403,7 +2409,7 @@ function oChView_(env, db, c, a) {
       if (k === 'Return') { var t = locType(db, v.ToLoc), j = t === 'Repair' ? 1 : t === 'Lost' ? 2 : 0, y = x[w] = x[w] || [0, 0, 0]; y[j] = r2(y[j] + num(v.Qty)); } else x[w] = r2((x[w] || 0) + num(v.Qty)); });
     o.al = al; }
   var p = env.get('OCHP:' + no);
-  o.pdf = blank(c.PDF) ? '' : String(c.PDF); o.pdfOk = !!(o.pdf && p && p.e === o.ev); o.doc = o.pdfOk && typeof p.d === 'string' ? p.d : '';
+  o.pdf = blank(c.PDF) ? '' : String(c.PDF); o.pdfOk = !!(o.pdf && oChPdfOk_(db, c, p)); o.doc = o.pdfOk && typeof p.d === 'string' ? p.d : ''; // CR M8 run 2: pdfOk as officeChallanPdf
   var can = st === 'Draft' && oChCan_(a, k); // CR M8 run 1: unfin = its moves went in, the post did not finish (Post finishes it); sheet = a Qty 0 set-part damage line
   o.unfin = st === 'Draft' && oChMoved_(db, no, 'Challan'); o.sheet = k === 'Return' && lines.some(function (l) { return !(num(l.Qty) > 0); });
   o.canEdit = can && !o.unfin && !o.sheet; o.canPost = can; o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : can && !o.unfin;
@@ -2490,10 +2496,11 @@ function officeChallanSave(token, x) {
         db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = ids[i]; l.ChallanNo = no; return l; }));
       } else {
         no = String(old.ChallanNo);
+        oPeBump_(env, [no]); // CR M8 run 2: counted before anything is written (a sheet-panel PDF of it being made now does not keep its link)
         var prev = oChLines_(db, no).slice(), keep = { PDF: old.PDF == null ? '' : old.PDF }, nids = oChLineIds_(db, ls.length);
         Object.keys(h).forEach(function (f) { keep[f] = old[f] == null ? '' : old[f]; });
-        db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = nids[i]; l.ChallanNo = no; return l; })); // new lines first, then the old ones go
-        try { var p = {}; Object.keys(h).forEach(function (f) { p[f] = h[f]; }); p.PDF = ''; uiPutRow_(db, 'Challans', old, p); uiDelRows_(db, 'ChallanLines', prev); }
+        try { db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = nids[i]; l.ChallanNo = no; return l; })); // new lines first, then the old ones go; CR M8 run 2: an insert that wrote, then threw, is rolled back too
+          var p = {}; Object.keys(h).forEach(function (f) { p[f] = h[f]; }); p.PDF = ''; uiPutRow_(db, 'Challans', old, p); uiDelRows_(db, 'ChallanLines', prev); }
         catch (e) {
           try { var d2 = env.db() || db, nw = d2.rows('ChallanLines').filter(function (l) { return nids.indexOf(String(l.LineID)) >= 0; }), o2 = find(d2.rows('Challans'), 'ChallanNo', no);
             var left = prev.map(function (l) { return find(d2.rows('ChallanLines'), 'LineID', l.LineID); }).filter(function (l) { return l; });
@@ -2527,14 +2534,16 @@ function officeChallanPost(token, no, ev, veh) {
     var day = oDay_(c.ChallanDate); if (!day || day > oDayOf_(env2.now())) oFail_('CHDATE');
     var v0 = oUncell_(c.Vehicle), v = veh == null || veh === '' ? v0.trim() : oQeTxt_(veh, 30, 'vehicle no.');
     if ((k === 'Delivery' || k === 'Sale') && !v) oFail_('BADINPUT|vehicle no.');
-    if (!blank(c.JobNo)) { var j = find(db.rows('Jobs'), 'JobNo', c.JobNo); if (!j || String(j.Status) === 'Closed') oFail_('BADINPUT|job'); }
     oChSetup_(env2, db); c = oChRow_(db, no);
     oQeRate_(env2, L);
     if (oChMoved_(db, no, 'Challan')) { // an earlier post wrote its moves, then failed: CR M8 run 1: the rest of the post (Damage rows, job status, Posted), never moved twice
+      oPeBump_(env2, [no]); // CR M8 run 2: counted before it writes (Posted prints differently); CR M8 run 2: its job may have closed meanwhile: it still finishes
       var f; try { f = chFinishPost_(db, no); } catch (e) { if (oChCode_(e)) throw e; oFail_('POSTUNSURE'); }
       oCtLog_(db, 'Challan post finished', no, 'moves were in' + (f.damage ? ' · ' + f.damage + ' damage/loss' : '')); return { no: no }; }
     var IT = oChItems_(db), skip = oChLines_(db, no).filter(function (l) { var it = IT[String(l.ItemCode)]; return it && !(oStYes_(it.StockTracked) || oStYes_(it.IsSet)); }); // CR M8 run 1: a line nothing would move for
+    if (!blank(c.JobNo)) { var j = find(db.rows('Jobs'), 'JobNo', c.JobNo); if (!j || String(j.Status) === 'Closed') oFail_('BADINPUT|job'); } // CR M8 run 2: before new moves only
     if (skip.length) oFail_('NOTPOSTED|' + skip.map(function (l) { return String(l.ItemCode) + ': not a stock item now (stock tracking is off), nothing would move for it'; }).join('\n').replace(/\|/g, '/').slice(0, 1500));
+    oPeBump_(env2, [no]); // CR M8 run 2: counted before the post writes (vehicle no., Posted)
     if (v !== v0) db.update('Challans', c, { Vehicle: oCell_(v) });
     try { postChallan(db, no); }
     catch (e) {
@@ -2559,6 +2568,7 @@ function officeChallanCancel(token, no, ev, why) {
     var r = oQeTxt_(why, 200, 'reason', true);
     oChSetup_(env2, db); c = oChRow_(db, no);
     oQeRate_(env2, L);
+    oPeBump_(env2, [no]); // CR M8 run 2: counted before the cancel writes (Cancelled prints differently)
     if (st === 'Posted' && oChMoved_(db, no, 'Challan-Cancel')) { // an earlier cancel reversed the moves, then failed: finished, never reversed twice
       db.rows('Damage').filter(function (x) { return String(x.ChallanNo) === no && String(x.Status) !== 'Cancelled'; }).forEach(function (x) { db.update('Damage', x, { Status: 'Cancelled' }); });
       db.update('Challans', c, { Status: 'Cancelled' });
@@ -2588,21 +2598,22 @@ function oChPdf_(env, no) {
     oScrLock_(function () {
       var d1 = env.db() || db, c1 = find(d1.rows('Challans'), 'ChallanNo', no);
       if (!url || !c1 || oChEv_(d1, c1) !== ev || d1.headers('Challans').indexOf('PDF') < 0 || oChFp_(d1, no) !== fp) return; // CR M8 run 1: + what it prints (job / site / customer) unchanged
-      if (oPdfNewer_(c1.PDF, url)) { var p1 = env.get('OCHP:' + no); if (!blank(c1.PDF) && p1 && p1.e === ev) kept = { url: String(c1.PDF), doc: typeof p1.d === 'string' ? p1.d : '' }; return; } // CR M8 run 1: a later render published first
-      env.put('OCHP:' + no, { e: ev, d: String(r.doc || '') }); wr = true; d1.update('Challans', c1, { PDF: url }); ok = true;
+      if (oPdfNewer_(c1.PDF, url)) { var p1 = env.get('OCHP:' + no); if (!blank(c1.PDF) && p1 && p1.e === ev) kept = { url: String(c1.PDF), doc: typeof p1.d === 'string' && p1.p === oPdfIdOf_(c1.PDF) ? p1.d : '' }; return; } // CR M8 run 2: its Doc only if OCHP is that PDF's // CR M8 run 1: a later render published first
+      env.put('OCHP:' + no, { e: ev, d: String(r.doc || ''), p: oPdfIdOf_(url), f: fp }); wr = true; d1.update('Challans', c1, { PDF: url }); ok = true; // CR M8 run 2: OCHP + the PDF it belongs to and what it printed
     });
   } catch (e) { if (!wr) drop(); throw e; }
   if (!ok) { drop(); if (kept) return kept; oFail_('BUSY'); }
   oBinNow_(bin, ids);
   return { url: url, doc: String(r.doc || '') };
 }
+function oChPdfOk_(db, c, p) { return !!p && !blank(c.PDF) && p.e === oChEv_(db, c) && p.p === oPdfIdOf_(c.PDF) && p.f === oChFp_(db, String(c.ChallanNo)); } // CR M8 run 2: the linked PDF is the office's render of the challan as it prints now
 function oChFp_(db, no) { return oQHash_(JSON.stringify(PDF_SPECS.Challan(db, no))); } // CR M8 run 1: what the challan PDF prints
 function oChPdfAs_(env, no, token) { var L = officeGate_(token, null), prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email; try { return oChPdf_(env, no); } finally { OQ_ACT_ = prev; } }
 function officeChallanPdf(token, no) {
   var L = officeGate_(token, null), a = oAcc_(L); if (!oStSee_(a)) oFail_('NOACCESS');
   var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
   var c = oChRow_(db, no), p = env.get('OCHP:' + String(c.ChallanNo));
-  if (!blank(c.PDF) && p && p.e === oChEv_(db, c)) return { url: String(c.PDF), doc: typeof p.d === 'string' ? p.d : '' };
+  if (oChPdfOk_(db, c, p)) return { url: String(c.PDF), doc: typeof p.d === 'string' ? p.d : '' }; // CR M8 run 2: same PDF + same printed data, not just ev
   if (!oChCan_(a, String(c.Kind))) { if (!blank(c.PDF)) return { url: String(c.PDF), doc: '' }; oFail_('NOPDF'); }
   var prev = OQ_ACT_; OQ_ACT_ = 'office:' + L.email;
   try { return oChPdf_(env, String(c.ChallanNo)); } finally { OQ_ACT_ = prev; }
@@ -2700,9 +2711,9 @@ function oPeCheck_(R) {
 function oPeDrive_(R, d0) {
   var nm = '';
   return { officePe_: d0, name: function (u) { nm = d0.name(u); return nm; },
-    trash: function (u, b) { var x = R.made[R.made.length - 1], a = { u: u, b: b, nm: nm, d: d0 }; if (x) (x.after = x.after || []).push(a); else (R.kept = R.kept || []).push(nm); } };
+    trash: function (u, b, k) { var x = R.made[R.made.length - 1], a = { u: u, b: b, k: k, nm: nm, d: d0 }; if (x) (x.after = x.after || []).push(a); else (R.kept = R.kept || []).push(nm); } };
 }
-function oPeAfter_(x) { (x.after || []).forEach(function (a) { try { a.d.trash(a.u, a.b); } catch (e) { /* already gone or no access (as qf5Pdf_) */ } }); }
+function oPeAfter_(x) { (x.after || []).forEach(function (a) { try { a.d.trash(a.u, a.b, a.k); } catch (e) { /* already gone or no access (as qf5Pdf_) */ } }); }
 function oPeKeep_(R, x) { (x.after || []).forEach(function (a) { (R.kept = R.kept || []).push(a.nm); }); }
 function oPePub_(env, x) { // the link written (true); false = no row / no PDF column; 'newer' = a newer PDF is linked already
   if (typeof x.what !== 'string' || !oHas_(OPE_DOC_, x.what) || !x.r || !x.r.url) return false;

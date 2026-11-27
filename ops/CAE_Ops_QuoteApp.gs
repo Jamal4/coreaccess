@@ -120,7 +120,11 @@ function qaProcess_(db, aq, o) {
   var r = UI_ACTIONS_.saveQuoteFull(db, qaArgs_(db, aq)), t = quoteTotals(db, r.ref);
   db.update('AppQuotes', aq, { Status: 'Posted', QuoteNo: r.ref, AppMsg: ('Posted ' + r.ref + ' · total Tk ' + tk(t.total) + (r.cust ? ' · ' + r.cust : '') + (r.site ? ' · ' + r.site : '')).slice(0, 480) });
   log_(db, 'App quote posted', r.ref, who + ' · ' + aq.AQID + ' · Tk ' + t.total);
-  if (!(o && o.noPdf && !o.pdf)) { // QF5: PDF right away (the quote stays posted if it fails)
+  if (o && o.later) { // CR M8 run 2: the timed sweep makes PDFs after it lets the locks go: queued as an app PDF request (the next run retries it)
+    var pq = { AppPdf: 'Requested' }; if (db.headers('Quotes').indexOf('AppPdfBy') >= 0) pq.AppPdfBy = aq.SubmittedBy || ''; // step R: as qaReady_ (both columns come with the set-up)
+    db.update('Quotes', must(db, 'Quotes', 'QuoteNo', r.ref), pq);
+    var a3 = must(db, 'AppQuotes', 'AQID', aq.AQID); db.update('AppQuotes', a3, { AppMsg: (String(a3.AppMsg) + ' · PDF being made').slice(0, 480) });
+  } else if (!(o && o.noPdf && !o.pdf)) { // QF5: PDF right away (the quote stays posted if it fails)
     var p = qaPdfMake_(db, r.ref, o), a2 = must(db, 'AppQuotes', 'AQID', aq.AQID);
     db.update('AppQuotes', a2, { AppMsg: (String(a2.AppMsg) + (p.error ? ' · PDF not made: ' + p.error + ' (use Make PDF)' : ' · PDF made')).slice(0, 480) });
   }
@@ -145,6 +149,7 @@ function qaPdf_(db, q, o) {
     db.update('Quotes', must(db, 'Quotes', 'QuoteNo', no), { AppPdf: ('Error: ' + e.message).slice(0, 480) });
     p = { error: e.message };
   }
+  if (!p && o && o.later) { o.later.push({ k: 'q', no: String(no), by: q.AppPdfBy || 'app' }); return { no: no + ' PDF', posted: false }; } // CR M8 run 2: made after the locks (qaLater_)
   if (!p) p = qaPdfMake_(db, no, o);
   if (p.error) { log_(db, 'App quote PDF refused', no, (q.AppPdfBy || 'app') + ' · ' + p.error); return { no: no + ' PDF', posted: false, error: p.error }; }
   log_(db, 'App quote PDF', no, q.AppPdfBy || 'app');
@@ -189,14 +194,46 @@ function appSweep() {
     if (j > 0 && n > 1 && s.getRange(2, j, n - 1, 1).getValues().some(function (r) { return r[0] === x[2]; })) any = true;
   });
   if (!any) return;
-  var sl = LockService.getScriptLock(); // CR M8 run 1: the office posts holding the script lock -> the sweep takes it first, then the document lock (as the panel)
-  if (!sl.tryLock(20000)) return;
-  var ol = typeof OLK_ === 'object' && OLK_ ? OLK_ : null; if (ol) ol.s++; // held: a nested office write runs inside it
+  // CR M8 run 2 (step R): phase 2 holds no lock, so two timed runs could overlap (the same quote PDF twice): one sweep at a time (nothing else takes the user lock)
+  var ul = typeof LockService.getUserLock === 'function' ? LockService.getUserLock() : null;
+  if (ul && !ul.tryLock(0)) return;
   try {
-    var lock = LockService.getDocumentLock();
-    if (!lock.tryLock(20000)) return;
-    try { appSweepRun_({ db: db, deadline: deadline_() }); SpreadsheetApp.flush(); } finally { lock.releaseLock(); }
-  } finally { if (ol) ol.s--; sl.releaseLock(); }
+    var sl = LockService.getScriptLock(); // CR M8 run 1: the office posts holding the script lock -> the sweep takes it first, then the document lock (as the panel)
+    if (!sl.tryLock(20000)) return;
+    var ol = typeof OLK_ === 'object' && OLK_ ? OLK_ : null; if (ol) ol.s++; // held: a nested office write runs inside it
+    var later = [], dl = deadline_(), mk0 = makePdf, e1 = null;
+    try {
+      var lock = LockService.getDocumentLock();
+      if (!lock.tryLock(20000)) return;
+      // CR M8 run 2: no PDF export (10-30 s each) inside the script lock (an office save waits 30 s at most): queued, made below
+      makePdf = function (d, what, no) { if (what !== 'Challan') return mk0.apply(this, arguments); later.push({ k: 'ch', no: String(no) }); return { url: '', doc: '', file: '', placeholders: 0 }; };
+      var ok = false;
+      try { appSweepRun_({ db: db, deadline: dl, later: later }); ok = true; }
+      finally { makePdf = mk0; try { SpreadsheetApp.flush(); } catch (e) { if (ok) throw e; } finally { lock.releaseLock(); } } // CR M8 run 2: flushed holding both locks, also after a failure (its error kept)
+    } catch (e) { e1 = e; } finally { makePdf = mk0; if (ol) ol.s--; sl.releaseLock(); }
+    qaLater_(later, dl); // CR M8 run 2 (step R): also after a failure: a challan posted before it still gets its PDF (or the note)
+    if (e1) throw e1;
+  } finally { if (ul) ul.releaseLock(); }
+}
+// CR M8 run 2: the sweep's PDFs, after both locks are let go, each as a sheet-panel PDF run (uiDo: document lock only while it renders;
+// the link goes in under the script lock only if the office app did not change it meanwhile); then the result, holding both locks.
+// Out of time: a quote stays Requested (the next run makes it); a challan says so in AppMsg (Make PDF in the office app or the panel).
+function qaLater_(L, dl) {
+  (L || []).forEach(function (j) {
+    var er = '', r = null, q = j.k === 'q';
+    if (timeUp_(dl)) { if (q) return; er = 'out of time'; }
+    else { try { r = uiDo(q ? 'quotePdf' : 'pdf', q ? { quoteNo: j.no } : { what: 'Challan', no: j.no }); } catch (e) { er = String(e && e.message || e); } }
+    if (!er && !(r && Array.isArray(r.links) && r.links.length)) er = String(r && r.msg || '').split('\n').slice(1).join(' ') || 'the PDF link was not kept';
+    try {
+      withLock(function () {
+        var d = new SheetDb();
+        if (q) {
+          var x = find(d.rows('Quotes'), 'QuoteNo', j.no); if (x) d.update('Quotes', x, { AppPdf: er ? ('Error: ' + er).slice(0, 480) : 'Made ' + qaStamp_() });
+          log_(d, er ? 'App quote PDF refused' : 'App quote PDF', j.no, j.by + (er ? ' · ' + er : ''));
+        } else if (er) { var c = find(d.rows('Challans'), 'ChallanNo', j.no); if (c) d.update('Challans', c, { AppMsg: ('Posted; PDF not made: ' + er).slice(0, 480) }); }
+      });
+    } catch (e) { /* a quote stays Requested: the next run makes it again */ }
+  });
 }
 
 // ======================================================================= self-test (in memory, your data is not touched)
@@ -296,10 +333,10 @@ function qf5SameQuote_(oldName, no) {
 function qf5Id_(url) { var m = String(url || '').match(/\/d\/([\w-]{20,})/) || String(url || '').match(/[?&]id=([\w-]{20,})/); return m ? m[1] : ''; }
 var QF5_DRIVE_ = {
   name: function (url) { var id = qf5Id_(url), f = id ? DriveApp.getFileById(id) : null; return f && !f.isTrashed() ? f.getName() : ''; },
-  trash: function (url, base) { // the PDF + its editable Doc (PDF/Quotes/Editable, same name)
-    var f = DriveApp.getFileById(qf5Id_(url)), ps = f.getParents();
-    f.setTrashed(true);
-    while (ps.hasNext()) { var e = ps.next().getFoldersByName('Editable'); if (e.hasNext()) trashSame_(e.next(), base); }
+  trash: function (url, base, keep) { // the PDF + its editable Doc (PDF/Quotes/Editable, same name); CR M8 run 2: keep = the new PDF + Doc ids (same name when unchanged)
+    var k = Array.isArray(keep) ? keep : [], f = DriveApp.getFileById(qf5Id_(url)), ps = f.getParents();
+    if (k.indexOf(f.getId()) < 0) f.setTrashed(true);
+    while (ps.hasNext()) { var e = ps.next().getFoldersByName('Editable'); if (e.hasNext()) trashSame_(e.next(), base, k); }
   },
 };
 // makes the quotation PDF (makePdf: same file name is replaced) and bins the previous PDF of the same quote (any revision) when its name differs
@@ -308,7 +345,7 @@ function qf5Pdf_(db, no, o) {
   var q = must(db, 'Quotes', 'QuoteNo', no), old = qfStr_(q.PDF), dr = o.drive || QF5_DRIVE_, gone = '';
   var r = (o.make || makePdf)(db, 'Quote', no);
   if (old && old !== r.url) {
-    try { var nm = dr.name(old); if (nm && qf5SameQuote_(nm, no)) { dr.trash(old, qf5Base_(nm)); gone = nm; } } catch (e) { /* already gone or no access: keep going */ }
+    try { var nm = dr.name(old); if (nm && qf5SameQuote_(nm, no)) { dr.trash(old, qf5Base_(nm), [qf5Id_(r.url), qf5Id_(r.doc)].filter(function (x) { return x; })); gone = nm; } } catch (e) { /* already gone or no access: keep going */ }
   }
   return { url: r.url, doc: r.doc || '', file: r.file, placeholders: r.placeholders || 0, trashed: gone };
 }
