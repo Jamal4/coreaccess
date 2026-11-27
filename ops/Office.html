@@ -1338,7 +1338,7 @@ function chErr(m){var k=code(m).split('|');
 function viewCh(tile){
   CH.tile=tile||'dos';CH.back=null;CH.k='all';CH.s='all';CH.job='';CH.q='';CH.cur=null;document.title='Core Access · '+(CH.tile==='tr'?'Transfers & rent-in':CH.tile==='returns'?'Returns':'Delivery orders');
   shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="chb">'+ic('back')+' '+(CH.tile==='tr'?'Stock':'Home')+'</button>'+
-    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="chq" type="search" placeholder="Search challan no, job, customer, supplier, item or vehicle" autocomplete="off" aria-label="Search challans"></div>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="chq" type="search" placeholder="Search challan no, job, customer, supplier or vehicle" autocomplete="off" aria-label="Search challans"></div>'+
     (CH.tile==='tr'?'':'<select class="inp sm np" id="chj" style="width:auto" aria-label="Job"><option value="">All jobs</option></select>')+'<span id="chn"></span></div>'+
     '<div id="chrent"></div><div class="chips" id="chk"></div><div class="chips" id="chs"></div><p class="cnt" id="chc">&nbsp;</p><div id="chl" class="qlist"><div class="empty">Loading challans…</div></div>');
   document.getElementById('chb').onclick=function(){if(CH.tile==='tr')viewStock();else viewHome();};
@@ -1395,7 +1395,7 @@ function chView(no,back){
   shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="cvb">'+ic('back')+' '+esc(CH.back?CH.back.t:'Challans')+'</button></div><div id="cv"><div class="empty">Loading '+esc(no)+'…</div></div>');
   document.getElementById('cvb').onclick=chBack;
   var go=function(){call('officeChallanGet',S.token,no).then(function(r){if(my!==CH.vs||!document.getElementById('cv'))return;var c=chNormOne(r);if(c.no!==no){chBack();return;}CH.cur=c;chViewDraw(c);},
-    function(m){if(my!==CH.vs)return;if(srvGate(m))return;if(code(m).split('|')[0]==='NOTFOUND'){chBack();toast(no+' no longer exists.');return;}
+    function(m){if(my!==CH.vs||!document.getElementById('cv'))return;if(srvGate(m))return;if(code(m).split('|')[0]==='NOTFOUND'){chBack();toast(no+' no longer exists.');return;}
       var v=document.getElementById('cv');if(v){v.innerHTML='<div class="empty">Could not open '+esc(no)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="cvr">Try again</button></div>';document.getElementById('cvr').onclick=go;}});};
   if(CH.d)go();else chLoad(go,function(m){var v=document.getElementById('cv');if(v)v.innerHTML='<div class="empty">Could not load: '+esc(code(m))+'</div>';});
 }
@@ -1486,7 +1486,7 @@ function chEdit(c0,kind){
   var supShow=function(){document.getElementById('cesw').style.display=(isH||isO||fromV()===D.SUP)?'':'none';};
   var jobTo=function(){var t=document.getElementById('cet');if(!t)return;var j=chJob(g('cej'));t.value=j?(kind==='Sale'?'Sold (leaves stock)':(j.site||'site')+(j.siteName?' · '+j.siteName:'')):'';};
   function addLine(l){var d=document.createElement('div');d.className='ch-ol';
-    d.innerHTML='<input class="inp np li" list="cedl" placeholder="Item code" value="'+esc(l.it)+'" aria-label="Item"><input class="inp np lq" type="number" min="1" step="1" placeholder="Qty" value="'+esc(l.q)+'" aria-label="Qty"><div class="ch-av"></div><button type="button" class="ch-mini" aria-label="Remove line">'+ic('cx')+'</button>';
+    d.innerHTML='<input class="inp np li" list="cedl" placeholder="Item code" value="'+esc(l.it)+'" aria-label="Item"><input class="inp np lq" type="number" min="'+(isO?'0.01':'1')+'" step="'+(isO?'0.01':'1')+'" placeholder="Qty" value="'+esc(l.q)+'" aria-label="Qty"><div class="ch-av"></div><button type="button" class="ch-mini" aria-label="Remove line">'+ic('cx')+'</button>';
     d.querySelector('.ch-mini').onclick=function(){d.parentNode.removeChild(d);info();};d.querySelector('.li').oninput=info;d.querySelector('.lq').oninput=info;box.appendChild(d);}
   function rows(){return [].map.call(box.querySelectorAll('.ch-ol'),function(d){return {d:d,it:d.querySelector('.li').value.trim().toUpperCase(),q:d.querySelector('.lq').value.trim()};});}
   function info(){var from=fromV(),sup=g('cesu'),rs=rows(),need=chParts(rs.filter(function(r){return chItem(r.it);}).map(function(r){return {it:r.it,q:+r.q||0};}));supShow();
@@ -1512,7 +1512,7 @@ function chEdit(c0,kind){
     if(!isDay(g('ced')))return chMsg('cem','Date is needed.');
     var rs=rows().filter(function(r){return r.it||r.q;}),seen={};if(!rs.length)return chMsg('cem','Add at least one line.');
     for(var i=0;i<rs.length;i++){var r=rs[i],q=+r.q;if(!chItem(r.it)){r.d.querySelector('.li').classList.add('bad');return chMsg('cem','Line '+(i+1)+': pick an item from the list.');}
-      if(!(q>=1)||q%1){r.d.querySelector('.lq').classList.add('bad');return chMsg('cem','Line '+(i+1)+': quantity must be a whole number above 0.');}
+      var fr=isO&&!(chItem(r.it)||{}).set;if(fr?(!(q>0)||Math.abs(Math.round(q*100)-q*100)>1e-6):(!(q>=1)||q%1)){r.d.querySelector('.lq').classList.add('bad');return chMsg('cem','Line '+(i+1)+': quantity must be '+(fr?'above 0 (2 decimals at most).':'a whole number above 0.'));}
       if(seen[r.it])return chMsg('cem','Line '+(i+1)+': '+esc(r.it)+' is on two lines — put it on one.');seen[r.it]=1;}
     c.job=yk?'':g('cej');c.from=from;c.to=isT||isH?g('ceto'):'';c.sup=needSup?g('cesu'):'';c.sref=needSup?g('cesr'):'';c.d=g('ced');c.veh=g('cev');c.notes=g('cen');
     c.lines=rs.map(function(r){return {it:r.it,q:+r.q};});

@@ -121,9 +121,15 @@ function qaProcess_(db, aq, o) {
   db.update('AppQuotes', aq, { Status: 'Posted', QuoteNo: r.ref, AppMsg: ('Posted ' + r.ref + ' · total Tk ' + tk(t.total) + (r.cust ? ' · ' + r.cust : '') + (r.site ? ' · ' + r.site : '')).slice(0, 480) });
   log_(db, 'App quote posted', r.ref, who + ' · ' + aq.AQID + ' · Tk ' + t.total);
   if (o && o.later) { // CR M8 run 2: the timed sweep makes PDFs after it lets the locks go: queued as an app PDF request (the next run retries it)
+    try {
     var pq = { AppPdf: 'Requested' }; if (db.headers('Quotes').indexOf('AppPdfBy') >= 0) pq.AppPdfBy = aq.SubmittedBy || ''; // step R: as qaReady_ (both columns come with the set-up)
     db.update('Quotes', must(db, 'Quotes', 'QuoteNo', r.ref), pq);
     var a3 = must(db, 'AppQuotes', 'AQID', aq.AQID); db.update('AppQuotes', a3, { AppMsg: (String(a3.AppMsg) + ' · PDF being made').slice(0, 480) });
+    } catch (e) { // CR M8 run 4: the quote is posted: the row stays Posted with its number (never "Not posted"), told how to get the PDF
+      try { var a4 = must(db, 'AppQuotes', 'AQID', aq.AQID), q4 = find(db.rows('Quotes'), 'QuoteNo', r.ref), qd = !!q4 && String(q4.AppPdf) === 'Requested';
+        if (String(a4.AppMsg).indexOf(' · PDF being made') < 0) db.update('AppQuotes', a4, { Status: 'Posted', AppMsg: (String(a4.AppMsg) + (qd ? ' · PDF being made' : ' · PDF not queued: ' + String(e && e.message || e) + ' (use Make PDF)')).slice(0, 480) });
+      } catch (e2) { /* the row already says Posted + its number */ }
+    }
   } else if (!(o && o.noPdf && !o.pdf)) { // QF5: PDF right away (the quote stays posted if it fails)
     var p = qaPdfMake_(db, r.ref, o), a2 = must(db, 'AppQuotes', 'AQID', aq.AQID);
     db.update('AppQuotes', a2, { AppMsg: (String(a2.AppMsg) + (p.error ? ' · PDF not made: ' + p.error + ' (use Make PDF)' : ' · PDF made')).slice(0, 480) });
@@ -149,7 +155,10 @@ function qaPdf_(db, q, o) {
     db.update('Quotes', must(db, 'Quotes', 'QuoteNo', no), { AppPdf: ('Error: ' + e.message).slice(0, 480) });
     p = { error: e.message };
   }
-  if (!p && o && o.later) { o.later.push({ k: 'q', no: String(no), by: q.AppPdfBy || 'app' }); return { no: no + ' PDF', posted: false }; } // CR M8 run 2: made after the locks (qaLater_)
+  if (!p && o && o.later) { // CR M8 run 4: marked Queued: a new request meanwhile (Requested) is not overwritten by this result
+    var mk = 'Queued ' + qaStamp_(); try { db.update('Quotes', must(db, 'Quotes', 'QuoteNo', no), { AppPdf: mk }); } catch (e) { mk = ''; }
+    o.later.push({ k: 'q', no: String(no), by: q.AppPdfBy || 'app', m: mk }); return { no: no + ' PDF', posted: false };
+  } // CR M8 run 2: made after the locks (qaLater_)
   if (!p) p = qaPdfMake_(db, no, o);
   if (p.error) { log_(db, 'App quote PDF refused', no, (q.AppPdfBy || 'app') + ' · ' + p.error); return { no: no + ' PDF', posted: false, error: p.error }; }
   log_(db, 'App quote PDF', no, q.AppPdfBy || 'app');
@@ -176,7 +185,7 @@ if (typeof appSweepRun_ === 'function') {
       out.done++; if (r.posted) out.posted++; else if (r.error) out.failed++;
       out.list.push(r);
     });
-    db.rows('Quotes').filter(function (q) { return q.AppPdf === 'Requested'; }).forEach(function (q) {
+    db.rows('Quotes').filter(function (q) { return qaWant_(q.AppPdf); }).forEach(function (q) {
       if (timeUp_(o.deadline)) { out.left++; return; }
       var r = o.noPdf && !o.pdf ? { no: q.QuoteNo + ' PDF', posted: false } : qaPdf_(db, q, o);
       out.done++; if (r.posted) out.posted++; else if (r.error) out.failed++;
@@ -185,13 +194,15 @@ if (typeof appSweepRun_ === 'function') {
     return out;
   };
 }
+// CR M8 run 4: Requested, or Queued and left by an earlier run (out of time / its result not written; one sweep at a time)
+function qaWant_(v) { return v === 'Requested' || /^Queued /.test(String(v)); }
 // Trigger handler (replaces O7's): cheap when idle — reads only the Status / AppPdf columns.
 function appSweep() {
   var db = new SheetDb(), any = false;
   [['Challans', 'Status', 'Submitted'], ['Conversions', 'Status', 'Submitted'], ['AppQuotes', 'Status', 'Submitted'], ['Quotes', 'AppPdf', 'Requested']].forEach(function (x) {
     if (any || !db.hasTab(x[0])) return;
     var s = db.sheet(x[0]), j = db.headers(x[0]).indexOf(x[1]) + 1, n = s.getLastRow();
-    if (j > 0 && n > 1 && s.getRange(2, j, n - 1, 1).getValues().some(function (r) { return r[0] === x[2]; })) any = true;
+    if (j > 0 && n > 1 && s.getRange(2, j, n - 1, 1).getValues().some(function (r) { return x[0] === 'Quotes' ? qaWant_(r[0]) : r[0] === x[2]; })) any = true;
   });
   if (!any) return;
   // CR M8 run 2 (step R): phase 2 holds no lock, so two timed runs could overlap (the same quote PDF twice): one sweep at a time (nothing else takes the user lock)
@@ -233,7 +244,7 @@ function qaLater_(L, dl) {
             var t = er ? ' · PDF not made: ' + er + ' (use Make PDF)' : ' · PDF made';
             d.update('AppQuotes', a, { AppMsg: String(a.AppMsg).replace(' · PDF being made', function () { return t; }).slice(0, 480) });
           });
-          var x = find(d.rows('Quotes'), 'QuoteNo', j.no); if (x) d.update('Quotes', x, { AppPdf: er ? ('Error: ' + er).slice(0, 480) : 'Made ' + qaStamp_() });
+          var x = find(d.rows('Quotes'), 'QuoteNo', j.no); if (x && (!j.m || String(x.AppPdf) === j.m)) d.update('Quotes', x, { AppPdf: er ? ('Error: ' + er).slice(0, 480) : 'Made ' + qaStamp_() });
           log_(d, er ? 'App quote PDF refused' : 'App quote PDF', j.no, j.by + (er ? ' · ' + er : ''));
         } else if (er) { var c = find(d.rows('Challans'), 'ChallanNo', j.no); if (c) d.update('Challans', c, { AppMsg: ('Posted; PDF not made: ' + er).slice(0, 480) }); }
       });

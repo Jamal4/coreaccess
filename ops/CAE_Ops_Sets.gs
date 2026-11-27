@@ -217,7 +217,8 @@ function chBal_(db, kind, sup) { // item|loc -> qty this kind may take (the chec
 function chSplit_(db, c, kind, sup, mv, jobNo, errs) {
   var supIn = function (loc) { return locType(db, loc) === 'Supplier'; }, om = chOwnMap_(db), jm = kind === 'Return' ? chOwnMap_(db, jobNo) : null, out = [];
   mv.forEach(function (m) {
-    if (supIn(m[2])) { out.push(m.slice(0, 5).concat([kind === 'Hire-in' || kind === 'Delivery' ? sup : ''])); return; }
+    // CR M8 run 4: a Sale takes own stock only, also from a Supplier location (no own stock there -> not posted)
+    if (supIn(m[2]) && kind !== 'Sale') { out.push(m.slice(0, 5).concat([kind === 'Hire-in' || kind === 'Delivery' ? sup : ''])); return; }
     var k = m[0] + '|' + m[2], pool = (jm || om)[k] = (jm || om)[k] || {}, left = m[1];
     chOwners_(kind, sup, pool).forEach(function (o) {
       var have = Math.max(0, pool[o] || 0), t = Math.min(left, have); if (!(t > 1e-9)) return;
@@ -328,7 +329,9 @@ function chPostTail_(db, c, job, dmg, now) {
   }
   if (job && kind === 'Delivery' && (job.JobType === 'Rental' || job.JobType === 'Project') && ['Awaiting order', 'Mobilising', ''].indexOf(job.Status) >= 0) db.update('Jobs', job, { Status: 'On hire' });
   if (job && ret && job.Status === 'On hire') {
-    var left = onHire(db, job.JobNo), any = Object.keys(left).some(function (k) { return left[k] > 0; });
+    var left = onHire(db, job.JobNo), sm = setMap_(db), lt = function (x) { return locType(db, x) === 'Site'; }, any; // CR M8 run 4: this challan's set lines count too (jobEvents reads Posted challans; Posted is written last)
+    if (String(c.Status) !== 'Posted') db.rows('ChallanLines').forEach(function (l) { if (String(l.ChallanNo) !== String(c.ChallanNo) || !sm[l.ItemCode]) return; var q = num(l.Qty); if (lt(c.FromLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) - q; if (lt(c.ToLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) + q; });
+    any = Object.keys(left).some(function (k) { return left[k] > 0; });
     if (!any && find(db.rows('OffHire').filter(function (x) { return x.JobNo === job.JobNo; }), 'Scope', 'Full')) db.update('Jobs', job, { Status: 'Off-hire' });
   }
   db.update('Challans', c, { Status: 'Posted', PostedAt: now });
@@ -372,7 +375,8 @@ function cancelChallan(db, no) {
     }));
     dm.forEach(function (x) { db.update('Damage', x, { Status: 'Cancelled' }); });
   }
-  db.update('Challans', c, { Status: 'Cancelled' });
+  var pc = { Status: 'Cancelled' }; if (c.Status !== 'Posted' && db.headers('Challans').indexOf('PDF') >= 0 && !blank(c.PDF)) pc.PDF = ''; // CR M8 run 4: a discarded draft's DRAFT PDF is no longer linked
+  db.update('Challans', c, pc);
   log_(db, 'Challan cancelled', no, '');
 }
 // Hire events: loose parts from StockMoves (moves tagged with a set are left out); sets from the set lines of posted challans.

@@ -2110,7 +2110,7 @@ function oStList_(db, k, v, cur, what) { // a value from Lists (or the item's ow
   if (typeof v !== 'string' || Ls.indexOf(v) < 0) oFail_('BADINPUT|' + what);
   return v;
 }
-var OST_PRINT_ = { Quotes: ['Size'], Challans: ['Name', 'Unit', 'WeightKg'], POs: ['Name', 'Unit'], Notes: ['Name'] }; // item fields each document prints (PDF.gs specs + the W4 quote grid)
+var OST_PRINT_ = { Quotes: ['Size'], Challans: ['Name', 'Size', 'Unit', 'WeightKg'], POs: ['Name', 'Unit'], Notes: ['Name'] }; // item fields each document prints (PDF.gs specs + the W4 quote grid)
 function oStOpen_(r) { return blank(r.Status) || String(r.Status) === 'Draft'; }
 function oStDraftDN_(db, code) { // a Draft debit note that prints this item's repair / replacement rate (specNote reads Items live; its Amount is stored)
   if (!db.hasTab('Damage') || !db.hasTab('Notes')) return '';
@@ -2463,7 +2463,8 @@ function oChLinesIn_(db, k, ls) {
       if (oStYes_(it.IsSet) && (d || lo)) oFail_('BADINPUT|' + n + ' (a set comes back whole)');
       return { ItemCode: c, Qty: g + d + lo, QtyGood: g, QtyDamaged: d || '', QtyLost: lo || '', Remarks: '' };
     }
-    var q = w(r.q, 1, 'qty'); if (!(q >= 1)) oFail_('BADINPUT|' + n + ' qty');
+    var fr = k === 'Off-hire' && !oStYes_(it.IsSet), q = fr ? oQeNum_(r.q == null || r.q === '' ? 0 : r.q, 0, 1e6, 2, n + ' qty') : w(r.q, 1, 'qty'); // CR M8 run 4: a loose off-hire line may be a part left from a set (0.5): 2 decimals
+    if (!(q > 0) || (!fr && !(q >= 1))) oFail_('BADINPUT|' + n + ' qty');
     return { ItemCode: c, Qty: q, QtyGood: '', QtyDamaged: '', QtyLost: '', Remarks: '' };
   });
 }
@@ -2491,7 +2492,9 @@ function officeChallanSave(token, x) {
         no = oChFree_(db, 'Challans', 'ChallanNo', function () { return nextId(db, 'DC', h.ChallanDate); });
         var row = { ChallanNo: no, Kind: k, Status: 'Draft', Driver: '', ReceivedBy: '', MadeBy: oCell_(String(L.name || L.email)), MadeByID: oCell_(String(L.staff || '')) };
         Object.keys(h).forEach(function (f) { row[f] = h[f]; });
-        db.insert('Challans', row); made = { no: no };
+        // CR M8 run 4: the header went in, then the insert threw -> SAVEUNSURE with the number (fresh read), so Save again edits it
+        try { db.insert('Challans', row); } catch (e) { var dI = null; try { dI = env.db() || db; } catch (x) { dI = null; } if (dI && find(dI.rows('Challans'), 'ChallanNo', no)) made = { no: no }; throw e; }
+        made = { no: no };
         var ids = oChLineIds_(db, ls.length);
         db.insert('ChallanLines', ls.map(function (l, i) { l.LineID = ids[i]; l.ChallanNo = no; return l; }));
       } else {
@@ -2879,7 +2882,7 @@ function officeQuoteSave(token, d) {
     if (q && was === 'Sent') env.put(rk, { rev: num(q.Rev) + 1, at: env.now() }); // CR10: before the lines are written; dropped below if nothing changed
     var had = null; if (!q) { had = oStMap_(); db.rows('Quotes').forEach(function (z) { had[String(z.QuoteNo)] = 1; }); } // CR M8 run 1: a new quote that went in, then a later step threw
     try { r = UI_ACTIONS_.saveQuoteFull(db, x.a); }
-    catch (e) { if (rk) env.del(rk);
+    catch (e) { if (rk) { var kp = true; try { var dR = env.db() || db, qR = find(dR.rows('Quotes'), 'QuoteNo', String(q.QuoteNo)); kp = !qR || oQeEv_(dR, qR) !== d.ev; } catch (e4) { kp = true; } if (!kp) env.del(rk); } // CR M8 run 4: dropped only when the quote is as it was
       if (had) try { var dN = env.db() || db, nq = dN.rows('Quotes').filter(function (z) { return !blank(z.QuoteNo) && !had[String(z.QuoteNo)]; }); if (nq.length === 1) made = { no: String(nq[0].QuoteNo) }; } catch (e3) { /* not known: the error as it is */ }
       var m = String(e && e.message || e); if (/^[A-Z]{3,}(\|.*)?$/.test(m)) throw e; oFail_('SAVEFAIL|' + m.replace(/[\r\n]+/g, ' ').slice(0, 160)); }
     var ref = String(r.ref); if (!q) made = { no: ref };
@@ -3168,12 +3171,14 @@ function oSgWho_(db, what, spec) {
   if (what === 'Challan') { var c = find(db.rows('Challans'), 'ChallanNo', spec.id); return c ? (oUncell_(c.MadeByID).trim() || c.MadeBy) : ''; } // whoever made the challan signs it (StaffID, else the name)
   return '';
 }
+// CR M8 run 4: an office-made challan with no Staff ID prints the maker's name only (a Staff record with the same name never signs it)
+function oSgByName_(db, what, spec, who) { if (what !== 'Challan' || !who) return false; var c = find(db.rows('Challans'), 'ChallanNo', spec.id); return !!c && !oUncell_(c.MadeByID).trim() && oUncell_(c.MadeBy).trim() === who; }
 function oSgIsOurs_(b) { return !!b && b.t === 'sig' && Array.isArray(b.cols) && b.cols.length && /Core Access/.test(String(b.cols[0].head || '')); }
 function oSgApply_(db, what, s) {
   if (!s || !Array.isArray(s.blocks)) return s;
   var env = oEnv_(), st = oSgRec_(env, 'OSG_STAMP'), comm = oHas_(OSG_COMM_, what), pick = typeof OSG_PICK_ === 'string' ? OSG_PICK_ : '';
   var who = comm || what === 'Challan' ? (oUncell_(oSgWho_(db, what, s)).trim() || pick) : pick;
-  var sg = { t: 'osign', head: OSG_HEAD_, s: oSgSigner_(db, who), role: comm ? (who ? 'Prepared by' : '') : (what === 'Challan' ? 'Issued by' : ''), stamp: st ? st.f : '' };
+  var sg = { t: 'osign', head: OSG_HEAD_, s: oSgByName_(db, what, s, who) ? { id: '', name: who.slice(0, 80), title: '', sig: '' } : oSgSigner_(db, who), role: comm ? (who ? 'Prepared by' : '') : (what === 'Challan' ? 'Issued by' : ''), stamp: st ? st.f : '' };
   var i = -1; s.blocks.forEach(function (b, j) { if (i < 0 && oSgIsOurs_(b)) i = j; });
   if (i >= 0 && what === 'Challan' && /^Received by/.test(String(s.blocks[i].cols[0].head))) sg.role = 'Received by'; // D1: return / rent-in receipt
   if (i >= 0) {

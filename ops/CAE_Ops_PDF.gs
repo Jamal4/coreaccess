@@ -242,7 +242,7 @@ function specChallan(db, no) {
   var title = { Delivery: 'DELIVERY CHALLAN', Return: 'RETURN CHALLAN', Sale: 'DELIVERY CHALLAN', Transfer: 'TRANSFER NOTE', 'Hire-in': 'RENT-IN RECEIPT', 'Off-hire': 'OFF-HIRE NOTE' }[c.Kind] || 'CHALLAN';
   var sub = { Delivery: job.JobType === 'Sale' ? 'Delivery Note · Sale' : 'Delivery Note · Hire', Return: 'Equipment returned', Sale: 'Delivery Note · Sale', Transfer: 'Stock transfer', 'Hire-in': 'Goods received on hire from a rental supplier', 'Off-hire': 'Rented goods returned to the supplier' }[c.Kind] || '';
   var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier'; // M8 rent-in
-  var si = find(db.rows('Sites'), 'SiteID', job.SiteID) || {}, ok = String(job.OrderKind || '') === 'PO' ? 'PO' : 'WO', sale = job.JobType === 'Sale' || c.Kind === 'Sale', client = ['Delivery', 'Sale', 'Return'].indexOf(c.Kind) >= 0; // D1
+  var si = find(db.rows('Sites'), 'SiteID', job.SiteID) || {}, ok = ['PO', 'WO', 'LOI'].indexOf(String(job.OrderKind || '')) >= 0 ? String(job.OrderKind) : 'WO', sale = job.JobType === 'Sale' || c.Kind === 'Sale', client = ['Delivery', 'Sale', 'Return'].indexOf(c.Kind) >= 0; // D1
   var qwo = [job.QuoteNo, blank(job.ClientWONo) ? '' : ok + ' ' + job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  ');
   var rel = ''; if (ret) { var dl = db.rows('Challans').filter(function (x) { return x.JobNo === c.JobNo && x.Kind === 'Delivery' && x.Status === 'Posted'; }).map(function (x) { return String(x.ChallanNo); }).sort();
     rel = dl.slice(0, 3).join(', ') + (dl.length > 3 ? ' +' + (dl.length - 3) + ' more' : ''); }
