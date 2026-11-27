@@ -1,0 +1,51 @@
+# M3 CR run 3 fix: sabotage only the new / changed lines. usage (harness root): [A= B=] python3 tools8/sabotage_m3cr3.py <src dir>
+import sys, os, runpy
+G = 'CAE_Ops_Office.gs'; H = 'Office.html'
+SAB = [
+ (G, "try { return fn(); } finally { OLK_.s--; OLK_.g++; try { SpreadsheetApp.flush(); } finally { l.releaseLock(); } } },", "try { return fn(); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); } },", 'C1 env.lock: no flush'),
+ (G, "try { return fn(); } finally { OLK_.s--; OLK_.g++; try { SpreadsheetApp.flush(); } finally { l.releaseLock(); } } },", "try { return fn(); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); SpreadsheetApp.flush(); } },", 'C2 env.lock: flush after the lock is let go'),
+ (G, "try { return fn(); } finally { OLK_.s--; OLK_.g++; try { SpreadsheetApp.flush(); } finally { l.releaseLock(); } } },", "try { return fn(); } finally { OLK_.s--; OLK_.g++; SpreadsheetApp.flush(); l.releaseLock(); } },", 'C3 env.lock: failed flush keeps the lock'),
+ (G, "try { return OLK_withLock0_(fn); } finally { OLK_.s--; OLK_.g++; try { SpreadsheetApp.flush(); } finally { l.releaseLock(); } }", "try { return OLK_withLock0_(fn); } finally { OLK_.s--; OLK_.g++; l.releaseLock(); }", 'C4 panel withLock: no flush'),
+ (G, "  var env = oEnv_(); if (OLK_.s || (typeof LockService", "  var env = oEnv_(); if (true || (typeof LockService", 'C5 panel count read without the lock'),
+ (G, "OLK_.s++; OLK_.g++; try { return oPeGet_(env).n; } finally { OLK_.s--; OLK_.g++; l.releaseLock(); }", "OLK_.s++; OLK_.g++; try { return oPeGet_(env).n; } finally { OLK_.s--; OLK_.g++; }", 'C6 panel count: lock never let go'),
+ (G, "catch (e) { throw new Error('The office app is busy saving a change. Try the PDF again in a moment.'); }", "catch (e) { }", 'C7 busy lock ignored'),
+ (G, "n0 = oPeN_(); OPE_RUN_", "n0 = oPeGet_(oEnv_()).n; OPE_RUN_", 'C8 uiDo does not use the locked read'),
+ (G, "nos.push(String(r[t[1]])); clr.push([t[0], r, String(r[t[1]])]); });", "nos.push(String(r[t[1]])); if (!blank(r.PDF)) clr.push([t[0], r, String(r[t[1]])]); });", 'C9 item edit: only documents the read showed with a link'),
+ (G, "{ nos.push(no); qo.push(no); } });", "{ nos.push(no); if (!blank(q.PDF)) qo.push(no); } });", 'C10 item edit: only quotes the read showed with a link'),
+ (G, "  if (u) log_(db, 'PDF out of date', no, why + '; old PDF ' + u);", "  log_(db, 'PDF out of date', no, why + '; old PDF ' + u);", 'C11 blank links logged'),
+ (G, "  db.update(t, r, { PDF: '' }); // this cell only", "  if (u) db.update(t, r, { PDF: '' }); // this cell only", 'C12 cleared only when a link was seen'),
+ (G, "  if (db.ss && r._r) { var c = db.headers(t).indexOf('PDF'); if (c >= 0) r.PDF = db.sheet(t).getRange(r._r, c + 1).getValue(); }\n", "", 'C13 no fresh read of the cell'),
+ (G, "r.PDF = db.sheet(t).getRange(r._r, c + 1).getValue();", "r.PDF = db.sheet(t).getRange(r._r, c).getValue();", 'C14 fresh read: wrong column'),
+ (G, "u = oPdfNow_(db, 'Quotes', q); if (!u) return false;", "u = q && !blank(q.PDF) ? String(q.PDF) : ''; if (!u) return false;", 'C15 quote stale from the cached read'),
+ (G, "env.put('OQP:' + no, { v: 0, f: oQFid_(u) });\n  return true;", "env.put('OQP:' + no, { v: 0, f: oQFid_(u) });\n  return false;", 'C16 quote stale says no PDF'),
+ (G, "nos.push(String(r[t[1]])); clr.push([t, r]); // CR run 3", "nos.push(String(r[t[1]])); if (!blank(r.PDF)) clr.push([t, r]); // CR run 3", 'C17 WO change: only documents with a link'),
+ (G, "if (oPdfClr_(db, c[0][0], c[1], String(c[1][c[0][1]]), 'WO no. of ' + jn + ' changed')) n++;", "oPdfClr_(db, c[0][0], c[1], String(c[1][c[0][1]]), 'WO no. of ' + jn + ' changed'); n++;", 'C18 WO change counts blank ones'),
+ (G, "if (oPdfClr_(db, c[0], c[1], c[2], 'Item ' + code + ' changed')) n++;", "oPdfClr_(db, c[0], c[1], c[2], 'Item ' + code + ' changed'); n++;", 'C19 item edit counts blank documents'),
+ (G, "qo.forEach(function (no) { if (oQPdfStale_(env, db, no, true)) n++; });", "qo.forEach(function (no) { oQPdfStale_(env, db, no, true); n++; });", 'C20 item edit counts quotes with no PDF'),
+ (G, "(moved || kitN || oStPart_(db, code))", "(moved || kitN)", 'C21 a part can become a set'),
+ (G, "if (!row && st === 'Yes' && oStPart_(db, code)) oFail_", "if (false && oStPart_(db, code)) oFail_", 'C22 new item listed as a part can be a set'),
+ (G, "String(k.ItemCode == null ? '' : k.ItemCode).trim().toUpperCase() === code", "String(k.ItemCode == null ? '' : k.ItemCode) === code", 'C23 part code not trimmed / upper-cased'),
+ (G, "some(function (k) { return !blank(k.SetCode) && String(k.ItemCode", "some(function (k) { return String(k.ItemCode", 'C24 rows with no set code count'),
+ (G, "} catch (e) {\n      try { db.update(t[0], row, { PDF: '' }); } catch (e2) {", "} catch (e) {\n      try { throw e; } catch (e2) {", 'C25 no retry'),
+ (G, "catch (e2) { throw new Error('PDF made from old data", "catch (e2) { return; throw new Error('PDF made from old data", 'C26 second failure swallowed'),
+ (G, "o.cata = true; return o; });", "return o; });", 'C27 catalogue rows not marked'),
+ (G, "return oStCode_(String(it.ItemCode == null ? '' : it.ItemCode)); })\n    .map", "return oStCode_(String(it.ItemCode == null ? '' : it.ItemCode)) && (oStYes_(it.StockTracked) || oStYes_(it.IsSet) || Q[String(it.ItemCode)]); })\n    .map", 'C28 untracked items left out again'),
+ (G, "if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet) || Q[String(it.ItemCode)])) o.cata = true;", "if (!(oStYes_(it.StockTracked) || oStYes_(it.IsSet))) o.cata = true;", 'C29 untracked with stock marked catalogue'),
+ (H, "if(s.indexOf(',')>=0){if(!/^(\\d{1,3}(,\\d{3})+|\\d{1,2}(,\\d{2})+,\\d{3})(\\.\\d+)?$/.test(s))return null;s=s.replace(/,/g,'');}", "s=s.replace(/,/g,'');", 'H1 commas dropped anywhere'),
+ (H, "(\\d{1,3}(,\\d{3})+|\\d{1,2}(,\\d{2})+,\\d{3})", "(\\d{1,3}(,\\d{3})+)", 'H2 lakh grouping refused'),
+ (H, ",\\d{3})(\\.\\d+)?$/.test(s))", ",\\d{3})(\\.[\\d,]+)?$/.test(s))", 'H3 commas after the point'),
+ (H, "var stk=ST.rows.filter(function(x){return !x.cata;}),", "var stk=ST.rows,", 'H4 catalogue rows counted / shown under All'),
+ (H, "var show=(ST.f==='items'?ST.rows:stk).filter(", "var show=stk.filter(", 'H5 All items shows stock only'),
+ (H, "if(ST.f!=='all'&&ST.f!=='items'&&(x.isSet", "if(ST.f!=='all'&&(x.isSet", 'H6 All items filtered like a group'),
+ (H, "cata:r.cata===true,", "", 'H7 cata not read'),
+ (H, "(!x.isSet&&!x.tracked?'<span class=\"pill st-off\">Not tracked</span>':'')+", "", 'H8 no Not tracked pill'),
+ (H, ",['items','All items']];", "];", 'H9 no All items chip'),
+ (H, "then(function(r){if(!on())return;r=r||{};ST.locs=", "then(function(r){r=r||{};ST.locs=", 'H10 late answer opens the dialog'),
+ (H, "function(m){if(!on())return;if(!srvGate(m))toast('Could not load the stock: '", "function(m){if(!srvGate(m))toast('Could not load the stock: '", 'H11 late failure shown'),
+ (H, "return my===ST.seq&&!!document.getElementById(pre?'iv':'slist');", "return my===ST.seq;", 'H12 another screen counts as still there'),
+ (H, "var my=++ST.seq,on=function()", "var my=ST.seq,on=function()", 'H13 an earlier request not dropped'),
+]
+sys.argv = ['x', sys.argv[1]]
+src = open('tools8/sabotage_m3.py', encoding='utf-8').read()
+src = src.replace(src[src.index('SAB = ['):src.index("SAB = SAB[int(")], '')
+exec(compile(src.replace("import sys, os, shutil, subprocess, tempfile", "import sys, os, shutil, subprocess, tempfile\nSAB = __SAB__").replace("SAB = SAB[int(", "SAB = __SAB__[int("), 'sab', 'exec'), {'__SAB__': SAB, '__name__': '__main__'})
