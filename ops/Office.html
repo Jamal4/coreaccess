@@ -3057,7 +3057,7 @@ function qeRowsHtml(){
       '<td class="sz">'+(P?'<div class="qe-szw"><input class="c" data-f="size" value="'+esc(l.size)+'" readonly placeholder="📐 measure" title="From the measure (📐)" aria-label="Line '+(i+1)+' size"><button type="button" class="mini" data-a="dim" title="Measure: L × H = m², L × W × H = m³" aria-label="Measure line '+(i+1)+'">📐</button></div>':
         '<input class="c" data-f="size" value="'+esc(l.size)+'" readonly title="From the item" aria-label="Line '+(i+1)+' size">')+'</td>'+
       '<td class="q"><input class="c n" data-f="qty" inputmode="decimal" value="'+esc(l.qty)+'"'+(l.basis==='lump'||l.dim?' readonly':'')+' aria-label="Line '+(i+1)+' quantity"></td>'+
-      '<td class="u">'+(l.basis==='lump'||l.dim?'<input class="c" data-f="unit" value="'+esc(l.unit)+'" maxlength="30" readonly aria-label="Line '+(i+1)+' unit">':'<select class="c" data-f="unit" aria-label="Line '+(i+1)+' unit">'+qeUnitOpts(l.unit)+'</select>')+'</td>'+
+      '<td class="u"><select class="c" data-f="unit" aria-label="Line '+(i+1)+' unit">'+qeUnitOpts(l.unit)+'</select></td>'+
       (M?'<td class="ra"><input class="c n" data-f="rate" inputmode="decimal" value="'+esc(l.rate)+'" aria-label="Line '+(i+1)+' rate"></td><td class="am r" data-am>'+(a===null?'—':(qeOff(l)?'(':'')+tk(a)+(qeOff(l)?')':''))+'</td>':'')+
       '<td class="ac"><button type="button" class="mini" data-a="menu" title="More: optional, lump sum, copy, move" aria-label="More for line '+(i+1)+'">⋯</button> '+
         '<button type="button" class="mini del" data-a="del" title="Delete row" aria-label="Delete line '+(i+1)+'">🗑</button></td></tr>';
@@ -3105,6 +3105,8 @@ function qeBindRows(){
   var tb=document.getElementById('qerows'),q=QE.q;
   [].forEach.call(tb.querySelectorAll('textarea.c'),qeGrow);
   tb.oninput=function(e){var f=e.target.getAttribute('data-f');if(!f||e.target.readOnly)return;var tr=e.target.closest('tr'),i=+tr.getAttribute('data-r'),l=q.lines[i];
+    if(f==='unit'&&e.target.value!==l.unit&&(l.basis==='lump'||(l.dim&&qeBaseUnit(e.target.value)!==qeBaseUnit(l.unit)))){ /* any unit on any line: another unit ends lump sum / the measure (qty typed) */
+      l.unit=e.target.value;l.basis='unit';if(l.dim)l.size='';l.dim=null;QE.dirty=true;qeRedrawRows([i,'qty']);return;}
     l[f]=e.target.value;QE.dirty=true;
     if(f==='desc'){qeGrow(e.target);qeItemPick(e.target,i);}
     if(f==='qty'||f==='rate'){var v=qeNum(e.target.value);e.target.classList.toggle('bad',e.target.value!==''&&(v===null||isNaN(v)||v<0));
