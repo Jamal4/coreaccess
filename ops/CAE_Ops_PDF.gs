@@ -225,8 +225,11 @@ function specInvoice(db, invNo) {
   return { kind: 'Invoices', key: 'InvNo', id: invNo, folder: 'Invoices', file: fileName_(inv.InvNo, cu.Name), docTitle: 'Invoice', docNo: inv.InvNo, blocks: b };
 }
 
+function specChQuote_(db, c) { // r28 F1: a challan made from a quote before its job: customer / site / quote no. from the quote
+  var q = blank(c.QuoteNo) ? null : find(db.rows('Quotes'), 'QuoteNo', c.QuoteNo); return q ? { QuoteNo: q.QuoteNo, CustID: q.CustID, SiteID: q.SiteID, JobType: q.QuoteType } : null;
+}
 function specChallan(db, no) {
-  var c = must(db, 'Challans', 'ChallanNo', no), job = find(db.rows('Jobs'), 'JobNo', c.JobNo) || {}, cu = party_(db, job.CustID), items = db.rows('Items');
+  var c = must(db, 'Challans', 'ChallanNo', no), job = (blank(c.JobNo) ? null : find(db.rows('Jobs'), 'JobNo', c.JobNo)) || specChQuote_(db, c) || {}, cu = party_(db, job.CustID), items = db.rows('Items');
   var lines = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === no; });
   if (!lines.length) throw new Error(no + ' has no lines');
   var ret = c.Kind === 'Return', loc = function (id) { var l = find(db.rows('Locations'), 'LocID', id); return l ? l.Name : dash(id); };
@@ -242,7 +245,7 @@ function specChallan(db, no) {
   });
   var title = { Delivery: 'DELIVERY CHALLAN', Return: 'RETURN CHALLAN', Sale: 'DELIVERY CHALLAN', Transfer: 'TRANSFER NOTE', 'Hire-in': 'RENT-IN RECEIPT', 'Off-hire': 'OFF-HIRE NOTE' }[c.Kind] || 'CHALLAN';
   var sub = { Delivery: job.JobType === 'Sale' ? 'Delivery Note · Sale' : 'Delivery Note · Hire', Return: 'Equipment returned', Sale: 'Delivery Note · Sale', Transfer: 'Stock transfer', 'Hire-in': 'Goods received on hire from a rental supplier', 'Off-hire': 'Rented goods returned to the supplier' }[c.Kind] || '';
-  var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier'; // M8 rent-in
+  var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier', vend = String(c.MatSource || '') === 'Vendor', vn = vend && !blank(c.SupID) ? party_(db, c.SupID) : {}; // M8 rent-in
   var si = find(db.rows('Sites'), 'SiteID', job.SiteID) || {}, ok = ['PO', 'WO', 'LOI'].indexOf(String(job.OrderKind || '')) >= 0 ? String(job.OrderKind) : 'WO', sale = job.JobType === 'Sale' || c.Kind === 'Sale', client = ['Delivery', 'Sale', 'Return'].indexOf(c.Kind) >= 0; // D1
   var qwo = [job.QuoteNo, blank(job.ClientWONo) ? '' : ok + ' ' + job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  ');
   var rel = ''; if (ret) { var dl = db.rows('Challans').filter(function (x) { return x.JobNo === c.JobNo && x.Kind === 'Delivery' && x.Status === 'Posted'; }).map(function (x) { return String(x.ChallanNo); }).sort();
@@ -251,7 +254,7 @@ function specChallan(db, no) {
       ['To', c.Kind === 'Off-hire' ? dash(su.Name) : loc(c.ToLoc), 'Driver', c.Driver]]
     : c.Kind === 'Transfer' && blank(c.JobNo) ? [['From', loc(c.FromLoc), 'Challan No.', c.ChallanNo], ['To', loc(c.ToLoc), 'Date', longDate(c.ChallanDate)], ['Vehicle no.', c.Vehicle, 'Driver', c.Driver]]
     : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Site contact', [si.SiteRep, si.SiteRepPhone].filter(function (x) { return !blank(x); }).join(', '), 'Quotation / ' + ok, qwo],
-      ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ['From', direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ret ? ['To', loc(c.ToLoc), 'Related challan', rel] : ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
+      ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ['From', vend ? 'Vendor rental · ' + dash(vn.Name) + (blank(c.SupplierRef) ? '' : ' (DO ' + c.SupplierRef + ')') + ' · direct to site' : direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ret ? ['To', loc(c.ToLoc), 'Related challan', rel] : ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
   var b = [{ t: 'title', text: title, sub: sub + (blank(c.Status) || c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') }];
   if (client) b.push({ t: 'p', text: [[(ret ? '☐' : '☒') + ' Delivery to site' + (sale ? ' (sale)' : '') + '          ', { bold: true }], [(ret ? '☒' : '☐') + ' Return to yard', { bold: true }]], size: 10, after: 4 });
   b = b.concat([

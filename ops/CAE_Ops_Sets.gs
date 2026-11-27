@@ -233,6 +233,8 @@ function postChallan(db, no, o) {
   o = o || {};
   var c = must(db, 'Challans', 'ChallanNo', no);
   if (c.Status !== 'Draft' && !blank(c.Status)) throw new Error(no + ' is ' + c.Status + ', only Draft challans can be posted');
+  if (blank(c.JobNo) && !blank(c.QuoteNo) && CH_YK_.indexOf(c.Kind) < 0) c = chQuoteJob_(db, c); // r28 F1: made from a quote: its job now (Awaiting order, no PO needed)
+  if (String(c.MatSource || '') === 'Vendor') return chPostVendor_(db, c); // r28 F2: vendor rental, not our stock: no StockMoves (every post path: office, sheet panel)
   var kind = c.Kind, yk = CH_YK_.indexOf(kind) >= 0, job = yk && blank(c.JobNo) ? null : must(db, 'Jobs', 'JobNo', c.JobNo), jn = job ? job.JobNo : '';
   var date = c.ChallanDate ? toDate(c.ChallanDate) : today(), ret = kind === 'Return', sup = blank(c.SupID) ? '' : String(c.SupID), oc = chOwnCol_(db);
   var lines = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === no; });
@@ -320,6 +322,19 @@ function postChallan(db, no, o) {
   return { moves: mv.length, damage: dmg.length };
 }
 // CR M8 run 1: what a post writes after its moves (Damage rows, job status, then Posted last), so chFinishPost_ can run it alone.
+function chQuoteJob_(db, c) { // r28 F1: the quote's job (made now if none; a retried post finds it by QuoteNo)
+  var q = String(c.QuoteNo), j = find(db.rows('Jobs'), 'QuoteNo', q);
+  if (j && String(j.Status) === 'Closed') throw new Error(c.ChallanNo + ': the job of ' + q + ' (' + j.JobNo + ') is closed');
+  var qs = j ? '' : String((find(db.rows('Quotes'), 'QuoteNo', q) || {}).Status || ''); // step R r28: a quote Lost / Expired / Cancelled since the save makes no job (quoteToJob would mark it Accepted)
+  if (['Lost', 'Expired', 'Cancelled'].indexOf(qs) >= 0) throw new Error(c.ChallanNo + ': quote ' + q + ' is ' + qs + ' now: no job is made from it');
+  db.update('Challans', c, { JobNo: j ? String(j.JobNo) : quoteToJob(db, q) }); return must(db, 'Challans', 'ChallanNo', c.ChallanNo);
+}
+function chPostVendor_(db, c) { // r28 F2: Posted with no StockMoves: own and rented-in stock untouched; the job goes on hire as for any delivery
+  var no = c.ChallanNo; if (!db.rows('ChallanLines').some(function (l) { return l.ChallanNo === no; })) throw new Error(no + ' has no lines');
+  if (c.Kind !== 'Delivery' || blank(c.SupID)) throw new Error(no + ': a vendor rental challan is a Delivery with its vendor');
+  var job = blank(c.JobNo) ? null : must(db, 'Jobs', 'JobNo', c.JobNo); if (job && String(job.Status) === 'Closed') throw new Error(no + ': job ' + job.JobNo + ' is closed');
+  chPostTail_(db, c, job, [], new Date()); log_(db, 'Challan posted', no, 'Delivery · vendor rental ' + c.SupID + ' · no stock moves'); return { moves: 0, damage: 0 };
+}
 function chPostTail_(db, c, job, dmg, now) {
   var kind = c.Kind, ret = kind === 'Return';
   if (dmg.length) {
@@ -392,7 +407,7 @@ function jobEvents(db, jobNo) {
     if (sites[v.FromLoc]) e.push({ d: d + 1, q: -q });
   });
   var sets = setMap_(db); if (!Object.keys(sets).length) return ev;
-  var chs = {}; db.rows('Challans').forEach(function (c) { if (c.JobNo === jobNo && c.Status === 'Posted') chs[c.ChallanNo] = c; });
+  var chs = {}; db.rows('Challans').forEach(function (c) { if (c.JobNo === jobNo && c.Status === 'Posted' && String(c.MatSource || '') !== 'Vendor') chs[c.ChallanNo] = c; }); // r28 F2: vendor sets are not ours on hire
   db.rows('ChallanLines').forEach(function (l) {
     var c = chs[l.ChallanNo]; if (!c || !sets[l.ItemCode]) return;
     var d = dayNum(c.ChallanDate), q = num(l.Qty), add = function (x) { (ev[l.ItemCode] = ev[l.ItemCode] || []).push(x); };

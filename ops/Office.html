@@ -1295,8 +1295,9 @@ function chCanNew(k){var c=CH.d&&CH.d.can||{};return chY(k)?c.YW===true:c.PS===t
 function chObj(x){return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}
 function chN(v){v=+v;return isFinite(v)?v:0;}
 function chNorm(r){
-  r=chObj(r);var o={rows:cuArr(r.rows).map(function(c){c=chObj(c);return {no:cuS(c.no),kind:cuS(c.kind),st:cuS(c.st)||'Draft',d:isDay(c.d)?c.d:'',job:cuS(c.job),cust:cuS(c.cust),from:cuS(c.from),to:cuS(c.to),sup:cuS(c.sup),supName:cuS(c.supName),sref:cuS(c.sref),veh:cuS(c.veh),n:chN(c.n),qty:chN(c.qty),kg:chN(c.kg),dn:cuS(c.dn),by:cuS(c.by)};}).filter(function(c){return c.no;})};
+  r=chObj(r);var o={rows:cuArr(r.rows).map(function(c){c=chObj(c);return {no:cuS(c.no),kind:cuS(c.kind),st:cuS(c.st)||'Draft',d:isDay(c.d)?c.d:'',job:cuS(c.job),cust:cuS(c.cust),from:cuS(c.from),to:cuS(c.to),sup:cuS(c.sup),supName:cuS(c.supName),sref:cuS(c.sref),veh:cuS(c.veh),n:chN(c.n),qty:chN(c.qty),kg:chN(c.kg),dn:cuS(c.dn),by:cuS(c.by),quote:cuS(c.quote),src:cuS(c.src)};}).filter(function(c){return c.no;})};
   o.jobs=cuArr(r.jobs).map(function(j){j=chObj(j);return {no:cuS(j.no),cust:cuS(j.cust),site:cuS(j.site),siteName:cuS(j.siteName),type:cuS(j.type),ref:cuS(j.ref),st:cuS(j.st)};}).filter(function(j){return j.no;});
+  o.quotes=cuArr(r.quotes).map(function(q){q=chObj(q);return {no:cuS(q.no),cust:cuS(q.cust),siteName:cuS(q.siteName),type:cuS(q.type),st:cuS(q.st)};}).filter(function(q){return q.no;});
   o.sups=cuArr(r.sups).map(function(s){s=chObj(s);return {id:cuS(s.id),name:cuS(s.name),off:s.off===true};}).filter(function(s){return s.id;});
   o.locs=cuArr(r.locs).map(function(l){l=chObj(l);return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type)};}).filter(function(l){return l.code;});
   o.items=cuArr(r.items).map(function(i){i=chObj(i);return {code:cuS(i.code),name:cuS(i.name),size:cuS(i.size),unit:cuS(i.unit),kg:chN(i.kg),set:i.set===true};}).filter(function(i){return i.code;});
@@ -1306,6 +1307,7 @@ function chNorm(r){
 }
 function chItem(c){var a=CH.d?CH.d.items:[];for(var i=0;i<a.length;i++)if(a[i].code===c)return a[i];return null;}
 function chJob(n){var a=CH.d?CH.d.jobs:[];for(var i=0;i<a.length;i++)if(a[i].no===n)return a[i];return null;}
+function chQuote(n){var a=CH.d&&CH.d.quotes||[];for(var i=0;i<a.length;i++)if(a[i].no===n)return a[i];return null;}
 function chSup(id){var a=CH.d?CH.d.sups:[];for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return {id:id,name:id};}
 function chLoc(c){var a=CH.d?CH.d.locs:[];for(var i=0;i<a.length;i++)if(a[i].code===c)return a[i];return {code:c,name:c,type:''};}
 function chKit(c){var k=CH.d&&CH.d.kit[c];return Array.isArray(k)?k:[];}
@@ -1405,15 +1407,16 @@ function chViewDraw(c){
   var v=document.getElementById('cv');if(!v)return;
   var isR=c.kind==='Return',isH=c.kind==='Hire-in',dr=c.st==='Draft',direct=c.kind==='Delivery'&&c.from===CH.d.SUP;
   var sub=c.kind==='Transfer'?'Stock transfer, no job':isH?'Rented in from '+esc(c.supName||c.sup):c.kind==='Off-hire'?'Off-hire, back to '+esc(c.supName||c.sup):esc(c.cust)+(c.siteName?' · '+esc(c.siteName):'');
-  var h='<div class="qhead"><div><h2>'+esc(c.no)+'</h2><div class="sub">'+sub+'</div><div class="qrow" style="margin-top:8px">'+chPill(c)+(direct?'<span class="pill ch-rent">rented · direct from supplier</span>':'')+(c.dn?'<span class="pill ty">damage → '+esc(c.dn)+'</span>':'')+'</div></div><div class="qacts">';
+  var h='<div class="qhead"><div><h2>'+esc(c.no)+'</h2><div class="sub">'+sub+'</div><div class="qrow" style="margin-top:8px">'+chPill(c)+(c.src==='Vendor'?'<span class="pill ch-rent">vendor rental · not our stock</span>':direct?'<span class="pill ch-rent">rented · direct from supplier</span>':'')+(c.dn?'<span class="pill ty">damage → '+esc(c.dn)+'</span>':'')+'</div></div><div class="qacts">';
   if(c.canEdit)h+='<button type="button" class="btn btn-ghost btn-sm" id="cve">'+ic('edit')+'Edit draft</button>';
   h+='<button type="button" class="btn '+(dr?'btn-ghost':'btn-primary')+' btn-sm" id="cvp">'+ic('doc')+(c.pdfOk?'Open PDF':dr?'Draft PDF':'PDF')+'</button>';
   if(c.doc)h+='<a class="btn btn-ghost btn-sm" href="'+esc(c.doc)+'" target="_blank" rel="noopener">'+ic('edit')+'Editable Doc</a>';
   if(c.canPost)h+='<button type="button" class="btn btn-primary btn-sm" id="cvo">'+ic('check')+'Post</button>';
   if(c.canCancel)h+='<button type="button" class="btn btn-danger btn-sm" id="cvc">'+ic('ban')+(dr?'Discard draft':'Cancel challan')+'</button>';
-  h+='</div></div><div class="qgrid"><div class="box"><h4>Challan</h4>'+chKv([['Date',fmtDay(c.d)],['Kind',esc(c.kind)],['From → to',chRoute(c)],['Supplier',c.sup?esc((c.supName||c.sup)+' · '+c.sup):''],['Supplier\'s DO / ref',c.sup?esc(c.sref||'—'):''],
+  h+='</div></div><div class="qgrid"><div class="box"><h4>Challan</h4>'+chKv([['Date',fmtDay(c.d)],['Kind',esc(c.kind)],['From → to',chRoute(c)],[c.src==='Vendor'?'Vendor (rent payable)':'Supplier',c.sup?esc((c.supName||c.sup)+' · '+c.sup):''],[c.src==='Vendor'?'Vendor\'s DO / ref':'Supplier\'s DO / ref',c.sup?esc(c.sref||'—'):''],
     ['Vehicle no.',c.kind==='Transfer'&&!c.veh?'':esc(c.veh||'—')],['Made by',esc(c.by)],['Note',esc(c.notes)]])+'</div>';
-  if(c.job)h+='<div class="box"><h4>Job</h4>'+chKv([['Job',esc(c.job)],['Customer',esc(c.cust)],['Site',esc(c.to&&!isR?c.to:c.from)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref',esc(c.ref||'—')],['Job status',esc(c.jst)]])+'</div>';
+  if(!c.job&&c.quote)h+='<div class="box"><h4>Quote</h4>'+chKv([['Quote',esc(c.quote)],['Customer',esc(c.cust)],['Site',esc(c.to)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref','— none yet (the job is made at Post)']])+'</div>';
+  if(c.job)h+='<div class="box"><h4>Job</h4>'+chKv([['Job',esc(c.job)],['Quote',esc(c.quote||'—')],['Customer',esc(c.cust)],['Site',esc(c.to&&!isR?c.to:c.from)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref',esc(c.ref||'—')],['Job status',esc(c.jst)]])+'</div>';
   h+='</div>';
   if(c.st==='Cancelled')h+='<div class="msg warn">'+ic('alert')+'<div>Cancelled'+(c.reason?' — '+esc(c.reason):'')+'. Its stock moves (if it was posted) were reversed.</div></div>';
   if(dr&&c.unfin)h+='<div class="msg warn">'+ic('alert')+'<div>Its stock moves went in but the post did not finish. Press <b>Post</b> to finish it — nothing moves twice.</div></div>';
@@ -1453,6 +1456,7 @@ function chSel(id,lab,opts,v,hint){return '<label class="fld"><span>'+lab+'</spa
 function chMsg(id,m,k){var el=document.getElementById(id);if(!el)return;el.innerHTML=m?'<div class="msg '+(k||'err')+'">'+ic('alert')+'<div>'+m+'</div></div>':'';if(m&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}
 function chSend(c,isNew,mid,btn){
   var p={kind:c.kind,job:c.job,from:c.from,to:c.to,sup:c.sup,sref:c.sref,date:c.d,veh:c.veh,notes:c.notes,lines:c.lines};
+  if(c.quote)p.quote=c.quote;if(c.src){p.src=c.src;if(c.newSup)p.newSup=c.newSup;}
   if(c.no){p.no=c.no;p.ev=c.ev;}
   busyBtn(btn,true,'Saving…');
   call('officeChallanSave',S.token,p).then(function(r){busyBtn(btn,false);r=chObj(r);var no=cuS(r.no);CH.d=null;chView(no);toast((isNew?'Draft '+no+' saved.':'Draft saved.')+(r.warn?' (The log line could not be written.)':''));},
@@ -1464,14 +1468,19 @@ function chSend(c,isNew,mid,btn){
 function chEdit(c0,kind){
   var isT=kind==='Transfer',isH=kind==='Hire-in',isO=kind==='Off-hire',yk=chY(kind),isNew=!c0,D=CH.d;
   if(!D){chLoad(function(){chEdit(c0,kind);});return;}
-  var c=c0?{no:c0.no,ev:c0.ev,kind:kind,job:c0.job,from:c0.from,to:c0.to,sup:c0.sup,sref:c0.sref,d:c0.d,veh:c0.veh,notes:c0.notes,lines:c0.lines.map(function(l){return {it:l.it,q:l.q};})}
-    :{kind:kind,job:'',from:isH?D.SUP:'LOC-YARD',to:isT?'':isH?'LOC-YARD':'',sup:'',sref:'',d:D.today,veh:'',notes:'',lines:[{it:'',q:''}]};
-  var oj=D.jobs.filter(function(j){return kind==='Sale'?j.type==='Sale':j.type!=='Sale';});
+  var c=c0?{no:c0.no,ev:c0.ev,kind:kind,job:c0.job,quote:c0.job?'':c0.quote,src:c0.src,from:c0.from,to:c0.to,sup:c0.sup,sref:c0.sref,d:c0.d,veh:c0.veh,notes:c0.notes,lines:c0.lines.map(function(l){return {it:l.it,q:l.q};})}
+    :{kind:kind,job:'',quote:'',src:'',from:isH?D.SUP:'LOC-YARD',to:isT?'':isH?'LOC-YARD':'',sup:'',sref:'',d:D.today,veh:'',notes:'',lines:[{it:'',q:''}]};
+  var oj=D.jobs.filter(function(j){return kind==='Sale'?j.type==='Sale':j.type!=='Sale';}),isD=kind==='Delivery';
+  var oq=D.quotes.filter(function(q){return kind==='Sale'?q.type==='Sale':q.type!=='Sale';});
+  var vo=[{v:'',t:'— pick the vendor —'}].concat(D.sups.filter(function(s){return !s.off;}).map(function(s){return {v:s.id,t:s.name+' · '+s.id};})).concat([{v:'__new',t:'+ New vendor…'}]);
   var yl=D.locs.filter(function(l){return l.type==='Yard'||((isT||isO)&&l.type==='Repair')||(isO&&l.type==='Lost');}).map(function(l){return {v:l.code,t:l.code+' · '+l.name};});
   var so=[{v:'',t:'— pick the supplier —'}].concat(D.sups.filter(function(s){return isO||!s.off;}).map(function(s){return {v:s.id,t:s.name+' · '+s.id+(s.off?' (inactive)':'')};}));
   var sub=isT?'Yard ↔ repair / rack ↔ rack, no job.':isH?'Items rented in from a supplier, received into our yard. They stay the supplier\'s until off-hired.':isO?'Rented items going back to their supplier. Only that supplier\'s items can be listed.':kind==='Sale'?'Sale jobs only, from our own stock (rented items can\'t be sold).':'Open jobs only. From the yard takes own stock first, then rented; or pick “Direct from a rental supplier”.';
   var h='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="ceb">'+ic('back')+' '+(isNew?'Challans':'Back')+'</button></div><div class="qhead"><div><h2>'+(isNew?'New '+esc(kind.toLowerCase()):'Edit '+esc(c.no))+'</h2><div class="sub">'+sub+' Saved as a draft; stock moves on Post.</div></div></div><div id="cem"></div><div class="box" style="margin-bottom:12px"><h4>Header</h4>';
-  if(!yk)h+='<div class="f2">'+chSel('cej','Job',[{v:'',t:'— pick an open job —'}].concat(oj.map(function(j){return {v:j.no,t:j.no+' · '+j.cust+' · '+j.type};})),c.job,kind==='Sale'?'Goods leave stock (sold).':'Sale jobs use “New sale”.')+chFld('cet','To (job site)','','picked from the job','text','',true)+'</div>';
+  if(!yk)h+='<div class="f2">'+chSel('cej','Job / quote',[{v:'',t:'— pick an open job or a quote —'}].concat(oj.map(function(j){return {v:j.no,t:j.no+' · '+j.cust+' · '+j.type+(j.ref?' · PO/WO '+j.ref:'')};}),oq.map(function(q){return {v:'Q:'+q.no,t:q.no+' · '+q.cust+' · quote, no PO yet'};})),c.job||(c.quote?'Q:'+c.quote:''),kind==='Sale'?'Goods leave stock (sold).':'Sale jobs use “New sale”.')+chFld('cet','To (job site)','','picked from the job','text','',true)+'</div>';
+  if(isD)h+='<div class="f2">'+chSel('cesrc','Material source',[{v:'',t:'Own stock (default)'},{v:'Vendor',t:'Vendor rental (not our stock)'}],c.src,'Vendor rental: no stock moves; the vendor prints on the challan for the rent owed.')+'<div id="cevw">'+chSel('cevd','Vendor',vo,c.src?c.sup:'')+'</div></div>'+
+    '<div id="cevn"><div class="f2">'+chFld('cevnn','New vendor name','','e.g. Dhaka Scaffold Rental')+chFld('cevnp','Vendor phone','','e.g. 01700-000000')+'</div><div class="f2">'+chFld('cevna','Vendor address','','')+'</div></div>'+
+    '<div class="f2" id="cevx">'+chFld('cevr','Vendor\'s challan / DO no.',c.src?c.sref:'','e.g. VDO-1021','text','optional')+'</div>';
   h+='<div class="ch-f3">';
   if(isH)h+=chSel('ceto','Received into',yl,c.to);else h+=chSel('cef','From',kind==='Delivery'?yl.concat([{v:D.SUP,t:'Direct from a rental supplier → site'}]):yl,c.from);
   if(isT)h+=chSel('ceto','To',[{v:'',t:'— pick —'}].concat(yl),c.to);else if(isO)h+=chFld('ceto2','To','Supplier (leaves our yard)','','text','',true);
@@ -1484,30 +1493,31 @@ function chEdit(c0,kind){
     '<div class="dfoot"><button type="button" class="btn btn-ghost" id="cex">Cancel</button><button type="button" class="btn btn-primary" id="ces">'+ic('check')+(isNew?'Save draft':'Save changes')+'</button></div>';
   shell((yk?'Yard · ':'Projects & sites · ')+(isNew?'New ':'Edit ')+kind.toLowerCase(),h);
   var box=document.getElementById('cels'),g=function(i){var x=document.getElementById(i);return x?x.value.trim():'';};
-  var fromV=function(){return isH?D.SUP:g('cef');};
-  var supShow=function(){document.getElementById('cesw').style.display=(isH||isO||fromV()===D.SUP)?'':'none';};
-  var jobTo=function(){var t=document.getElementById('cet');if(!t)return;var j=chJob(g('cej'));t.value=j?(kind==='Sale'?'Sold (leaves stock)':(j.site||'site')+(j.siteName?' · '+j.siteName:'')):'';};
+  var isV=function(){return isD&&g('cesrc')==='Vendor';},fromV=function(){return isH?D.SUP:isV()?'':g('cef');};
+  var supShow=function(){var V=isV(),f=document.getElementById('cef'),sh=function(i,on){var e=document.getElementById(i);if(e)e.style.display=on?'':'none';};sh('cevw',V);sh('cevx',V);sh('cevn',V&&g('cevd')==='__new');if(f)f.parentNode.style.display=V?'none':'';document.getElementById('cesw').style.display=(isH||isO||fromV()===D.SUP)?'':'none';};
+  var jobTo=function(){var t=document.getElementById('cet');if(!t)return;var v=g('cej'),j=chJob(v),q=!j&&v.indexOf('Q:')===0?chQuote(v.slice(2)):null;t.value=j?(kind==='Sale'?'Sold (leaves stock)':(j.site||'site')+(j.siteName?' · '+j.siteName:'')):q?(kind==='Sale'?'Sold (leaves stock)':'site of '+q.no+(q.siteName?' · '+q.siteName:'')):'';};
   function addLine(l){var d=document.createElement('div');d.className='ch-ol';
     d.innerHTML='<input class="inp np li" list="cedl" placeholder="Item code" value="'+esc(l.it)+'" aria-label="Item"><input class="inp np lq" type="number" min="'+(isO?'0.01':'1')+'" step="'+(isO?'0.01':'1')+'" placeholder="Qty" value="'+esc(l.q)+'" aria-label="Qty"><div class="ch-av"></div><button type="button" class="ch-mini" aria-label="Remove line">'+ic('cx')+'</button>';
     d.querySelector('.ch-mini').onclick=function(){d.parentNode.removeChild(d);info();};d.querySelector('.li').oninput=info;d.querySelector('.lq').oninput=info;box.appendChild(d);}
   function rows(){return [].map.call(box.querySelectorAll('.ch-ol'),function(d){return {d:d,it:d.querySelector('.li').value.trim().toUpperCase(),q:d.querySelector('.lq').value.trim()};});}
   function info(){var from=fromV(),sup=g('cesu'),rs=rows(),need=chParts(rs.filter(function(r){return chItem(r.it);}).map(function(r){return {it:r.it,q:+r.q||0};}));supShow();
     rs.forEach(function(r){var i=chItem(r.it),el=r.d.querySelector('.ch-av');if(!r.it){el.innerHTML='';return;}if(!i){el.innerHTML='<span class="ch-neg">Unknown item</span>';return;}
-      var one=function(k){var n=need[k]||0;if(isH)return esc(k)+' '+stQ(n)+' coming in';if(from===D.SUP)return esc(k)+' '+stQ(n)+' · <i>direct from '+esc(sup?chSup(sup).name:'the supplier')+'</i>';
+      var one=function(k){var n=need[k]||0;if(isV())return esc(k)+' '+stQ(n)+' · <i>vendor rental — not our stock</i>';if(isH)return esc(k)+' '+stQ(n)+' coming in';if(from===D.SUP)return esc(k)+' '+stQ(n)+' · <i>direct from '+esc(sup?chSup(sup).name:'the supplier')+'</i>';
         var pl=chPl(k,from),own=Math.max(0,chN(pl[''])),rt=Object.keys(pl).filter(function(w){return w&&chN(pl[w])>0&&(!isO||w===sup);}),u=chUsable(kind,sup,k,from);
         var pa=(isO?[]:['own '+stQ(own)]).concat(rt.map(function(w){return '<i>'+esc(chSup(w).name)+' '+stQ(pl[w])+'</i>';}));
         return (u<n-1e-9?'<span class="ch-neg">'+esc(k)+' need '+stQ(n)+', usable '+stQ(u)+'</span>':esc(k)+' need '+stQ(n)+' · <b>ok</b>')+' · '+(pa.join(' + ')||'none here')+(kind==='Sale'&&rt.length?' (rented can\'t be sold)':'');};
       el.innerHTML=i.set?'<b style="color:var(--violet)">Set</b> → '+chKit(r.it).map(function(p){return one(p.p);}).join(' · '):esc(i.name)+' · '+one(r.it);});}
   c.lines.forEach(addLine);jobTo();info();
   document.getElementById('cea').onclick=function(){addLine({it:'',q:''});};
-  var e;if((e=document.getElementById('cef')))e.onchange=info;document.getElementById('cesu').onchange=info;if((e=document.getElementById('cej')))e.onchange=jobTo;
+  var e;if((e=document.getElementById('cef')))e.onchange=info;document.getElementById('cesu').onchange=info;if((e=document.getElementById('cesrc')))e.onchange=info;if((e=document.getElementById('cevd')))e.onchange=info;if((e=document.getElementById('cej')))e.onchange=jobTo;
   if((e=document.getElementById('celd')))e.onclick=function(){var s=g('cesu'),from=g('cef');if(!s){chMsg('cem','Pick the supplier first.');return;}
     var ks=Object.keys(D.pool).filter(function(k){return chN(chPl(k,from)[s])>0;});if(!ks.length){toast('None of '+chSup(s).name+'\'s items are at '+from+'.');return;}
     box.innerHTML='';ks.sort().forEach(function(k){addLine({it:k,q:chPl(k,from)[s]});});info();};
   document.getElementById('ceb').onclick=document.getElementById('cex').onclick=function(){if(isNew)viewCh(CH.tile);else chView(c.no);};
   document.getElementById('ces').onclick=function(){var from=fromV(),needSup=isH||isO||from===D.SUP;chMsg('cem','');
     [].forEach.call(box.querySelectorAll('.inp'),function(x){x.classList.remove('bad');});
-    if(!yk&&!g('cej'))return chMsg('cem','Pick the job.');
+    if(!yk&&!g('cej'))return chMsg('cem','Pick the job or quote.');
+    if(isV()){if(!g('cevd'))return chMsg('cem','Pick the vendor (or + New vendor).');if(g('cevd')==='__new'&&(!g('cevnn')||!g('cevnp')||!g('cevna')))return chMsg('cem','New vendor: name, phone and address are needed.');}
     if(isT&&(!g('ceto')||g('cef')===g('ceto')))return chMsg('cem','Pick a To location different from From.');
     if(needSup&&!g('cesu'))return chMsg('cem','Pick the supplier the items are rented from.');
     if((isH||from===D.SUP)&&!g('cesr'))return chMsg('cem','Enter the supplier\'s challan / DO no. — Accounts matches it to their bill.');
@@ -1517,6 +1527,8 @@ function chEdit(c0,kind){
       var fr=isO&&!(chItem(r.it)||{}).set;if(fr?(!(q>0)||Math.abs(Math.round(q*100)-q*100)>1e-6):(!(q>=1)||q%1)){r.d.querySelector('.lq').classList.add('bad');return chMsg('cem','Line '+(i+1)+': quantity must be '+(fr?'above 0 (2 decimals at most).':'a whole number above 0.'));}
       if(seen[r.it])return chMsg('cem','Line '+(i+1)+': '+esc(r.it)+' is on two lines — put it on one.');seen[r.it]=1;}
     c.job=yk?'':g('cej');c.from=from;c.to=isT||isH?g('ceto'):'';c.sup=needSup?g('cesu'):'';c.sref=needSup?g('cesr'):'';c.d=g('ced');c.veh=g('cev');c.notes=g('cen');
+    var jv=g('cej');if(!yk&&jv.indexOf('Q:')===0){c.job='';c.quote=jv.slice(2);}else c.quote='';c.src='';c.newSup=null;
+    if(isV()){var vd=g('cevd');c.src='Vendor';c.sup=vd==='__new'?'':vd;c.newSup=vd==='__new'?{name:g('cevnn'),phone:g('cevnp'),addr:g('cevna')}:null;c.sref=g('cevr');}
     c.lines=rs.map(function(r){return {it:r.it,q:+r.q};});
     chSend(c,isNew,'cem',document.getElementById('ces'));};
 }
@@ -1554,12 +1566,12 @@ function chRet(c0){
     chSend(c,isNew,'crm',document.getElementById('crs'));};
 }
 function chPostDlg(c){
-  var vr=c.kind==='Delivery'||c.kind==='Sale';
-  var my=openDlg('<h3 id="dlgt">Post '+esc(c.no)+'?</h3><p class="sub">Stock moves now and the PDF is made. A posted challan can only be cancelled, not edited.</p><div id="derr"></div>'+(vr?chFld('cpv','Vehicle no.',c.veh,'e.g. DM-TA 11-4821','text','prints on the challan'):'')+
+  var vr=c.kind==='Delivery'||c.kind==='Sale',vd=c.src==='Vendor';
+  var my=openDlg('<h3 id="dlgt">Post '+esc(c.no)+'?</h3><p class="sub">'+(vd?'Vendor rental: no stock moves; the PDF is made.':'Stock moves now and the PDF is made.')+' A posted challan can only be cancelled, not edited.</p><div id="derr"></div>'+(vr?chFld('cpv','Vehicle no.',c.veh,'e.g. DM-TA 11-4821','text','prints on the challan'):'')+
     '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Back</button><button type="button" class="btn btn-primary" id="dyes">'+ic('check')+'Post + make PDF</button></div>');
   var yes=document.getElementById('dyes');document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
   yes.onclick=function(){if(DLG.busy)return;var pv=document.getElementById('cpv'),veh=pv?pv.value.trim():'';dlgErr('');
-    if(pv&&!veh){pv.classList.add('bad');return dlgErr('Vehicle no. is needed to post a '+esc(c.kind.toLowerCase())+'.');}
+    if(pv&&!veh&&!vd){pv.classList.add('bad');return dlgErr('Vehicle no. is needed to post a '+esc(c.kind.toLowerCase())+'.');}
     DLG.busy=true;busyBtn(yes,true,'Posting…');var w=null;if(LIVE)try{w=window.open('','_blank');}catch(x){}
     call('officeChallanPost',S.token,c.no,c.ev,veh).then(function(r){if(my!==DLG.seq){if(w)try{w.close();}catch(x){}return;}DLG.busy=false;closeDlg();r=chObj(r);var u=cuS(r.url);
       if(/^https:\/\/(docs|drive)\.google\.com\//.test(u)){if(w)w.location.href=u;}else if(w)try{w.close();}catch(x){}
