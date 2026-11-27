@@ -1531,7 +1531,7 @@ function oQeOld_(db, no) { // lines the 7 columns can't show without changing th
 }
 function oQeEv_(db, q) {
   var L = oQLines_(db, q.QuoteNo).map(function (l) { return [l.ItemCode, l.Description, l.Unit, l.Qty, l.Months, l.Billing, l.Rate, l.Optional, l.Selected, l.DimL, l.DimW, l.DimH, l.DimN, l.RateBasis].map(function (x) { return x instanceof Date ? x.getTime() : String(x == null ? '' : x); }); });
-  var h = ['Rev', 'Status', 'QuoteType', 'CustID', 'SiteID', 'QuoteDate', 'AdvancePct', 'VATPct', 'Attention', 'Subject', 'PreparedBy', 'ValidityDays', 'YourRef', 'Notes'].map(function (k) { var x = q[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); });
+  var h = ['Rev', 'Status', 'QuoteType', 'CustID', 'SiteID', 'QuoteDate', 'AdvancePct', 'VATPct', 'Attention', 'Subject', 'PreparedBy', 'ValidityDays', 'YourRef', 'Notes', 'PicID'].map(function (k) { var x = q[k]; return x instanceof Date ? x.getTime() : String(x == null ? '' : x); });
   return oQHash_(JSON.stringify([h, L]));
 }
 function oQeSizeOf_(l, items) { var d = typeof qfDimTxt_ === 'function' ? qfDimTxt_(l) : '', it = items[String(l.ItemCode)]; return d || (it && !blank(it.Size) ? String(it.Size) : ''); }
@@ -1555,14 +1555,14 @@ function officeQuoteForm(token, no) {
   var kits = {};
   list.forEach(function (i) { if (i.isSet && typeof kitParts_ === 'function') { try { kits[i.code] = kitParts_(db, i.code).map(function (p) { return [p.item, p.qty]; }); } catch (e) { /* a set without parts: no kit */ } } });
   var units = uiList_(db, 'Unit').map(String);
-  var out = { money: M, today: oDayOf_(env.now()), myStaff: String(L.staff || ''), set: oQeSet_(db, q), units: units, items: list, kits: kits,
+  var out = { picOk: db.headers('Quotes').indexOf('PicID') >= 0, money: M, today: oDayOf_(env.now()), myStaff: String(L.staff || ''), set: oQeSet_(db, q), units: units, items: list, kits: kits,
     customers: db.rows('Customers').filter(function (c) { return !blank(c.CustID) && (oCuSt_(c) === 'Active' || (q && String(c.CustID) === String(q.CustID))); }).map(oQeCustOut_), // M1: Inactive ones are not offered (an edit keeps its own)
     sites: db.rows('Sites').filter(function (s) { return !blank(s.SiteID); }).map(oQeSiteOut_),
     staff: db.rows('Staff').filter(function (s) { return !blank(s.StaffID) && !blank(s.Name); }).map(function (s) { return { id: String(s.StaffID), name: oUncell_(s.Name) }; }), quote: null };
   if (q) {
     var d0 = oQDn_(q.QuoteDate), vd = qtHas_(q, 'ValidityDays') ? num(q.ValidityDays) : out.set.validDays;
     out.quote = { no: String(q.QuoteNo), rev: num(q.Rev), status: String(q.Status || 'Draft'), type: oQType_(q) === 'Service' ? 'Project' : oQType_(q), cust: String(q.CustID || ''), site: String(q.SiteID || ''),
-      attention: oUncell_(q.Attention), subject: oUncell_(q.Subject), date: oQDay_(d0), valid: d0 == null ? '' : oQDay_(d0 + vd), prep: String(q.PreparedBy || ''), adv: r2(num(q.AdvancePct) * 100), ev: oQeEv_(db, q), svc: oQType_(q) === 'Service',
+      attention: oUncell_(q.Attention), subject: oUncell_(q.Subject), date: oQDay_(d0), valid: d0 == null ? '' : oQDay_(d0 + vd), prep: String(q.PreparedBy || ''), adv: r2(num(q.AdvancePct) * 100), ev: oQeEv_(db, q), svc: oQType_(q) === 'Service', pic: oQPicView_(db, q),
       lines: oQLines_(db, q.QuoteNo).map(function (l) {
         var mo = num(l.Months) > 0, lump = String(l.RateBasis) === 'Lump sum', dim = !blank(l.DimL) || !blank(l.DimH);
         var o = { code: String(l.ItemCode || ''), desc: oUncell_(l.Description), size: oQeSizeOf_(l, items), qty: num(l.Qty), unit: String(l.Unit || '') + (mo ? ' / month' : ''),
@@ -2816,7 +2816,7 @@ function oQeArgs_(db, d, q, env) {
     if (!blank(q.MinMonths) && (type === 'Rental' || type === 'Project')) h.MinMonths = num(q.MinMonths);
     ['VATPct'].concat(typeof QF4_COLS_ !== 'undefined' ? QF4_COLS_ : []).forEach(function (k) { if (!blank(q[k])) h[k] = num(q[k]); });
   }
-  return { a: { quoteNo: q ? String(q.QuoteNo) : '', header: h, lines: lines, customer: { mode: 'existing', id: String(cu.CustID) }, site: { mode: 'existing', id: String(si.SiteID) } }, days: dv - dd };
+  return { a: { quoteNo: q ? String(q.QuoteNo) : '', header: h, lines: lines, customer: { mode: 'existing', id: String(cu.CustID) }, site: { mode: 'existing', id: String(si.SiteID) } }, days: dv - dd, pic: oQPicArg_(db, d, q, env) };
 }
 // W4g: would this save change any cell? The same save (every wrapper of saveQuoteFull) runs on a copy-on-read shadow of the
 // lock's batch (a tab's rows are copied when first read; writes stay in the copy). Any error, another type, other validity days,
@@ -2858,6 +2858,45 @@ function oW4gSame_(db, q, x, ty0) {
     return true;
   } catch (e) { return false; }
 }
+// QP (27 Nov): a picture on the quote for visual reference (PNG / JPG, max 1 MB). Quotes.PicID = its Drive file (folder Quote pictures).
+// officeQuotePicPut uploads it (-> id, recorded OQPIC:<id>); Save then carries pic: that id ('' = none; no pic = kept). Set-up: upgradeQPLive.
+var OQPIC_ADD_ = null; // tests: function (db, name, mime, bytes) -> file id
+function oQPicOf_(db, q) { return q && db.headers('Quotes').indexOf('PicID') >= 0 && !blank(q.PicID) ? String(q.PicID).trim() : ''; }
+function oQPicView_(db, q) {
+  var id = oQPicOf_(db, q); if (!id) return null;
+  var d = oSgDrv_(), i = d.info(id), b = i && /^image\/(png|jpeg)$/.test(i.mime) ? d.b64(id) : null;
+  return { id: id, img: b ? 'data:' + i.mime + ';base64,' + b : '' };
+}
+function oQPicArg_(db, d, q, env) {
+  var cur = oQPicOf_(db, q);
+  if (d.pic === undefined || d.pic === null) return cur;
+  if (typeof d.pic !== 'string' || d.pic.length > 80) oFail_('BADINPUT|picture');
+  if (d.pic === '' || d.pic === cur) return d.pic;
+  var i = db.headers('Quotes').indexOf('PicID') >= 0 && /^[\w-]{6,80}$/.test(d.pic) && env.get('OQPIC:' + d.pic) ? oSgDrv_().info(d.pic) : null;
+  if (!i || !/^image\/(png|jpeg)$/.test(i.mime)) oFail_('BADINPUT|picture');
+  return d.pic;
+}
+function officeQuotePicPut(token, b64) {
+  var L = officeGate_(token, OQ_NEED_), env = oEnv_();
+  if (!oCanSeeMoney_(oAcc_(L))) oFail_('NOACCESS');
+  oSgSlow_(env, L.email);
+  var bytes = oB64Dec_(b64);
+  if (!bytes) oFail_(typeof b64 === 'string' && b64.length > Math.ceil(OSG_MAX_ / 3) * 4 + 4 ? 'BADIMG|size' : 'BADIMG|type');
+  var im = oSgImg_(bytes);
+  if (!oSgDrv_().decodes(bytes, im.mime)) oFail_('BADIMG|broken');
+  var db = env.db(); if (!db) oFail_('BUSY');
+  if (db.headers('Quotes').indexOf('PicID') < 0) oFail_('NOACCESS');
+  var name = 'Quote_picture_' + env.now() + (im.mime === 'image/png' ? '.png' : '.jpg');
+  var id = OQPIC_ADD_ ? OQPIC_ADD_(db, name, im.mime, bytes)
+    : subFolder_(opsFolder_(db), 'Quote pictures').createFile(Utilities.newBlob(bytes.map(function (x) { return x << 24 >> 24; }), im.mime, name)).getId();
+  env.put('OQPIC:' + id, { by: L.email, at: env.now() });
+  return { id: id };
+}
+function upgradeQPLive() {
+  var db = new SheetDb(), add = db.ensureColumn('Quotes', 'PicID');
+  if (add) { var qs = db.sheet('Quotes'), qh = db.headers('Quotes'); qs.getRange(1, qh.indexOf('PicID') + 1, qs.getMaxRows(), 1).clearDataValidations(); log_(db, 'Upgrade QP', '', 'Quotes + PicID'); }
+  SpreadsheetApp.flush(); Logger.log(add ? 'Done: Quotes + PicID' : 'Already up to date.');
+}
 function officeQuoteSave(token, d) {
   officeGate_(token, OQ_NEED_);
   if (!d || typeof d !== 'object' || Array.isArray(d)) oFail_('BADINPUT|quote');
@@ -2872,7 +2911,7 @@ function officeQuoteSave(token, d) {
     oQeRate_(env, L);
     if (!oIsDir_(oAcc_(L)) && !(d.prep == null || d.prep === '' || (typeof d.prep === 'string' && !!L.staff && d.prep === String(L.staff)))) oFail_('BADINPUT|prepared by'); // D2: own name only
     var x = oQeArgs_(db, d, q, env), was = q ? String(q.Status || 'Draft') : '', ty0 = q ? oQType_(q) : '';
-    if (q && oW4gSame_(db, q, x, ty0)) { // W4g: nothing would change -> no row write, no Log, no refetch; the view from this lock's batch
+    if (q && x.pic === oQPicOf_(db, q) && oW4gSame_(db, q, x, ty0)) { // W4g: nothing would change -> no row write, no Log, no refetch; the view from this lock's batch
       var o5 = { no: String(q.QuoteNo), rev: num(q.Rev), status: String(q.Status || 'Draft'), was: was, changed: false, ev: d.ev };
       if (d.pdf !== true) try { var db5 = env.db() || db; o5.view = oQView_(db5, env, oQRow_(db5, q.QuoteNo), L); } catch (e) { delete o5.view; }
       return o5;
@@ -2888,7 +2927,8 @@ function officeQuoteSave(token, d) {
     var ref = String(r.ref); if (!q) made = { no: ref };
     var d2 = env.db() || db, q2 = must(d2, 'Quotes', 'QuoteNo', ref), p = {};
     if (d2.headers('Quotes').indexOf('ValidityDays') >= 0) { var std = num(S(d2, 'QuoteValidityDays', 30)), v = x.days === std ? '' : x.days; if (String(q2.ValidityDays == null ? '' : q2.ValidityDays) !== String(v)) p.ValidityDays = v; }
-    var changed = !q || oQeEv_(d2, q2) !== d.ev || ('ValidityDays' in p); // a save that changed nothing makes no new Rev
+    if (d2.headers('Quotes').indexOf('PicID') >= 0 && oQPicOf_(d2, q2) !== x.pic) p.PicID = x.pic; /* QP: the quote's picture */
+    var changed = !q || oQeEv_(d2, q2) !== d.ev || ('ValidityDays' in p) || ('PicID' in p); // a save that changed nothing makes no new Rev
     if (q && changed) oQPdfStale_(env, d2, ref, true); else if (rk) env.del(rk); // CR7 first, before any other write; CR10 record kept only for a change
     if (q && ty0 !== String(x.a.header.QuoteType)) { // CR11: another type = its standard terms (this quote's changes dropped)
       uiDelRows_(d2, 'QuoteTerms', qtRows_(d2, ref));

@@ -375,8 +375,10 @@ function cancelChallan(db, no) {
     }));
     dm.forEach(function (x) { db.update('Damage', x, { Status: 'Cancelled' }); });
   }
-  var pc = { Status: 'Cancelled' }; if (c.Status !== 'Posted' && db.headers('Challans').indexOf('PDF') >= 0 && !blank(c.PDF)) pc.PDF = ''; // CR M8 run 4: a discarded draft's DRAFT PDF is no longer linked
+  var wasP = c.Status === 'Posted', pc = { Status: 'Cancelled' }; if (c.Status !== 'Posted' && db.headers('Challans').indexOf('PDF') >= 0 && !blank(c.PDF)) pc.PDF = ''; // CR M8 run 4: a discarded draft's DRAFT PDF is no longer linked
   db.update('Challans', c, pc);
+  var jb = wasP && c.Kind === 'Return' && !blank(c.JobNo) ? find(db.rows('Jobs'), 'JobNo', c.JobNo) : null; /* CR M8 run 5: a cancelled final Return puts the job back on hire */
+  if (jb && jb.Status === 'Off-hire') { var lf = onHire(db, jb.JobNo); if (Object.keys(lf).some(function (k) { return lf[k] > 0; })) db.update('Jobs', jb, { Status: 'On hire' }); }
   log_(db, 'Challan cancelled', no, '');
 }
 // Hire events: loose parts from StockMoves (moves tagged with a set are left out); sets from the set lines of posted challans.

@@ -129,6 +129,7 @@ function specQuote(db, quoteNo) {
   b.push({ t: 'pairs', rows: [['To', cu.Name, 'Quotation No.', no], ['Attention', q.Attention, 'Date', longDate(q.QuoteDate)], ['Address', cu.Address, 'Valid until', longDate(valid)],
     ['Phone / Email', phoneMail_(cu), 'Your reference', q.YourRef], ['Client BIN', cu.BIN, 'Project / Site', site]] });
   b.push({ t: 'p', text: [['Subject:  ', { bold: true }], [blank(q.Subject) ? 'Quotation for ' + typeTxt + (site ? ' at ' + site : '') : String(q.Subject), { bold: true }]], before: 12, after: 9 });
+  if (!blank(q.PicID)) b.push({ t: 'pic', f: String(q.PicID).trim(), w: 220, h: 165, cap: 'Picture for visual reference only - not to scale.' }); // QP
   b.push({ t: 'p', text: 'Dear Sir / Madam,', after: 6 });
   b.push({ t: 'p', text: type === 'Sale'
     ? 'Thank you for your enquiry. We are pleased to submit our offer for the supply of the goods below. This quotation, once accepted, forms a binding contract on the terms set out in it.'
@@ -387,6 +388,10 @@ var BLOCKS_ = {
     table_(body, b.rows.map(function (r) { return [L(r[0]), { v: dash(r[1]) }, L(r[2]), { v: dash(r[3]) }]; }), [80, 161, 80, 161]);
   },
   p: function (body, b) { para_(body, b.text, b); },
+  pic: function (body, b) { /* QP: the quote's picture; a file that can't be read = no picture (the PDF is still made) */
+    var p = styleP_(body.appendParagraph(''), '', { align: 'C', before: 2, after: 2, line: 1 });
+    if (typeof oSgImgInto_ === 'function' && oSgImgInto_(p, b.f, b.w, b.h)) para_(body, b.cap, { size: 8, italic: true, color: 'grey', align: 'C', after: 8 });
+  },
   h: function (body, b) { para_(body, b.text, { size: 10.5, bold: true, color: 'teal', before: 15, after: 6 }); },
   grid: function (body, b) {
     var head = b.cols.map(function (c) { return { v: c.h, fill: 'ink', color: 'white', bold: true, align: c.al }; });

@@ -156,7 +156,7 @@ function qaPdf_(db, q, o) {
     p = { error: e.message };
   }
   if (!p && o && o.later) { // CR M8 run 4: marked Queued: a new request meanwhile (Requested) is not overwritten by this result
-    var mk = 'Queued ' + qaStamp_(); try { db.update('Quotes', must(db, 'Quotes', 'QuoteNo', no), { AppPdf: mk }); } catch (e) { mk = ''; }
+    var mk = 'Queued ' + qaStamp_(); try { db.update('Quotes', must(db, 'Quotes', 'QuoteNo', no), { AppPdf: mk }); } catch (e) { return { no: no + ' PDF', posted: false }; } /* CR M8 run 5: no marker = not queued (the request stays for the next run) */
     o.later.push({ k: 'q', no: String(no), by: q.AppPdfBy || 'app', m: mk }); return { no: no + ' PDF', posted: false };
   } // CR M8 run 2: made after the locks (qaLater_)
   if (!p) p = qaPdfMake_(db, no, o);
