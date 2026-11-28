@@ -87,6 +87,26 @@ V(`PD.insert('Quotes', { QuoteNo: 'CAE/Q/2026/951', Rev: 0, QuoteType: 'Rental',
   ok('F3a PDF button shows its own busy state (E3b-4)', $('#cvp') && $('#cvp').disabled && /PDF|Opening/.test($('#cvp').textContent), $('#cvp') && $('#cvp').outerHTML.slice(0, 200));
   ok('F3b Cancel button untouched while the PDF is made (E3b-4)', !$('#cvc') || (!$('#cvc').disabled && $('#cvc').textContent === cvc0), $('#cvc') && $('#cvc').outerHTML.slice(0, 200));
   await wait(300);
+  // r31 F3: item picture field (edit dialog) + card box
+  V(`PD.ensureColumn('Items', 'PicID'); var PF = {}, PFN = 0; OIPIC_ADD_ = function (d, n, m, b) { var id = 'PGPIC' + (++PFN) + 'abcdef'; PF[id] = { b: b, m: m }; return id; };
+    OSG_DRV_ = { file: function (id) { return PF[id] || null; }, info: function (id) { var f = PF[id]; return f ? { size: f.b.length, mime: f.m, name: 'x' } : null; }, blob: function () { return null; },
+      b64: function (id) { return PF[id] ? Utilities.base64Encode(PF[id].b) : null; }, add: function () { throw new Error('no'); }, bin: function () { return true; }, decodes: function () { return true; } };`);
+  await login('yard@p.com'); w.viewItem('RL-STD-20'); await wait(150);
+  ok('P3a item card: Picture box, no picture yet', /Picture/.test($('#iv').textContent) && /No picture/.test($('#iv').textContent), $('#iv').textContent.slice(0, 200));
+  click($('#ie')); await wait(30);
+  ok('P3b edit dialog: picture field with Add picture', $('#xpic') && /Add picture/.test($('#xpic').textContent) && $('#xpf'), $('#xpic') && $('#xpic').innerHTML);
+  const be = n => [n >>> 24 & 255, n >>> 16 & 255, n >>> 8 & 255, n & 255], dd = [120, 1];
+  const png = [137, 80, 78, 71, 13, 10, 26, 10].concat(be(13), [73, 72, 68, 82], be(400), be(300), [8, 6, 0, 0, 0], [1, 2, 3, 4], be(dd.length), [73, 68, 65, 84], dd, [5, 6, 7, 8], be(0), [73, 69, 78, 68], [174, 66, 96, 130]);
+  const f = new w.File([new Uint8Array(png)], 'a.png', { type: 'image/png' }), inp = $('#xpf');
+  Object.defineProperty(inp, 'files', { value: [f], configurable: true }); inp.dispatchEvent(new w.Event('change', { bubbles: true })); await wait(200);
+  ok('P3c upload: thumb + Change / Remove shown, Save free again', $('#xpic img') && /Change/.test($('#xpic').textContent) && $('#xpx') && !$('#dyes').disabled, [$('#xpic') && $('#xpic').innerHTML.slice(0, 200), toast()]);
+  click($('#dyes')); await wait(300);
+  const pid = V(`String(must(PD, 'Items', 'ItemCode', 'RL-STD-20').PicID || '')`);
+  ok('P3d Save keeps the picture on the item', /^PGPIC\d+abcdef$/.test(pid), [pid, toast(), (global.ERRS || []).slice(-2)]);
+  await wait(150);
+  ok('P3e card shows the picture', $('#iv img.st-pic'), $('#iv') && $('#iv').innerHTML.slice(0, 300));
+  click($('#ie')); await wait(30); click($('#xpx')); await wait(5); click($('#dyes')); await wait(300);
+  ok('P3f Remove + Save clears it', V(`String(must(PD, 'Items', 'ItemCode', 'RL-STD-20').PicID || '')`) === '', toast());
   ok('F no JS errors', !jsErr.length, jsErr);
   console.log('page-f ' + pass + '/' + (pass + fail));
 })();

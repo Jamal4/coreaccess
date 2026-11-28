@@ -106,6 +106,17 @@ function sums_(sub, vatPct, extra) {
   return { vat: vat, total: tot, rows: rows };
 }
 
+function quotePics_(db, lines) { // F3: the printed lines' components that have a picture (Items.PicID), in line order, each once (with all its line nos.), at most 9
+  if (typeof db.headers !== 'function' || db.headers('Items').indexOf('PicID') < 0) return [];
+  var items = db.rows('Items'), seen = {}, out = [];
+  lines.forEach(function (l, i) {
+    var c = String(l.ItemCode == null ? '' : l.ItemCode).trim(); if (!c) return;
+    if (seen[c]) { seen[c].no.push(i + 1); return; }
+    var it = find(items, 'ItemCode', c); if (out.length >= 9 || !it || blank(it.PicID)) return;
+    seen[c] = { f: String(it.PicID).trim(), name: dash(it.Name) + (blank(it.Size) ? '' : ', ' + it.Size), no: [i + 1] }; out.push(seen[c]);
+  });
+  return out.map(function (x) { return { f: x.f, cap: 'No. ' + x.no.join(', ') + ' - ' + x.name }; });
+}
 function specQuote(db, quoteNo) {
   var q = must(db, 'Quotes', 'QuoteNo', quoteNo), type = q.QuoteType || 'Rental', cu = party_(db, q.CustID), tok = quoteTokens(db, q);
   var lines = db.rows('QuoteLines').filter(function (l) { return String(l.QuoteNo) === String(quoteNo) && (l.Selected === 'Yes' || l.Optional === 'Yes'); })
@@ -140,6 +151,7 @@ function specQuote(db, quoteNo) {
     { t: 'sums', width: cols[cols.length - 1].w, rows: sums_(t.subtotal, q.VATPct).rows.concat([['Total payable (BDT)', tk(t.total), true]]) },
     { t: 'p', text: [['Amount in words:  ', { bold: true }], [takaWords(t.total) + '.', {}]], size: 9, before: 8, after: 4 }];
   if (t.advance > 0) com.push({ t: 'p', text: [['Advance with order:  ', { bold: true }], [pctTxt(t.advancePct) + ' of the total = Tk ' + tk(t.advance), {}]], size: 9, after: 6 });
+  if (type === 'Rental') { var pics = quotePics_(db, lines); if (pics.length) com.push({ t: 'pics', items: pics, cap: 'Pictures for visual reference only - not to scale.' }); } // F3: a picture per component
   if (lines.some(function (l) { return isMilestone(l) && l.Selected === 'Yes'; })) {
     var ms = milestoneRows(db, quoteNo), base = milestoneBase(db, quoteNo), list;
     if (ms.length) list = milestoneAmounts(db, quoteNo).map(function (x) { return [x.row.StageNo, x.row.Stage, num(x.row.Pct), x.amount]; });
@@ -394,6 +406,21 @@ var BLOCKS_ = {
   pic: function (body, b) { /* QP: the quote's picture; a file that can't be read = no picture (the PDF is still made) */
     var p = styleP_(body.appendParagraph(''), '', { align: 'C', before: 2, after: 2, line: 1 });
     if (typeof oSgImgInto_ === 'function' && oSgImgInto_(p, b.f, b.w, b.h)) para_(body, b.cap, { size: 8, italic: true, color: 'grey', align: 'C', after: 8 });
+  },
+  pics: function (body, b) { /* F3: component pictures, 3 to a row, each with its line no. + name; a file that can't be read = an empty cell (the PDF is still made) */
+    if (typeof OSG_NOIMG_ !== 'undefined' && OSG_NOIMG_) return;
+    var n = 3, w = Math.floor(BODY_W / n), rows = [], got = 0;
+    for (var i = 0; i < b.items.length; i += n) rows.push(b.items.slice(i, i + n));
+    var hd = para_(body, 'Component pictures', { size: 9, bold: true, before: 8, after: 3 });
+    var tb = body.appendTable(rows.map(function () { var a = []; for (var k = 0; k < n; k++) a.push(''); return a; }));
+    tb.setBorderWidth(0); for (var k = 0; k < n; k++) tb.setColumnWidth(k, w);
+    rows.forEach(function (r, ri) { r.forEach(function (x, ci) {
+      var cell = tb.getCell(ri, ci); cell.setPaddingTop(4).setPaddingBottom(4).setPaddingLeft(4).setPaddingRight(4);
+      var p = styleP_(cell.getChild(0).asParagraph(), '', { align: 'C', after: 2, line: 1 });
+      if (typeof oSgImgInto_ === 'function' && oSgImgInto_(p, x.f, w - 14, 110)) { got++; styleP_(cell.appendParagraph(x.cap), x.cap, { size: 7.5, color: 'grey', align: 'C', after: 0, line: 1 }); }
+    }); });
+    if (got) para_(body, b.cap, { size: 8, italic: true, color: 'grey', align: 'C', after: 8 });
+    else { try { tb.removeFromParent(); hd.removeFromParent(); } catch (e) { /* kept: only an empty table */ } }
   },
   h: function (body, b) { para_(body, b.text, { size: 10.5, bold: true, color: 'teal', before: 15, after: 6 }); },
   grid: function (body, b) {

@@ -403,7 +403,7 @@ span.tv{cursor:default}
 .st-grp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px} .st-grp div{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:5px 8px;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.3px}
 .st-grp div b{display:block;font-size:16px;color:var(--text);font-variant-numeric:tabular-nums} .st-grp div.hl{border-color:var(--amber)} .st-grp div.z b{color:var(--dim)} .st-grp div.lw b{color:#fb7185}
 .chip.st-lw.on{border-color:#f43f5e;background:rgba(244,63,94,.12);color:var(--text)}
-.st-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px} .st-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px} .st-neg{color:#fb7185} .st-lnk{background:none;border:0;padding:0;margin:0;color:var(--teal2);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px}
+.st-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px} .st-pic{max-height:120px;max-width:180px;border-radius:8px;background:#fff;padding:3px;display:block;margin-bottom:6px} .st-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px} .st-neg{color:#fb7185} .st-lnk{background:none;border:0;padding:0;margin:0;color:var(--teal2);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px}
 .st-ol{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 90px 36px;gap:8px;align-items:center;margin-bottom:8px} .st-ol .inp{height:40px}
 .st-mini{width:34px;height:34px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0} .st-mini:hover{color:#fda4af;border-color:#f43f5e}
 .ltab small{display:block;color:var(--dim);font-size:12px}
@@ -1606,7 +1606,7 @@ function stHz(z){if(!z||typeof z!=='object')return null;var o={};['yard','site',
 function nstFull(r){
   r=r||{};var o=nst(r),ls=r.lists||{};
   o.kg=ctNum(r.kg);o.forHire=r.forHire===true;o.forSale=r.forSale===true;o.ev=typeof r.ev==='number'?r.ev:0;o.can=r.can===true;o.head=r.head===true;o.money=r.money===true;o.price=r.price===true;
-  o.hire=ctNum(r.hire);o.sale=ctNum(r.sale);o.repl=ctNum(r.repl);o.repair=ctNum(r.repair);o.avg=ctNum(r.avg);o.lists={cats:stList(ls.cats),units:stList(ls.units)};o.ulk=r.ulk===true;
+  o.hire=ctNum(r.hire);o.sale=ctNum(r.sale);o.repl=ctNum(r.repl);o.repair=ctNum(r.repair);o.avg=ctNum(r.avg);o.lists={cats:stList(ls.cats),units:stList(ls.units)};o.ulk=r.ulk===true;o.picOk=r.picOk===true;o.pic=r.pic&&typeof r.pic.id==='string'&&r.pic.id?{id:r.pic.id,img:SG_IMG.test(String(r.pic.img||''))?r.pic.img:''}:null; /* F3 */
   o.where=cuArr(r.where).map(function(w){w=w||{};return {code:cuS(w.code),name:cuS(w.name),type:cuS(w.type),job:cuS(w.job),cust:cuS(w.cust),qty:stN(w.qty)};}).filter(function(w){return w.code;});
   o.moves=cuArr(r.moves).map(function(m){m=m||{};return {d:isDay(m.d)?m.d:'',f:cuS(m.f),t:cuS(m.t),q:stN(m.q),ref:cuS(m.ref),k:cuS(m.k),job:cuS(m.job)};});o.nMoves=stN(r.nMoves);
   var pt=function(p){p=p||{};return {code:cuS(p.code),name:cuS(p.name),size:cuS(p.size),q:stN(p.q),yard:stN(p.yard),mk:stN(p.mk)};};
@@ -1706,6 +1706,7 @@ function stItDraw(){
   h+='<div class="box"><h4>Item</h4>'+cuKv([['Unit',esc(o.unit)],['Weight',o.kg!=null?stKg(o.kg)+' kg':''],['Stock tracked',o.tracked?'Yes':'No'],['For hire',o.forHire?'Yes':'No'],['For sale',o.forSale?'Yes':'No'],['Status',esc(o.status)]])+'</div>';
   h+=o.money?'<div class="box"><h4>Prices &amp; cost</h4>'+cuKv([['Hire rate',o.hire!=null?stTk(o.hire)+' / month':'—'],['Sale price',stTk(o.sale)],['Replacement cost',stTk(o.repl)],['Repair rate',stTk(o.repair)],['Average buy cost',o.avg!=null?stTk(o.avg):''],['Owned value',o.repl!=null&&!o.isSet&&o.val!=null?stTk(o.val):'—']])+'</div>'
     :'<div class="box"><h4>Prices &amp; cost</h4><div class="lockn">'+ic('lock')+'<div>Hidden for your login (Sales / Procurement / Accounts only).</div></div></div>';
+  if(o.picOk)h+='<div class="box"><h4>Picture</h4>'+(o.pic?(o.pic.img?'<img class="st-pic" alt="Item picture" src="'+o.pic.img+'">':'<span class="muted">Picture on file</span>'):'<span class="muted">No picture</span>')+'<div class="tag">Printed with this item on Rental quotes.</div></div>'; /* F3 */
   h+='</div>';
   if(o.isSet)h+='<div class="box"><h4>Parts per set</h4>'+stTab('<th>Part</th><th class="r">Per set</th><th class="r">In yard</th><th class="r">Enough for</th>',o.kit.map(function(p){
       return '<tr class="go" data-i="'+esc(p.code)+'"><td><button type="button" class="st-mono st-lnk" aria-label="Open part '+esc(p.code)+'">'+esc(p.code)+'</button><small>'+esc([p.name,p.size].filter(Boolean).join(' · '))+'</small></td><td class="r">'+stQ(p.q)+'</td><td class="r">'+stQ(p.yard)+'</td><td class="r">'+stQ(p.mk)+' sets</td></tr>';}),'No parts listed (KitParts).')+'</div>';
@@ -1749,6 +1750,7 @@ function stItemDlg(o){
   o=o||{code:'',name:'',cat:cats[0]||'',size:'',unit:units[0]||'',kg:null,reorder:0,status:'Active',tracked:true,isSet:false,hire:null,sale:null,repl:null,repair:null};
   var df=nw?stDef(o.cat):[o.forHire?'Yes':'No',o.forSale?'Yes':'No'],fh=df[0],fs=df[1],fT=false;
   var tr=o.tracked?'Yes':'No',st=o.isSet?'Yes':'No',pv=function(x){return x==null?'':x;};
+  var PK=!nw&&o.picOk===true,pic=PK&&o.pic?o.pic.id:'',picImg=PK&&o.pic?o.pic.img:'',pic0=pic; /* F3: the item's picture (edit only) */
   var sel=function(id,lab,list,v){return list.length?ctSel(id,lab,stOpts(list,v),v):cuFld(id,lab,v,{m:40});};
   var my=openDlg('<h3 id="dlgt">'+(nw?'New item':'Edit item')+'</h3><p class="sub">'+(nw?'The code can\'t be changed later.':esc(o.code)+' · changes are logged.')+'</p><div id="derr"></div>'+
     '<div class="f2">'+(nw?cuFld('xc','Item code','',{m:24}):'<label class="fld"><span>Item code</span><input class="inp np" id="xc" value="'+esc(o.code)+'" readonly></label>')+cuFld('xn','Name',o.name,{m:80})+'</div>'+
@@ -1756,14 +1758,36 @@ function stItemDlg(o){
     '<div class="st-f3">'+cuFld('xw','Weight (kg)',pv(o.kg),{im:'decimal',m:10})+cuFld('xr','Reorder level',o.reorder||'',{im:'numeric',m:7})+ctSel('xt','Status',stOpts(['Active','Inactive'],o.status),o.status)+'</div>'+
     '<div class="f2"><div class="fld"><span class="lbl">Stock tracked</span>'+stSeg('xtr','Stock tracked',['Yes','No'],tr)+'</div><div class="fld"><span class="lbl">Is a set (made of parts)</span>'+stSeg('xst','Is a set',['No','Yes'],st)+'</div></div>'+
     '<div class="f2"><div class="fld"><span class="lbl">For hire (Rental quotes)</span>'+stSeg('xfh','For hire',['Yes','No'],fh)+'</div><div class="fld"><span class="lbl">For sale (Sale quotes)</span>'+stSeg('xfs','For sale',['Yes','No'],fs)+'</div></div>'+
+    (PK?'<div class="fld"><span>Picture · optional, printed with this item on Rental quotes</span><div class="qe-pic" id="xpic"></div></div>':'')+
     (P?'<span class="lbl">Prices &amp; cost (Directors)</span><div class="f2">'+cuFld('xp1','Hire rate / month',pv(o.hire),{im:'decimal',m:14})+cuFld('xp2','Sale price',pv(o.sale),{im:'decimal',m:14})+'</div><div class="f2">'+cuFld('xp3','Replacement cost',pv(o.repl),{im:'decimal',m:14})+cuFld('xp4','Repair rate',pv(o.repair),{im:'decimal',m:14})+'</div>'
       :'<div class="lockn">'+ic('lock')+'<div>Prices and cost '+(M?'are changed by a Director only':'are not shown to your login')+' — they are kept as they are.</div></div>')+
     '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">'+(nw?'Add item':'Save changes')+'</button></div>');
   var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();},vl=function(i){var e=document.getElementById(i);return e.tagName==='SELECT'||e.readOnly?e.value:e.value.trim();}; /* CR run 10: a list value as offered */
+  var picDraw=function(){var b=document.getElementById('xpic');if(!b)return; /* F3: PNG / JPG, max 1 MB, uploaded at once, kept on the item by Save */
+    b.innerHTML=(pic?(SG_IMG.test(picImg)?'<img alt="Item picture" src="'+picImg+'">':'<span class="muted">Picture on file</span>'):'<span class="muted">No picture</span>')+
+      '<label class="btn btn-ghost btn-sm">'+(pic?'Change':'Add picture')+'<input type="file" id="xpf" accept="image/png,image/jpeg" hidden></label>'+(pic?'<button type="button" class="btn btn-ghost btn-sm" id="xpx">Remove</button>':'');
+    var no=function(m){dlgErr(sgErr(m));};
+    document.getElementById('xpf').onchange=function(){
+      var f=this.files&&this.files[0];this.value='';if(!f||DLG.busy||my!==DLG.seq)return;
+      if(!/^image\/(png|jpeg)$/.test(f.type))return no('BADIMG|type');
+      if(f.size>1048576)return no('BADIMG|size');
+      var rd=new FileReader();
+      rd.onload=function(){
+        var d=String(rd.result||'').replace(/^data:image\/jpg;/,'data:image/jpeg;');if(my!==DLG.seq||DLG.busy)return;if(!SG_IMG.test(d))return no('BADIMG|type');
+        DLG.busy=true;ifz(true);busyBtn(yes,true,'Adding picture…');dlgErr('');
+        call('officeItemPicPut',S.token,d.slice(d.indexOf(',')+1)).then(function(r){if(my!==DLG.seq)return;DLG.busy=false;ifz(false);busyBtn(yes,false);if(!r||typeof r.id!=='string')return;pic=r.id;picImg=d;picDraw();toast('Picture added. Save to keep it on the item.');},
+          function(m){if(my!==DLG.seq)return;DLG.busy=false;ifz(false);busyBtn(yes,false);if(srvGate(m))return;no(m);});
+      };
+      rd.onerror=function(){no('BADIMG|broken');};
+      rd.readAsDataURL(f);
+    };
+    var x=document.getElementById('xpx');if(x)x.onclick=function(){if(DLG.busy)return;pic='';picImg='';picDraw();};
+  };
   stSegOn('xtr',function(x){tr=x;});stSegOn('xst',function(x){st=x;});stSegOn('xfh',function(x){fh=x;fT=true;});stSegOn('xfs',function(x){fs=x;fT=true;});
   if(nw){var kc=function(){if(fT)return;var d2=stDef(vl('xk'));fh=d2[0];fs=d2[1];stSegSet('xfh',fh);stSegSet('xfs',fs);};document.getElementById('xk').addEventListener('change',kc);document.getElementById('xk').addEventListener('input',kc);}
   document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
-  var ifz=function(on){['xc','xn','xk','xs','xu','xw','xr','xt','xp1','xp2','xp3','xp4'].forEach(function(i){var e=document.getElementById(i);if(e)e.disabled=on;});}; /* CR run 14: no edit while Save is pending (no field of this form is disabled otherwise) */
+  var ifz=function(on){['xc','xn','xk','xs','xu','xw','xr','xt','xp1','xp2','xp3','xp4','xpf','xpx'].forEach(function(i){var e=document.getElementById(i);if(e)e.disabled=on;});};
+  picDraw(); /* CR run 14: no edit while Save is pending (no field of this form is disabled otherwise) */
   yes.onclick=function(){
     if(DLG.busy)return;
     var c=nw?v('xc').toUpperCase():o.code;
@@ -1775,6 +1799,7 @@ function stItemDlg(o){
     if(st==='Yes'&&tr==='Yes'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No.');return;} /* CR run 15 */
     var d={code:c,name:v('xn'),cat:vl('xk'),size:v('xs'),unit:vl('xu'),kg:kg,reorder:rl===''?'':rl,status:document.getElementById('xt').value,tracked:tr,isSet:st,forHire:fh,forSale:fs};
     if(!nw)d.ev=o.ev;
+    if(PK&&pic!==pic0)d.pic=pic; /* F3: only a changed picture is sent (none = kept) */
     if(P){var ks=[['xp1','hire','Hire rate'],['xp2','sale','Sale price'],['xp3','repl','Replacement cost'],['xp4','repair','Repair rate']];
       for(var i=0;i<ks.length;i++){var n=stNumIn(v(ks[i][0]),2);if(n===null||n>1e9){dlgErr(ks[i][2]+': an amount in Tk (up to 2 decimals).');return;}d[ks[i][1]]=n;}}
     DLG.busy=true;ifz(true);busyBtn(yes,true,'Saving…');dlgErr('');
@@ -1792,6 +1817,7 @@ function stItemDlg(o){
       if(k[0]==='BADINPUT'&&k[1]==='unit'){dlgErr('The unit can\'t change: stock, moves, set parts or challan / damage / PO lines already count this item in '+esc(o.unit)+'. Nothing saved.');return;}
       if(k[0]==='BADINPUT'&&k[1]==='stock tracked'){dlgErr('Stock tracking can\'t be switched off while this item has stock. Nothing saved.');return;}
       if(k[0]==='ONORDER'){dlgErr('Stock tracking can\'t be switched off: PO <b>'+esc(k[1]||'')+'</b> still has this item to receive. Receive it, or cancel / close the PO, first. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='picture'){dlgErr('The picture could not be kept — add it again. Nothing saved.');return;}
       if(k[0]==='BADINPUT'&&k[1]==='set tracked'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No. Nothing saved.');return;}
       if(k[0]==='BADINPUT'&&k[1]==='part tracked'){dlgErr('This item is a part of a set (KitParts): it must stay stock-tracked. Take it out of the set first. Nothing saved.');return;}
       dlgErr(errText(m));

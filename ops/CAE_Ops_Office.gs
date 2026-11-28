@@ -1963,7 +1963,7 @@ function officeContractAdvance(token, d) {
 var OST_SEE_ = ['YW', 'PS', 'SC', 'PR', 'AC'];
 var OST_GRP_ = { Yard: 'yard', Site: 'site', Repair: 'rep', Lost: 'lost', Scrap: 'lost' };
 var OST_PRICE_ = { hire: 'HireRateMonth', sale: 'SalePrice', repl: 'ReplacementCost', repair: 'RepairRate' };
-var OST_EV_ = ['ItemCode', 'Name', 'Category', 'Size', 'Unit', 'WeightKg', 'StockTracked', 'IsSet', 'ForHire', 'ForSale', 'ReorderLevel', 'Status'];
+var OST_EV_ = ['ItemCode', 'Name', 'Category', 'Size', 'Unit', 'WeightKg', 'StockTracked', 'IsSet', 'ForHire', 'ForSale', 'ReorderLevel', 'Status', 'PicID']; // F3: + the picture
 var OST_CODE_ = /^[A-Z0-9][A-Z0-9.-]{1,23}$/; // as the live codes (TC-TUBE-0.5)
 var OST_MOVES_ = 50, OST_LINES_ = 200;
 function oStSee_(a) { return oIsDir_(a) || OST_SEE_.some(function (d) { return (a[d] || 0) >= 1; }); }
@@ -2083,6 +2083,7 @@ function officeStockItem(token, code) {
   db.rows('Items').forEach(function (x) { var k = String(x.ItemCode); if (!blank(x.ItemCode) && !items[k]) items[k] = x; }); // CR run 17: the first row of a repeated code
   var o = oStCard_(it, g, kit, Q, locs, M), ord = { Yard: 0, Site: 1, Repair: 2, Lost: 3, Scrap: 4 };
   o.kg = oStN_(it.WeightKg); o.forHire = oStYes_(it.ForHire); o.forSale = oStYes_(it.ForSale); o.ev = oStEv_(it, M); o.can = oStCan_(a); o.head = oStHead_(a); o.money = M; o.price = oIsDir_(a);
+  o.picOk = oIPicOk_(db); var pv = oIPicView_(db, it); if (pv) o.pic = pv; /* F3 */
   o.lists = { cats: oStLs_(db, 'ItemCategory'), units: oStLs_(db, 'Unit') }; o.ulk = o.can && oStUnitUsed_(db, c); // ulk: the unit can't change (CR run 4); only for a login that edits items (no extra reads for viewers)
   if (M) { o.hire = oStN_(it.HireRateMonth); o.sale = oStN_(it.SalePrice); o.repl = oStN_(it.ReplacementCost); o.repair = oStN_(it.RepairRate); o.avg = oStN_(it.AvgCost); }
   o.where = Object.keys(Q[c] || {}).filter(function (l) { return Q[c][l] && locs[l] && OST_GRP_[String(locs[l].Type)]; })
@@ -2110,7 +2111,7 @@ function oStList_(db, k, v, cur, what) { // a value from Lists (or the item's ow
   if (typeof v !== 'string' || Ls.indexOf(v) < 0) oFail_('BADINPUT|' + what);
   return v;
 }
-var OST_PRINT_ = { Quotes: ['Size'], Challans: ['Name', 'Size', 'Unit', 'WeightKg'], POs: ['Name', 'Unit'], Notes: ['Name'] }; // item fields each document prints (PDF.gs specs + the W4 quote grid)
+var OST_PRINT_ = { Quotes: ['Size', 'PicID'], Challans: ['Name', 'Size', 'Unit', 'WeightKg'], POs: ['Name', 'Unit'], Notes: ['Name'] }; // item fields each document prints (PDF.gs specs + the W4 quote grid)
 function oStOpen_(r) { return blank(r.Status) || String(r.Status) === 'Draft'; }
 function oStDraftDN_(db, code) { // a Draft debit note that prints this item's repair / replacement rate (specNote reads Items live; its Amount is stored)
   if (!db.hasTab('Damage') || !db.hasTab('Notes')) return '';
@@ -2239,6 +2240,7 @@ function officeItemSave(token, x) {
     p.StockTracked = tr; if (!row || oStYes_(row.StockTracked) !== (tr === 'Yes')) ch.push('StockTracked');
     p.IsSet = st === 'Yes' ? 'Yes' : ''; if (!row || oStYes_(row.IsSet) !== (st === 'Yes')) ch.push('IsSet');
     [['ForHire', fh], ['ForSale', fs]].forEach(function (f) { p[f[0]] = f[1]; if (!row || String(cur(f[0]) == null ? '' : cur(f[0])).trim() !== f[1]) ch.push(f[0]); }); // a blank cell becomes Yes / No
+    if (oIPicOk_(db)) { var pc = oIPicArg_(db, x, row, env); p.PicID = pc; if (!row || pc !== oIPicOf_(db, row)) ch.push('PicID'); } else if (x.pic) oFail_('BADINPUT|picture'); /* F3: the item's picture */
     if (row && ch.indexOf('Unit') >= 0 && oStUnitUsed_(db, code)) oFail_('BADINPUT|unit'); // CR run 4: before any write
     if (row && !ch.length) return { code: code, same: true };
     var dn = row && (ch.indexOf('RepairRate') >= 0 || ch.indexOf('ReplacementCost') >= 0) ? oStDraftDN_(db, code) : '';
@@ -2925,6 +2927,46 @@ function upgradeQPLive() {
   var db = new SheetDb(), add = db.ensureColumn('Quotes', 'PicID');
   if (add) { var qs = db.sheet('Quotes'), qh = db.headers('Quotes'); qs.getRange(1, qh.indexOf('PicID') + 1, qs.getMaxRows(), 1).clearDataValidations(); log_(db, 'Upgrade QP', '', 'Quotes + PicID'); }
   SpreadsheetApp.flush(); Logger.log(add ? 'Done: Quotes + PicID' : 'Already up to date.');
+}
+// F3 (28 Nov): a picture per catalogue item (PNG / JPG, max 1 MB), printed with the lines of a Rental quote. Items.PicID = its Drive file (folder Item pictures).
+// officeItemPicPut uploads it (-> id, recorded OIPIC:<id>); officeItemSave then carries pic: that id ('' = none; no pic = kept). Set-up: upgradeF3Live.
+var OIPIC_ADD_ = null; // tests: function (db, name, mime, bytes) -> file id
+function oIPicOk_(db) { return db.headers('Items').indexOf('PicID') >= 0; }
+function oIPicOf_(db, it) { return it && oIPicOk_(db) && !blank(it.PicID) ? String(it.PicID).trim() : ''; }
+function oIPicView_(db, it) {
+  var id = oIPicOf_(db, it); if (!id) return null;
+  var d = oSgDrv_(), i = d.info(id), b = i && /^image\/(png|jpeg)$/.test(i.mime) ? d.b64(id) : null;
+  return { id: id, img: b ? 'data:' + i.mime + ';base64,' + b : '' };
+}
+function oIPicArg_(db, x, row, env) {
+  var cur = oIPicOf_(db, row);
+  if (x.pic === undefined || x.pic === null) return cur;
+  if (typeof x.pic !== 'string' || x.pic.length > 80) oFail_('BADINPUT|picture');
+  if (x.pic === '' || x.pic === cur) return x.pic;
+  var i = /^[\w-]{6,80}$/.test(x.pic) && env.get('OIPIC:' + x.pic) ? oSgDrv_().info(x.pic) : null;
+  if (!i || !/^image\/(png|jpeg)$/.test(i.mime)) oFail_('BADINPUT|picture');
+  return x.pic;
+}
+function officeItemPicPut(token, b64) {
+  var L = officeGate_(token, null), env = oEnv_();
+  if (!oStCan_(oAcc_(L))) oFail_('NOACCESS');
+  oSgSlow_(env, L.email);
+  var bytes = oB64Dec_(b64);
+  if (!bytes) oFail_(typeof b64 === 'string' && b64.length > Math.ceil(OSG_MAX_ / 3) * 4 + 4 ? 'BADIMG|size' : 'BADIMG|type');
+  var im = oSgImg_(bytes);
+  if (!oSgDrv_().decodes(bytes, im.mime)) oFail_('BADIMG|broken');
+  var db = env.db(); if (!db) oFail_('BUSY');
+  if (!oIPicOk_(db)) oFail_('NOACCESS');
+  var name = 'Item_picture_' + env.now() + (im.mime === 'image/png' ? '.png' : '.jpg');
+  var id = OIPIC_ADD_ ? OIPIC_ADD_(db, name, im.mime, bytes)
+    : subFolder_(opsFolder_(db), 'Item pictures').createFile(Utilities.newBlob(bytes.map(function (x) { return x << 24 >> 24; }), im.mime, name)).getId();
+  env.put('OIPIC:' + id, { by: L.email, at: env.now() });
+  return { id: id };
+}
+function upgradeF3Live() {
+  var db = new SheetDb(), add = db.ensureColumn('Items', 'PicID');
+  if (add) { var s = db.sheet('Items'), h = db.headers('Items'); s.getRange(1, h.indexOf('PicID') + 1, s.getMaxRows(), 1).clearDataValidations(); log_(db, 'Upgrade F3', '', 'Items + PicID'); }
+  SpreadsheetApp.flush(); Logger.log(add ? 'Done: Items + PicID' : 'Already up to date.');
 }
 function officeQuoteSave(token, d) {
   officeGate_(token, OQ_NEED_);
