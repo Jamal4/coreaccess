@@ -6,4 +6,11 @@ python3 - "$T/CAE_Ops_Office.gs" tools3/w4g_selftests_block.js tools6/m1_block.j
 import sys; p=sys.argv[1]; s=open(p,encoding='utf-8').read(); k="      } finally { QF5_STUB_ = keepQ5; }"
 assert s.count(k)==1; b=''.join(open(f,encoding='utf-8').read() for f in sys.argv[2:]); open(p,'w',encoding='utf-8').write(s.replace(k, b+k))
 PY
+python3 - "$T/CAE_Ops_Office.gs" <<'PY2'
+import sys; p=sys.argv[1]; s=open(p,encoding='utf-8').read(); k="          var F7 = mk4(); OW4D_ON_ = false;"
+assert s.count(k)==1
+t="          var k9 = OW4D_TABS_; OW4D_TABS_ = ['Items', 'Customers']; var a9 = use(mk4(), true), c9 = use(mk4(), true), b9 = use(mk4(), false); a9.w4dX_ = ['Quotes']; var r9 = JSON.stringify(a9.rows('Quotes')) === JSON.stringify(b9.rows('Quotes')); c9.rows('Quotes'); OW4D_TABS_ = k9;\n          eq('O354b r35b a SheetDb with its own extra tabs reads them in the one batch (same rows as a tab read); without them not', [!!(a9.pl_ && a9.pl_.v.Quotes), r9, !!(c9.pl_ && c9.pl_.v.Quotes)].join('|'), 'true|true|false');\n"
+
+open(p,'w',encoding='utf-8').write(s.replace(k,t+k))
+PY2
 node h/h/run.js "$T" "${2:-selfTestSummary_()}" | tail -${3:-2} | head -${4:-1}; rm -rf "$T"

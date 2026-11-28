@@ -1639,15 +1639,15 @@ function acErr(m){var k=code(m).split('|');
     case 'NOTFOUND': return 'This no longer exists. The list has been refreshed.';
     default: return errText(m);
   }}
-function viewAc(tab){
-  AC.tab=tab||AC.tab||'bills';AC.q='';AC.st='open';AC.d=null;document.title='Core Access · Supplier bills & payments';
+function viewAc(tab,keep){ /* keep: back from a bill / payment / vendor: draw the list already loaded (every write reloads it) */
+  AC.tab=tab||AC.tab||'bills';AC.q='';AC.st=AC.tab==='bills'?'open':'all';if(!keep)AC.d=null;document.title='Core Access · Supplier bills & payments';
   shell('Accounts · Supplier bills & payments','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="acb">'+ic('back')+' Home</button>'+
     '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="acq" type="search" placeholder="Search bill, PV, vendor, invoice / DO no., job or quote" autocomplete="off" aria-label="Search"></div><span id="acn"></span></div>'+
     '<div id="acsum"></div><div class="chips" id="actb"></div><div class="chips" id="acst"></div><p class="cnt" id="acc">&nbsp;</p><div id="acl" class="qlist"><div class="empty">Loading…</div></div>');
   document.getElementById('acb').onclick=function(){viewHome();};
   document.getElementById('acq').oninput=function(){AC.q=this.value.trim().toLowerCase();acDraw();};
   document.getElementById('acl').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;var k=b.getAttribute('data-t'),v=b.getAttribute('data-c');if(k==='b')acBillView(v);else if(k==='p')acPayView(v);else acSupView(v);};
-  acLoad(acListUi);
+  if(keep&&AC.d)acListUi();else acLoad(acListUi);
 }
 function acLoad(then,fail){var my=++AC.seq;
   call('officeAcList',S.token).then(function(r){if(my!==AC.seq)return;AC.d=acNorm(r);then();},function(m){if(my!==AC.seq)return;if(srvGate(m))return;if(fail)return fail(m);
@@ -1694,7 +1694,7 @@ function acDraw(){
       '<div class="qc">'+esc(s.name)+'</div><div class="qrow"><span class="tag">'+(s.phone?esc(s.phone)+' · ':'')+nv+' vendor challan'+(nv===1?'':'s')+'</span><span class="sp"></span>'+(s.owed>0.005?'<b style="color:var(--orange)">owe Tk '+tk(s.owed)+'</b>':'<span class="tag">nothing owed</span>')+'</div></button>';}).join(''):'<div class="empty">No suppliers match.</div>';
   }
 }
-function acShell(title,body){shell('Accounts · '+title,'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="acvb">'+ic('back')+' Supplier bills & payments</button></div><div id="acv">'+body+'</div>');document.getElementById('acvb').onclick=function(){viewAc(AC.tab);};}
+function acShell(title,body){shell('Accounts · '+title,'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="acvb">'+ic('back')+' Supplier bills & payments</button></div><div id="acv">'+body+'</div>');document.getElementById('acvb').onclick=function(){viewAc(AC.tab,true);};}
 function acFresh(fn){AC.d=null;acLoad(fn,function(m){var v=document.getElementById('acv');if(v)v.innerHTML='<div class="empty">Could not load: '+esc(code(m))+'</div>';});}
 function acBillView(id){
   var b=acBill(id);if(!b){viewAc('bills');toast(id+' no longer exists.');return;}var D=AC.d,s=acSup(b.sup),lock=b.st==='Cancelled'||!!b.pv||b.paid>0.005;

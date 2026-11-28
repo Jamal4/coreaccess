@@ -3550,11 +3550,12 @@ if (typeof SheetDb === 'function' && SheetDb.prototype && SheetDb.prototype.ow4c
     var live = function (db) { var p = db.pl_; if (p && (p.lk !== OLK_.g || p.w !== OW4D_W_)) p = db.pl_ = null; return p; };
     var wrote = function (db, t) { if (!db.rd_) { OW4D_W_++; db.w4d_ = false; db.pl_ = null; oW4fDirty_(t); } }; // W4f: t + the tabs whose formulas read t
     var get = function (db, t) { // tab t from the batch (made now if needed), or null
-      if (!OW4D_ON_ || !db.w4d_ || OW4D_TABS_.indexOf(t) < 0) return null;
+      var TT = db.w4dX_ ? OW4D_TABS_.concat(db.w4dX_) : OW4D_TABS_; // r35b: a screen may add its own tabs to the one batch (AC: bills, payments ...)
+      if (!OW4D_ON_ || !db.w4d_ || TT.indexOf(t) < 0) return null;
       var p = live(db);
       if (!p) {
         if ((db.nb_ || 0) >= OW4D_MAX_) return null;
-        var tabs = OW4D_TABS_.filter(function (x) { return !db.c[x]; });
+        var tabs = TT.filter(function (x) { return !db.c[x]; });
         db.nb_ = (db.nb_ || 0) + 1;
         var v = null; try { v = oW4fRead_(db, tabs); } catch (e) { v = null; } // W4f: from this lock's batch, only the written tabs fetched again
         if (!v) { db.w4d_ = false; return null; } // the old tab reads for the rest of this SheetDb
@@ -3687,6 +3688,8 @@ if (typeof uiLists_ === 'function' && !uiLists_.ow4g_) { // W4g: the dry-run sha
 // Codes: NOACCESS, BUSY, BADINPUT|field, NOTFOUND, STALE, DUP|bill, BILLSTATE|status, BILLPAID|amount, BILLDIRECT|PV, OVERPAY|open, PAYSTATE|status, SLOW.
 var OAC_BILL_COLS_ = ['DONo', 'QuoteNo', 'Notes', 'MadeBy', 'CancelReason', 'PayID'], OAC_PAY_COLS_ = ['MadeBy', 'CancelReason'];
 var OAC_METHODS_ = ['Bank transfer', 'Cheque', 'Pay order', 'Cash'];
+var OAC_TABS_ = ['Bills', 'Payments', 'Allocations', 'Suppliers', 'POs', 'Challans', 'Damage']; // r35b: read in the W4d batch with the quote tabs (measured TEST V65: list 5.7-8.1 s, pay 11.4 s)
+function oAcDb_(db) { if (db && !db.w4dX_) db.w4dX_ = OAC_TABS_; return db; }
 var OAC_ID_ = /^BILL-\d{5,7}$/, OAC_PV_ = /^CAE\/PV\/20\d\d\/\d{3,6}$/, OAC_NONCE_ = /^[a-z0-9]{16,40}$/, OAC_MAX_ = 1e10;
 function oAcSee_(a) { return oIsDir_(a) || (a.AC || 0) >= 1 || (a.PR || 0) >= 1; }
 function oAcBillCan_(a) { return oIsDir_(a) || (a.AC || 0) >= 2 || (a.PR || 0) >= 2; }
@@ -3742,7 +3745,7 @@ function oAcBillLocked_(b, P) { // a bill that can no longer be edited / cancell
 }
 function officeAcList(token) {
   var L = officeGate_(token, null), a = oAcc_(L); if (!oAcSee_(a)) oFail_('NOACCESS');
-  var env = oEnv_(), db = env.db(); if (!db) oFail_('BUSY');
+  var env = oEnv_(), db = oAcDb_(env.db()); if (!db) oFail_('BUSY');
   var X = oChCtx_(db), P = oAcPaid_(db), seen = oStMap_(), owed = oStMap_();
   var bills = db.rows('Bills').filter(function (b) { var n = String(b.BillID); if (!OAC_ID_.test(n) || seen[n]) return false; seen[n] = 1; return true; }).map(function (b) { return oAcBillOut_(b, P); });
   bills.forEach(function (b) { if (b.bal > 0.005) owed[b.sup] = r2((owed[b.sup] || 0) + b.bal); });
@@ -3763,7 +3766,7 @@ function officeAcList(token) {
 function officeBillSave(token, x) {
   officeGate_(token, null);
   return oStW_(token, oAcBillCan_, function (env, db, L) {
-    x = oAcObj_(x); oAcSetup_(env, db);
+    x = oAcObj_(x); oAcDb_(db); oAcSetup_(env, db);
     var b = null, K = '';
     if (x.id != null && x.id !== '') { b = oAcBill_(db, x.id); if (typeof x.ev !== 'number' || x.ev !== oAcBillEv_(b)) oFail_('STALE'); oAcBillLocked_(b, oAcPaid_(db)); }
     else { if (typeof x.nonce !== 'string' || !OAC_NONCE_.test(x.nonce)) oFail_('BADINPUT|nonce'); K = 'OACB:' + x.nonce;
@@ -3785,7 +3788,7 @@ function officeBillSave(token, x) {
 function officeBillCancel(token, id, ev, why) {
   officeGate_(token, null);
   return oStW_(token, oAcBillCan_, function (env, db, L) {
-    oAcSetup_(env, db);
+    oAcDb_(db); oAcSetup_(env, db);
     var b = oAcBill_(db, id); if (typeof ev !== 'number' || ev !== oAcBillEv_(b)) oFail_('STALE');
     oAcBillLocked_(b, oAcPaid_(db)); var r = oQeTxt_(why, 200, 'reason', true); oQeRate_(env, L);
     db.update('Bills', b, { Status: 'Cancelled', CancelReason: oCell_(r) });
@@ -3795,7 +3798,7 @@ function officeBillCancel(token, id, ev, why) {
 function officePaySave(token, x) {
   officeGate_(token, null);
   return oStW_(token, oAcPayCan_, function (env, db, L) {
-    x = oAcObj_(x); oAcSetup_(env, db);
+    x = oAcObj_(x); oAcDb_(db); oAcSetup_(env, db);
     if (typeof x.nonce !== 'string' || !OAC_NONCE_.test(x.nonce)) oFail_('BADINPUT|nonce');
     var K = 'OACP:' + x.nonce, R0 = env.cget(K); if (R0) return oAcPayDo_(env, db, R0); // a retry: finish what the first try started, never a second payment
     oQeRate_(env, L);
@@ -3844,7 +3847,7 @@ function oAcPayDo_(env, db, R) { // write what is missing: the direct bill, the 
 function officePayCancel(token, id, why) {
   officeGate_(token, null);
   return oStW_(token, oAcHead_, function (env, db, L) {
-    oAcSetup_(env, db);
+    oAcDb_(db); oAcSetup_(env, db);
     var p = typeof id === 'string' && OAC_PV_.test(id) ? find(db.rows('Payments'), 'PayID', id) : null;
     if (!p || String(p.Direction) !== 'Out' || String(p.PartyType) !== 'Supplier') oFail_('NOTFOUND');
     if (payVoid_(String(p.ChequeStatus))) oFail_('PAYSTATE|' + String(p.ChequeStatus));
