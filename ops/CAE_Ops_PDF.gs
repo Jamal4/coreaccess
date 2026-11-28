@@ -248,7 +248,7 @@ function specChallan(db, no) {
   var rk = c.Kind === 'Hire-in' || c.Kind === 'Off-hire', su = rk && !blank(c.SupID) ? party_(db, c.SupID) : {}, direct = c.Kind === 'Delivery' && locType(db, c.FromLoc) === 'Supplier', vend = String(c.MatSource || '') === 'Vendor', vn = vend && !blank(c.SupID) ? party_(db, c.SupID) : {}; // M8 rent-in
   var si = find(db.rows('Sites'), 'SiteID', job.SiteID) || {}, ok = ['PO', 'WO', 'LOI'].indexOf(String(job.OrderKind || '')) >= 0 ? String(job.OrderKind) : 'WO', sale = job.JobType === 'Sale' || c.Kind === 'Sale', client = ['Delivery', 'Sale', 'Return'].indexOf(c.Kind) >= 0; // D1
   var qwo = [job.QuoteNo, blank(job.ClientWONo) ? '' : ok + ' ' + job.ClientWONo].filter(function (x) { return !blank(x); }).join('  /  ');
-  var rel = ''; if (ret) { var dl = db.rows('Challans').filter(function (x) { return x.JobNo === c.JobNo && x.Kind === 'Delivery' && x.Status === 'Posted'; }).map(function (x) { return String(x.ChallanNo); }).sort();
+  var rel = ''; if (ret) { var dl = db.rows('Challans').filter(function (x) { return x.JobNo === c.JobNo && x.Kind === 'Delivery' && x.Status === 'Posted' && String(x.MatSource || '') !== 'Vendor'; }).map(function (x) { return String(x.ChallanNo); }).sort();
     rel = dl.slice(0, 3).join(', ') + (dl.length > 3 ? ' +' + (dl.length - 3) + ' more' : ''); }
   var pr = rk ? [['Supplier', su.Name, 'Challan No.', c.ChallanNo], ['Supplier\'s DO / ref', c.SupplierRef, 'Date', longDate(c.ChallanDate)], ['From', loc(c.FromLoc) + (c.Kind === 'Hire-in' ? ' (' + dash(su.Name) + ')' : ''), 'Vehicle no.', c.Vehicle],
       ['To', c.Kind === 'Off-hire' ? dash(su.Name) : loc(c.ToLoc), 'Driver', c.Driver]]

@@ -41,4 +41,21 @@
             db.update('Quotes', must(db, 'Quotes', 'QuoteNo', QL), { Status: 'Lost' }); res.push(E(function () { PO(tF, s.no); }).split('|')[0]);
             res.push(find(db.rows('Jobs'), 'QuoteNo', QL) ? 'job made' : 'no job', String(must(db, 'Quotes', 'QuoteNo', QL).Status), String(find(db.rows('Challans'), 'ChallanNo', s.no).Status), String(mvs(s.no)));
             EQ('CH-80 a draft from a quote marked Lost before Post: refused, no job, quote stays Lost', res.join('|'), 'NOTPOSTED|no job|Lost|Draft|0'); })();
+          // CH-81 (E3b-4 live): a Return's "Related challan" lists only own-stock deliveries; a posted vendor-rental delivery on the same job is never on hire, so it is left out
+          (function () { var res = [], vd = db.rows('Challans').filter(function (c) { return c.JobNo === JV && c.MatSource === 'Vendor' && c.Status === 'Posted'; }).map(function (c) { return String(c.ChallanNo); });
+            var d = SV(tF, { kind: 'Delivery', job: JV, from: Y, date: '2026-11-20', veh: 'V3', lines: [{ it: 'CHF-STD', q: 1 }] }); PO(tF, d.no);
+            var r = SV(tF, { kind: 'Return', job: JV, to: Y, date: '2026-11-20', lines: [{ it: 'CHF-STD', g: 1 }] });
+            var rel = PDF_SPECS.Challan(db, r.no).blocks.filter(function (b) { return b.t === 'pairs'; })[0].rows.filter(function (x) { return x[2] === 'Related challan'; })[0][3];
+            res.push(vd.length ? 'vendor posted' : 'no vendor', rel === d.no ? 'own only' : rel);
+            EQ('CH-81 Return PDF Related challan: own-stock deliveries only, not vendor rental', res.join('|'), 'vendor posted|own only'); })();
+          // CH-82 (E3b-4 live): a Sale / Delivery draft from a quote whose Post is refused for stock makes NO job and leaves the quote as it was; Post after stock arrives still makes the job
+          (function () { var res = [], QA = 'CAE/Q/2026/884', QB = 'CAE/Q/2026/885';
+            db.insert('Quotes', [{ QuoteNo: QA, Rev: 0, QuoteType: 'Sale', CustID: 'CUST-0001', SiteID: 'SITE-0881', Status: 'Sent' }, { QuoteNo: QB, Rev: 0, QuoteType: 'Rental', CustID: 'CUST-0001', SiteID: 'SITE-0881', Status: 'Sent' }]);
+            var sa = SV(tF, { kind: 'Sale', quote: QA, from: Y, date: '2026-11-20', veh: 'V4', lines: [{ it: 'CHF-STD', q: 99999 }] });
+            var sb = SV(tF, { kind: 'Delivery', quote: QB, from: Y, date: '2026-11-20', veh: 'V5', lines: [{ it: 'CHF-STD', q: 99999 }] });
+            [sa, sb].forEach(function (s, i) { var q = i ? QB : QA; res.push(E(function () { PO(tF, s.no); }).split('|')[0], find(db.rows('Jobs'), 'QuoteNo', q) ? 'job made' : 'no job', String(must(db, 'Quotes', 'QuoteNo', q).Status), String(find(db.rows('Challans'), 'ChallanNo', s.no).JobNo || '-')); });
+            db.update('ChallanLines', db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === sb.no; })[0], { Qty: 1 }); PO(tF, sb.no);
+            var cb = find(db.rows('Challans'), 'ChallanNo', sb.no), jb = find(db.rows('Jobs'), 'QuoteNo', QB);
+            res.push(String(cb.Status), jb && cb.JobNo === jb.JobNo ? 'job at post' : 'no job', String(must(db, 'Quotes', 'QuoteNo', QB).Status), db.rows('StockMoves').filter(function (v) { return v.RefNo === sb.no && v.JobNo === cb.JobNo; }).length ? 'moves on job' : 'moves no job');
+            EQ('CH-82 refused Post from a quote: no job, quote unchanged; a good Post makes the job and its moves carry it', res.join('|'), 'NOTPOSTED|no job|Sent|-|NOTPOSTED|no job|Sent|-|Posted|job at post|Accepted|moves on job'); })();
         } catch (e) { eq('CH-F crashed after ' + LAST.slice(0, 6), String(e && e.stack || e).slice(0, 400), 'no crash'); } })();

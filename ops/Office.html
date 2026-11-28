@@ -1437,7 +1437,7 @@ function chViewDraw(c){
   h+='</div><div class="lockn">'+ic('lock')+'<span>Challans carry no prices for any login. Damage → debit note; rent-in rates and supplier bills → Accounts.</span></div>';
   v.innerHTML=h;
   var e;if((e=document.getElementById('cve')))e.onclick=function(){if(isR)chRet(c);else chEdit(c,c.kind);};
-  if((e=document.getElementById('cvp')))e.onclick=function(){chPdf(c,e);};
+  if((e=document.getElementById('cvp')))e.onclick=function(){chPdf(c,this);};
   if((e=document.getElementById('cvo')))e.onclick=function(){chPostDlg(c);};
   if((e=document.getElementById('cvc')))e.onclick=function(){chCancelDlg(c);};
 }

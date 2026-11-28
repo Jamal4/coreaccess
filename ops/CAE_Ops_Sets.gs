@@ -233,9 +233,12 @@ function postChallan(db, no, o) {
   o = o || {};
   var c = must(db, 'Challans', 'ChallanNo', no);
   if (c.Status !== 'Draft' && !blank(c.Status)) throw new Error(no + ' is ' + c.Status + ', only Draft challans can be posted');
-  if (blank(c.JobNo) && !blank(c.QuoteNo) && CH_YK_.indexOf(c.Kind) < 0) c = chQuoteJob_(db, c); // r28 F1: made from a quote: its job now (Awaiting order, no PO needed)
-  if (String(c.MatSource || '') === 'Vendor') return chPostVendor_(db, c); // r28 F2: vendor rental, not our stock: no StockMoves (every post path: office, sheet panel)
-  var kind = c.Kind, yk = CH_YK_.indexOf(kind) >= 0, job = yk && blank(c.JobNo) ? null : must(db, 'Jobs', 'JobNo', c.JobNo), jn = job ? job.JobNo : '';
+  var fromQ = blank(c.JobNo) && !blank(c.QuoteNo) && CH_YK_.indexOf(c.Kind) < 0; // r28 F1: made from a quote: its job is made at Post (Awaiting order, no PO needed)
+  if (String(c.MatSource || '') === 'Vendor') { // r28 F2: vendor rental, not our stock: no StockMoves (every post path: office, sheet panel)
+    if (fromQ && !db.rows('ChallanLines').some(function (l) { return l.ChallanNo === no; })) throw new Error(no + ' has no lines');
+    return chPostVendor_(db, fromQ ? chQuoteJob_(db, c) : c);
+  }
+  var kind = c.Kind, yk = CH_YK_.indexOf(kind) >= 0, job = fromQ || (yk && blank(c.JobNo)) ? null : must(db, 'Jobs', 'JobNo', c.JobNo), jn = job ? job.JobNo : ''; // E3b-4: a quote's job only after every check passed
   var date = c.ChallanDate ? toDate(c.ChallanDate) : today(), ret = kind === 'Return', sup = blank(c.SupID) ? '' : String(c.SupID), oc = chOwnCol_(db);
   var lines = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === no; });
   if (!lines.length) throw new Error(no + ' has no lines');
@@ -312,6 +315,7 @@ function postChallan(db, no, o) {
   });
   if (oc && !errs.length) mv = chSplit_(db, c, kind, sup, mv, jn, errs);
   if (errs.length) throw new Error('Not posted:\n' + errs.join('\n'));
+  if (fromQ) { c = chQuoteJob_(db, c); job = must(db, 'Jobs', 'JobNo', c.JobNo); jn = String(job.JobNo); } // E3b-4: a refused post made a job + accepted the quote
   var now = new Date(), ids = nextIds(db, 'MV', mv.length);
   db.insert('StockMoves', mv.map(function (m, i) {
     var r = { MoveID: ids[i], MoveDate: date, ItemCode: m[0], Qty: m[1], FromLoc: m[2], ToLoc: m[3], RefType: 'Challan', RefNo: no, JobNo: jn, PostedBy: user_(), PostedAt: now };
