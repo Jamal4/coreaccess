@@ -98,6 +98,7 @@ V(`['ac2@p.com|AC2', 'ac1@p.com|AC1', 'pr2@p.com|PR2', 'ach@p.com|AC3'].forEach(
   const pv1 = P1.split('|')[0]; click($('.qcard[data-c="' + pv1 + '"]')); await wait(20);
   ok('AP6a head sees Cancel payment', !!$('#apc')); click($('#apc')); await wait(10); click($('#dyes')); await wait(20);
   ok('AP6b reason needed', /Give a reason/.test($('#derr').textContent)); $('#acr').value = 'test'; click($('#dyes')); await wait(200);
+  ok('AP6d cancelled view: the bills it paid (reversed) listed; no direct-bill wording', /Bills it paid \(reversed\)/.test($('#acv').textContent) && $('#acv').textContent.indexOf(bid) >= 0 && /bills it paid are owed again/.test($('#acv').textContent) && !/its own bill/.test($('#acv').textContent), $('#acv').textContent.slice(0, 400));
   ok('AP6c cancelled; bill Unpaid again', DB(`find(PD.rows('Payments'), 'PayID', '${pv1}').ChequeStatus + '|' + find(PD.rows('Bills'), 'BillID', '${bid}').Status`) === 'Cancelled|Unpaid' && /cancelled/.test(toast()), toast());
   // AP7 suppliers tab: owed + vendor view; cancel the unpaid bill (AC staff)
   click($('#acvb')); await wait(120); click($$('#actb .chip').filter(c => c.getAttribute('data-k') === 'sups')[0]); await wait(20);

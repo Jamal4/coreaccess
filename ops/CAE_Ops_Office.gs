@@ -3749,11 +3749,14 @@ function officeAcList(token) {
   var X = oChCtx_(db), P = oAcPaid_(db), seen = oStMap_(), owed = oStMap_();
   var bills = db.rows('Bills').filter(function (b) { var n = String(b.BillID); if (!OAC_ID_.test(n) || seen[n]) return false; seen[n] = 1; return true; }).map(function (b) { return oAcBillOut_(b, P); });
   bills.forEach(function (b) { if (b.bal > 0.005) owed[b.sup] = r2((owed[b.sup] || 0) + b.bal); });
-  var al = oStMap_(); db.rows('Allocations').forEach(function (x) { if (String(x.DocType) !== 'Bill') return; var p = String(x.PayID), m = al[p] = al[p] || oStMap_(); m[String(x.DocNo)] = r2((m[String(x.DocNo)] || 0) + num(x.Amount)); });
+  var al = oStMap_(), was = oStMap_(), dbl = oStMap_(); db.rows('Allocations').forEach(function (x) { if (String(x.DocType) !== 'Bill') return; var p = String(x.PayID), m = al[p] = al[p] || oStMap_(), k = String(x.DocNo); m[k] = r2((m[k] || 0) + num(x.Amount));
+    if (num(x.Amount) > 0) { var w = was[p] = was[p] || oStMap_(); w[k] = r2((w[k] || 0) + num(x.Amount)); } }); // r35c: what a cancelled / dishonoured payment had paid (reversed since)
+  db.rows('Bills').forEach(function (b) { if (!blank(b.PayID)) dbl[String(b.PayID)] = String(b.BillID); }); // r35c: the bill a direct payment made
   var ps = oStMap_(), pays = db.rows('Payments').filter(function (p) { var n = String(p.PayID); if (!OAC_PV_.test(n) || ps[n] || String(p.Direction) !== 'Out' || String(p.PartyType) !== 'Supplier') return false; ps[n] = 1; return true; })
     .map(function (p) { var m = al[String(p.PayID)] || {}; return { id: String(p.PayID), d: oDay_(p.PayDate), sup: String(p.PartyID || ''), method: String(p.Method || ''), ref: oUncell_(p.RefNo), bank: oUncell_(p.Bank), amt: r2(num(p.Amount)),
       st: String(p.ChequeStatus || ''), notes: oUncell_(p.Notes), by: oUncell_(p.MadeBy), reason: oUncell_(p.CancelReason), free: r2(payAvailable(db, p)),
-      al: Object.keys(m).filter(function (k) { return Math.abs(m[k]) > 0.005; }).sort().map(function (k) { return { no: k, amt: m[k] }; }) }; });
+      al: Object.keys(m).filter(function (k) { return Math.abs(m[k]) > 0.005; }).sort().map(function (k) { return { no: k, amt: m[k] }; }), dbill: dbl[String(p.PayID)] || '',
+      was: payVoid_(String(p.ChequeStatus)) ? Object.keys(was[String(p.PayID)] || {}).sort().map(function (k) { return { no: k, amt: was[String(p.PayID)][k] }; }) : [] }; });
   var sups = Object.keys(X.sups).map(function (s) { var r = X.sups[s], o = { id: s, name: oUncell_(r.Name || s), phone: oUncell_(r.Phone), owed: owed[s] || 0 }; if (String(r.Status) === 'Inactive') o.off = true; return o; });
   var jobs = Object.keys(X.jobs).sort().map(function (n) { var j = X.jobs[n]; return { no: n, quote: blank(j.QuoteNo) ? '' : String(j.QuoteNo), cust: X.cust(j), st: String(j.Status || '') }; });
   var qj = oStMap_(); Object.keys(X.jobs).forEach(function (n) { var q = X.jobs[n].QuoteNo; if (!blank(q)) qj[String(q)] = n; });

@@ -87,6 +87,8 @@
             EQ('AC-8b bills re-opened', LI().bills.filter(function (b) { return b.sup === S0 && !b.pv; }).map(function (b) { return b.st; }).join(), 'Unpaid,Part paid');
             rc(); officePayCancel(tD, pD, 'test');
             EQ('AC-8c direct bill cancelled', [bill(bD).Status, B(bD).bal, pay(pD).ChequeStatus].join(), 'Cancelled,0,Cancelled');
+            var lp = LI().pays, pd = lp.filter(function (p) { return p.id === pD; })[0], pp = lp.filter(function (p) { return p.id === p1; })[0];
+            EQ('AC-8h list: a cancelled payment keeps what it paid (was) + its direct bill', [pd.dbill === bD, pd.al.length, pd.was.length, pp.dbill, pp.was.map(function (w) { return w.amt; }).join('+')].join(), 'true,0,1,,3000+1000');
             EQ('AC-8d twice', E(function () { rc(); officePayCancel(tH, p1, 'again'); }), 'PAYSTATE|Cancelled');
             EQ('AC-8e cancelled payment = nothing', [payAvailable(db, pay(p1)), E(function () { allocatePayment(db, p1); })].join(), '0,' + p1 + ' is cancelled');
             EQ('AC-8g sheet panel dishonour of a cancelled payment refused', [E(function () { chequeDishonoured(db, p1); }), pay(p1).ChequeStatus].join(), p1 + ' is already cancelled,Cancelled');
