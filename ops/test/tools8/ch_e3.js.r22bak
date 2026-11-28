@@ -1,0 +1,108 @@
+        // ---- M8 CodeRabbit run 1 (harness only): CH-36 ... CH-47
+        (function () { var LAST = '', EQ = function (n) { LAST = n; return eq.apply(this, arguments); }; try {
+          var tP = add('che3ps@t.com', { PS: 2 }), tW = add('che3yw@t.com', { YW: 2 }), rc = function () { ['che3ps@t.com', 'che3yw@t.com', 'yard4@t.com', 'dir4@t.com', 'sales4@t.com'].forEach(function (e) { e5.cdel('OQEW:' + e); }); };
+          var SV = function (t, c) { rc(); return officeChallanSave(t, c); }, G = function (t, no) { rc(); return officeChallanGet(t, no); };
+          var PO = function (t, no, veh) { rc(); return officeChallanPost(t, no, officeChallanGet(t, no).ev, veh); }, CX = function (t, no) { rc(); return officeChallanCancel(t, no, officeChallanGet(t, no).ev, 'test'); };
+          var mvs = function (no) { return db.rows('StockMoves').filter(function (v) { return v.RefNo === no && v.RefType === 'Challan'; }); }, dmg = function (no) { return db.rows('Damage').filter(function (x) { return x.ChallanNo === no; }); };
+          var row = function (no) { return find(db.rows('Challans'), 'ChallanNo', no); }, lns = function (no) { return oChLines_(db, no).map(function (l) { return l.ItemCode + ':' + l.Qty; }).sort().join(','); };
+          var J = 'CAE/J/2026/801', Y = 'CH-YARD', SUP = 'SUP-0001', D = '2026-11-20', pc0 = postChallan;
+          postOpeningStock(db, [{ ItemCode: 'CH-STD', Qty: 20, LocID: Y }, { ItemCode: 'CH-BRD', Qty: 20, LocID: Y }], new Date(2026, 10, 4));
+          var sD = SV(tP, { kind: 'Delivery', job: J, from: Y, date: D, veh: 'V', lines: [{ it: 'CH-STD', q: 4 }] }); PO(tP, sD.no, 'V');
+          // (1) + (2): a post whose moves went in, then failed
+          var sR = SV(tP, { kind: 'Return', job: J, to: Y, date: D, veh: 'V', lines: [{ it: 'CH-STD', g: 1, dm: 1, l: 1 }] }), e1, g1, n1;
+          postChallan = function (d, no) { pc0.apply(this, arguments); uiDelRows_(d, 'Damage', d.rows('Damage').filter(function (x) { return x.ChallanNo === no; })); d.update('Challans', must(d, 'Challans', 'ChallanNo', no), { Status: 'Draft' }); throw new Error('Service Spreadsheets timed out'); };
+          try { e1 = err(function () { PO(tP, sR.no, 'V'); }); } finally { postChallan = pc0; }
+          n1 = mvs(sR.no).length; g1 = G(tP, sR.no);
+          EQ('CH-36 part-posted draft (moves in, still Draft): the view says so; Post only (no Edit, no Discard); save and discard refused CHPART, nothing changed',
+            [e1, n1, g1.unfin, g1.canEdit, g1.canCancel, g1.canPost, err(function () { SV(tP, { no: sR.no, ev: g1.ev, kind: 'Return', job: J, to: Y, date: D, lines: [{ it: 'CH-STD', g: 3 }] }); }), err(function () { CX(tP, sR.no); }), lns(sR.no), mvs(sR.no).length, row(sR.no).Status].join('|'),
+            'POSTUNSURE|3|true|false|false|true|CHPART|CHPART|CH-STD:3|3|Draft');
+          PO(tP, sR.no, 'V'); var d1 = dmg(sR.no);
+          EQ('CH-37 Post again finishes it: Posted, the Damage row the failed post lost is written (damaged 1, lost 1, chargeable on a rental), never moved twice',
+            [row(sR.no).Status, d1.length, d1.map(function (x) { return x.ItemCode + ':' + x.QtyDamaged + ':' + x.QtyLost + ':' + x.Status + ':' + (db.headers('Damage').indexOf('Chargeable') < 0 || x.Chargeable === 'Yes'); }).join(), mvs(sR.no).length].join('|'), 'Posted|1|CH-STD:1:1:Open:true|3');
+          var sR2 = SV(tP, { kind: 'Return', job: J, to: Y, date: D, veh: 'V', lines: [{ it: 'CH-STD', g: 0, dm: 1 }] });
+          postChallan = function (d, no) { pc0.apply(this, arguments); d.update('Challans', must(d, 'Challans', 'ChallanNo', no), { Status: 'Draft' }); throw new Error('Service Spreadsheets timed out'); };
+          try { err(function () { PO(tP, sR2.no, 'V'); }); } finally { postChallan = pc0; }
+          PO(tP, sR2.no, 'V');
+          EQ('CH-38 the Damage row already went in before the failure: finishing writes no second one', [row(sR2.no).Status, dmg(sR2.no).length, mvs(sR2.no).length].join('|'), 'Posted|1|1');
+          db.insert('Jobs', { JobNo: 'CAE/J/2026/809', CustID: 'CUST-0001', SiteID: 'SITE-0801', JobType: 'Rental', HireBasis: 'Item', Status: 'Awaiting order' });
+          var sJ = SV(tP, { kind: 'Delivery', job: 'CAE/J/2026/809', from: Y, date: D, veh: 'V', lines: [{ it: 'CH-BRD', q: 1 }] });
+          postChallan = function (d, no) { pc0.apply(this, arguments); d.update('Jobs', must(d, 'Jobs', 'JobNo', 'CAE/J/2026/809'), { Status: 'Awaiting order' }); d.update('Challans', must(d, 'Challans', 'ChallanNo', no), { Status: 'Draft' }); throw new Error('Service Spreadsheets timed out'); };
+          try { err(function () { PO(tP, sJ.no, 'V'); }); } finally { postChallan = pc0; }
+          PO(tP, sJ.no, 'V');
+          EQ('CH-39 finishing a delivery also sets the job On hire (the step the old shortcut skipped)', [row(sJ.no).Status, must(db, 'Jobs', 'JobNo', 'CAE/J/2026/809').Status, mvs(sJ.no).length].join('|'), 'Posted|On hire|1');
+          // (3): line rewrite: part of the old lines deleted, then a failure
+          var u0 = uiDelRows_, mode = '', sL = SV(tP, { kind: 'Delivery', job: J, from: Y, date: D, lines: [{ it: 'CH-STD', q: 1 }, { it: 'CH-BRD', q: 1 }] });
+          uiDelRows_ = function (d, t, rows) { if (t === 'ChallanLines' && mode && rows.length > 1) { var m = mode; mode = ''; if (m === 'half') u0(d, t, [rows[0]]); throw new Error('Service Spreadsheets failed'); } return u0.apply(this, arguments); };
+          var e3a, e3b, l3a, l3b;
+          try { mode = 'half'; e3a = err(function () { SV(tP, { no: sL.no, ev: G(tP, sL.no).ev, kind: 'Delivery', job: J, from: Y, date: D, lines: [{ it: 'CH-STD', q: 2 }, { it: 'CH-BRD', q: 2 }] }); }); l3a = lns(sL.no);
+            mode = 'none'; e3b = err(function () { SV(tP, { no: sL.no, ev: G(tP, sL.no).ev, kind: 'Delivery', job: J, from: Y, date: D, lines: [{ it: 'CH-STD', q: 5 }, { it: 'CH-BRD', q: 5 }] }); }); l3b = lns(sL.no);
+          } finally { uiDelRows_ = u0; mode = ''; }
+          EQ('CH-40 edit whose old-line delete went half way then failed: BUSY, the draft holds only the new lines (never an old + a new line of one item); nothing deleted yet: old lines kept',
+            [e3a, l3a, e3b, l3b].join('|'), 'BUSY|CH-BRD:2,CH-STD:2|BUSY|CH-BRD:2,CH-STD:2');
+          // (4): blank status prints as a draft
+          var cB = row(sL.no); db.update('Challans', cB, { Status: '' }); var t4 = PDF_SPECS.Challan(db, sL.no).blocks[0].sub; db.update('Challans', cB, { Status: 'Draft' });
+          EQ('CH-41 a challan with a blank status prints "DRAFT — not posted" (the view treats it as a draft); a posted one does not',
+            [/DRAFT — not posted/.test(t4), /DRAFT/.test(PDF_SPECS.Challan(db, sD.no).blocks[0].sub)].join('|'), 'true|false');
+          // (5) + (6): the PDF link
+          (function () { var q5 = QF5_STUB_, DA0 = typeof DriveApp === 'undefined' ? undefined : DriveApp, nU = 0, TR = {}, DT = {}, tr = [], jb = must(db, 'Jobs', 'JobNo', J), wo0 = jb.ClientWONo, res = [];
+            var IDN = function (p) { return 'CHE3' + p + (++nU) + 'abcdefghijklmnop'; }, UR = function (id) { return 'https://drive.google.com/file/d/' + id + '/view'; };
+            DriveApp = { getFileById: function (id) { return { setTrashed: function (v) { tr.push(id); TR[id] = v; }, isTrashed: function () { return !!TR[id]; }, getDateCreated: function () { if (!(id in DT)) throw new Error('no file'); return new Date(DT[id]); } }; } };
+            var mine = '', act = null; QF5_STUB_ = { make: function (d, w, n) { mine = IDN('m'); DT[mine] = 1e12; if (act) act(); return { url: UR(mine), doc: '', file: n + '.pdf', placeholders: 0 }; } };
+            try {
+              db.update('Challans', row(sL.no), { PDF: '' }); var ev = G(tP, sL.no).ev;
+              act = function () { db.update('Jobs', jb, { ClientWONo: 'WO-CHANGED' }); }; res.push(err(function () { rc(); officeChallanPdf(tP, sL.no); }), String(row(sL.no).PDF || '') === '', !!TR[mine]);
+              act = null; var ok = (rc(), officeChallanPdf(tP, sL.no)); res.push(ok.url === String(row(sL.no).PDF) && ok.url === UR(mine));
+              var other = IDN('o'); DT[other] = 2e12; db.update('Challans', row(sL.no), { PDF: '' }); e5.del('OCHP:' + sL.no);
+              act = function () { db.update('Challans', row(sL.no), { PDF: UR(other) }); e5.put('OCHP:' + sL.no, { e: ev, d: 'https://docs.google.com/document/d/' + other + 'D/edit' }); };
+              var nw = (rc(), officeChallanPdf(tP, sL.no)); res.push(nw.url === UR(other), /D\/edit$/.test(nw.doc), String(row(sL.no).PDF) === UR(other), !!TR[mine]);
+              db.update('Challans', row(sL.no), { PDF: '' }); e5.del('OCHP:' + sL.no);
+              act = function () { TR[mine] = true; }; res.push(err(function () { rc(); officeChallanPdf(tP, sL.no); }), String(row(sL.no).PDF || '') === '');
+            } finally { QF5_STUB_ = q5; if (DA0 === undefined) DriveApp = {}; else DriveApp = DA0; db.update('Jobs', jb, { ClientWONo: wo0 == null ? '' : wo0 }); }
+            EQ('CH-42 PDF: the job\'s WO changed while it rendered -> BUSY, no link, the new file binned; unchanged -> linked; a later render published first -> its link kept and returned, ours binned; ours already binned and no link -> BUSY, no link',
+              res.join('|'), 'BUSY|true|true|true|true|true|true|true|BUSY|true'); })();
+          // (7): a line whose item stopped being stock-tracked
+          var sH = SV(tW, { kind: 'Hire-in', sup: SUP, sref: 'DO-E3', to: Y, date: D, lines: [{ it: 'CH-STD', q: 2 }, { it: 'CH-BRD', q: 3 }] }), ib = must(db, 'Items', 'ItemCode', 'CH-BRD'), e7;
+          db.update('Items', ib, { StockTracked: 'No' }); try { e7 = err(function () { PO(tW, sH.no); }); } finally { db.update('Items', ib, { StockTracked: 'Yes' }); }
+          var m7 = mvs(sH.no).length; err(function () { PO(tW, sH.no); });
+          EQ('CH-43 post refuses a line whose item is no longer stock-tracked (nothing moves, still a Draft); tracking back on -> both lines post',
+            [String(e7).split('|')[0], /CH-BRD: not a stock item now/.test(String(e7)), m7, row(sH.no).Status, mvs(sH.no).length].join('|'), 'NOTPOSTED|true|0|Posted|2');
+          // (8): a return with a Qty 0 set-part damage line (sheet panel)
+          var sQ = SV(tP, { kind: 'Return', job: J, to: Y, date: D, lines: [{ it: 'CH-STD', g: 1 }] }), gO = G(tP, sQ.no);
+          db.insert('ChallanLines', { LineID: 'CL-E3Q0', ChallanNo: sQ.no, ItemCode: 'CH-BRD', Qty: 0, QtyGood: '', QtyDamaged: 1, QtyLost: '', Remarks: '' });
+          var gQ = G(tP, sQ.no), lq = gQ.lines.filter(function (l) { return l.it === 'CH-BRD'; })[0] || {};
+          EQ('CH-44 return with a Qty 0 set-part damage line: view flags it, no Edit (Post / Discard stay), no negative good count; an office save is refused CHSHEET; an ordinary return draft edits as before',
+            [gO.sheet, gO.canEdit, gQ.sheet, gQ.canEdit, gQ.canPost, gQ.canCancel, lq.g + ':' + lq.dm, err(function () { SV(tP, { no: sQ.no, ev: gQ.ev, kind: 'Return', job: J, to: Y, date: D, lines: [{ it: 'CH-STD', g: 1 }, { it: 'CH-BRD', g: 1 }] }); }), lns(sQ.no)].join('|'),
+            'false|true|true|false|true|true|0:1|CHSHEET|CH-BRD:0,CH-STD:1');
+          CX(tP, sQ.no);
+          // (10): Inactive supplier still holding items
+          var sp = must(db, 'Suppliers', 'SupID', SUP), st0 = sp.Status, r10 = [];
+          if (!find(db.rows('Suppliers'), 'SupID', 'SUP-0E3')) db.insert('Suppliers', { SupID: 'SUP-0E3', Name: 'E3 none held', Status: 'Inactive' });
+          db.update('Suppliers', sp, { Status: 'Inactive' });
+          try { rc(); var LS = officeChallanList(tW).sups, s1 = LS.filter(function (s) { return s.id === SUP; })[0];
+            r10.push(!!s1 && s1.off === true, LS.some(function (s) { return s.id === 'SUP-0E3'; }), err(function () { SV(tW, { kind: 'Hire-in', sup: SUP, sref: 'X', to: Y, date: D, lines: [{ it: 'CH-STD', q: 1 }] }); }));
+            try { var sO = SV(tW, { kind: 'Off-hire', sup: SUP, from: Y, date: D, lines: [{ it: 'CH-STD', q: 1 }] }); PO(tW, sO.no); r10.push(row(sO.no).Status, mvs(sO.no).map(function (v) { return v.Owner; }).join()); } catch (x) { r10.push('ERR ' + (x && x.message || x), ''); }
+            r10.push(err(function () { SV(tW, { kind: 'Off-hire', sup: 'SUP-0E3', from: Y, date: D, lines: [{ it: 'CH-STD', q: 1 }] }); }));
+          } finally { db.update('Suppliers', sp, { Status: st0 == null ? '' : st0 }); }
+          EQ('CH-45 an Inactive supplier still holding items: offered for Off-hire only (marked), Hire-in refused, Off-hire saves and posts (its own items); one holding nothing: not offered, refused',
+            r10.join('|'), 'true|false|BADINPUT|supplier|Posted|' + SUP + '|BADINPUT|supplier');
+          // (9): new quote inserted, then a later step threw
+          (function () { var s0 = UI_ACTIONS_.saveQuoteFull, n0 = db.rows('Quotes').length, ea, eb, nb;
+            try { UI_ACTIONS_.saveQuoteFull = function (d, a) { s0.apply(this, arguments); throw new Error('Service Spreadsheets timed out'); };
+              rc(); ea = err(function () { officeQuoteSave(tS, base({ subject: 'E3 quote', lines: [{ code: 'RL-STD-20', desc: 'std', qty: 2, unit: 'pc / month', rate: 50 }] })); });
+              nb = db.rows('Quotes').length;
+              UI_ACTIONS_.saveQuoteFull = function () { throw new Error('Rate is needed'); };
+              rc(); eb = err(function () { officeQuoteSave(tS, base({ subject: 'E3 quote 2', lines: [{ code: 'RL-STD-20', desc: 'std', qty: 2, unit: 'pc / month', rate: 50 }] })); });
+            } finally { UI_ACTIONS_.saveQuoteFull = s0; }
+            var p = String(ea).split('|'), nq = db.rows('Quotes').slice(n0).map(function (q) { return String(q.QuoteNo); });
+            EQ('CH-46 new quote: inserted, then a later step of the save threw -> SAVEUNSURE with its number (Save again edits it, no 2nd draft); refused before any insert -> SAVEFAIL as before, no quote',
+              [p[0], nq.length === 1 && p[1] === nq[0], nb - n0, String(eb).split('|')[0], db.rows('Quotes').length - n0].join('|'), 'SAVEUNSURE|true|1|SAVEFAIL|1'); })();
+          // (11): the timed sweep takes the script lock first, then the document lock
+          (function () { var L0 = LockService, SD = SheetDb, R0 = appSweepRun_, lg = [], busy = false, out = [];
+            var lk = function (n) { return { tryLock: function () { if (n === 'script' && busy) return false; lg.push(n); return true; }, releaseLock: function () { lg.push('-' + n); } }; };
+            LockService = { getScriptLock: function () { return lk('script'); }, getDocumentLock: function () { return lk('doc'); } };
+            SheetDb = function () { return { hasTab: function () { return true; }, headers: function () { return ['Status']; }, sheet: function () { return { getLastRow: function () { return 2; }, getRange: function () { return { getValues: function () { return [['Submitted']]; } }; } }; } }; };
+            appSweepRun_ = function () { lg.push('run:s=' + OLK_.s); };
+            try { appSweep(); out.push(lg.join(','), OLK_.s); lg = []; busy = true; appSweep(); out.push(lg.join(',') || 'nothing'); }
+            finally { LockService = L0; SheetDb = SD; appSweepRun_ = R0; }
+            EQ('CH-47 the timed sweep: script lock, then document lock, runs with the script lock counted as held, lets both go; script lock busy -> nothing runs', out.join('|'), 'script,doc,run:s=1,-doc,-script|0|nothing'); })();
+        } catch (e) { eq('CH-E3 crashed after ' + LAST.slice(0, 6), String(e && e.message || e), 'no crash'); } })();

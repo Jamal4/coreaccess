@@ -316,6 +316,8 @@ span.tv{cursor:default}
 .qe-tab .c{width:100%;height:40px;padding:0 10px;border-radius:9px;border:1px solid var(--line2);background:var(--bg2)}
 .qe-tab .c[readonly]{color:var(--muted);background:var(--card)}
 .qe-tab textarea.c{height:40px;min-height:40px;padding:9px 10px;resize:vertical;line-height:1.35;display:block}
+.qe-tab select.c{padding:0 6px}
+.qe-pic{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}.qe-pic img{max-height:90px;max-width:150px;border-radius:8px;background:#fff;padding:3px}
 .qe-tab .c:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--tealbg)}
 .qe-tab .c.bad{border-color:var(--red);box-shadow:0 0 0 3px var(--redbg)}
 .qe-tab .c.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -395,6 +397,28 @@ span.tv{cursor:default}
 .qpick{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;margin-bottom:14px}
 .qpk{text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line2);background:var(--bg2);cursor:pointer}
 .qpk.on{border-color:var(--teal);background:var(--tealbg)} .qpk b{font-family:ui-monospace,Consolas,monospace;color:var(--teal2)} .qpk small{display:block;color:var(--muted)}
+/* M3 stock */
+.qcard.st-c::before{background:var(--amber)} .qcard.st-lc::before{background:#fb7185} .qcard.st-st::before{background:#a78bfa} .qcard.st-c .qno,.qcard.st-st .qno{color:var(--amber)}
+.st-set{background:rgba(167,139,250,.12);color:#a78bfa} .st-low{background:rgba(244,63,94,.12);color:#fb7185} .st-off{background:var(--card2);color:var(--dim)}
+.st-grp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px} .st-grp div{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:5px 8px;font-size:11px;color:var(--dim);font-weight:700;letter-spacing:.3px}
+.st-grp div b{display:block;font-size:16px;color:var(--text);font-variant-numeric:tabular-nums} .st-grp div.hl{border-color:var(--amber)} .st-grp div.z b{color:var(--dim)} .st-grp div.lw b{color:#fb7185}
+.chip.st-lw.on{border-color:#f43f5e;background:rgba(244,63,94,.12);color:var(--text)}
+.st-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px} .st-pic{max-height:120px;max-width:180px;border-radius:8px;background:#fff;padding:3px;display:block;margin-bottom:6px} .st-mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px} .st-neg{color:#fb7185} .st-lnk{background:none;border:0;padding:0;margin:0;color:var(--teal2);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:2px}
+.st-ol{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 90px 36px;gap:8px;align-items:center;margin-bottom:8px} .st-ol .inp{height:40px}
+.st-mini{width:34px;height:34px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0} .st-mini:hover{color:#fda4af;border-color:#f43f5e}
+.ltab small{display:block;color:var(--dim);font-size:12px}
+@media (max-width:560px){.st-f3{grid-template-columns:1fr}.st-ol{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.st-ol .oi{grid-column:1/-1}}
+.ch-k-Delivery{background:var(--skybg);color:var(--sky)}.ch-k-Sale{background:var(--orangebg);color:var(--orange)}.ch-k-Return{background:var(--violetbg);color:var(--violet)}.ch-k-Transfer{background:var(--tealbg);color:var(--teal2)}
+.ch-k-Hire-in{background:rgba(163,230,53,.12);color:#a3e635}.ch-k-Off-hire{background:rgba(244,114,182,.12);color:#f472b6}.ch-rent{background:rgba(163,230,53,.12);color:#a3e635}
+.ch-s-Draft{background:var(--amberbg);color:var(--amber)}.ch-s-Posted{background:var(--greenbg);color:var(--green)}.ch-s-Cancelled{background:var(--redbg);color:#fb7185}.ch-s-Submitted{background:var(--card2);color:var(--muted)}
+.qcard.ch-c::before{background:var(--sky)}.qcard.ch-Sale::before{background:var(--orange)}.qcard.ch-Return::before{background:var(--violet)}.qcard.ch-Transfer::before{background:var(--teal)}.qcard.ch-Hire-in::before{background:#a3e635}.qcard.ch-Off-hire::before{background:#f472b6}.qcard.ch-cx{opacity:.6}
+.ch-src{font-size:12px;color:#a3e635}.ch-src.own{color:var(--muted)}.ch-neg{color:#fb7185}.ch-out{color:#fbbf24}
+.ch-f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 12px}
+.ch-ol{display:grid;grid-template-columns:minmax(0,2fr) 100px minmax(0,1.6fr) 36px;gap:8px;align-items:center;margin-bottom:8px}.ch-ol .inp{height:40px}
+.ch-av{font-size:12px;color:var(--muted)}.ch-av b{color:var(--green)}.ch-av i{font-style:normal;color:#a3e635}
+.ch-mini{width:34px;height:34px;border-radius:8px;border:1px solid var(--line2);background:transparent;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.ch-mini:hover{color:#fda4af;border-color:var(--red)}
+.ltab input.ch-n{height:38px;width:80px;text-align:right;padding:0 8px}
+@media(max-width:560px){.ch-f3{grid-template-columns:1fr}.ch-ol{grid-template-columns:1fr 90px 36px}.ch-ol .ch-av{grid-column:1/-1;order:9}}
 </style>
 </head>
 <body>
@@ -418,6 +442,7 @@ var I = {
   ret:'<path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
   receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   cash:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/>',
+  pin:'<path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2"/>',
   box:'<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
   chart:'<path d="M3 21h18M6 17v-6M11 17V5M16 17v-9M21 17v-3"/>',
   users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
@@ -706,7 +731,7 @@ var DEPTS=[
   {d:'HR',n:'HR & Admin',c:'t-red',iso:'7.1.2 · 7.2'},
   {d:'QH',n:'QHSE',c:'t-green',iso:'6.1 · 7.5 · 9.2 · 10.2 · 45001'}
 ];
-/* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen · r = ready */
+/* l = lowest level that sees the tile (1 View, 2 Staff, 3 Head, 4 Director) · s = site screen · r = ready · o = other departments that may view it (level 1+) */
 var TILES=[
   {d:'SC',k:'enquiries',t:'Enquiries',x:'Requests from customers',ic:'inbox',l:1},
   {d:'SC',k:'quotes',t:'Quotes',x:'Find, view, terms, email',ic:'doc',l:1,r:1},
@@ -715,11 +740,11 @@ var TILES=[
   {d:'SC',k:'contracts',t:'Contracts (PO / WO)',x:'Client orders, advance',ic:'contract',l:1,r:1},
   {d:'SC',k:'tenders',t:'Tenders',x:'Submission packs',ic:'award',l:1},
   {d:'PS',k:'jobs',t:'Jobs',x:'Status, close + settlement',ic:'brief',l:1},
-  {d:'PS',k:'dos',t:'Delivery orders',x:'Prepare, dispatch, confirm',ic:'truck',l:1,s:1},
-  {d:'PS',k:'returns',t:'Returns',x:'Count good / damaged / lost',ic:'ret',l:1,s:1},
+  {d:'PS',k:'dos',t:'Delivery orders',x:'Prepare, dispatch, confirm',ic:'truck',l:1,s:1,r:1},
+  {d:'PS',k:'returns',t:'Returns',x:'Count good / damaged / lost',ic:'ret',l:1,s:1,r:1},
   {d:'PS',k:'inspect',t:'Site inspections / handover',x:'Checklist, green tag',ic:'check',l:1,s:1},
   {d:'PS',k:'joblook',t:'Job look-up',x:'Site, items out, references',ic:'search',l:1,s:1},
-  {d:'YW',k:'stock',t:'Stock',x:'Items and locations',ic:'box',l:1,s:1},
+  {d:'YW',k:'stock',t:'Stock',x:'Items and locations',ic:'box',l:1,s:1,r:1,o:['PS','SC','PR','AC']},
   {d:'YW',k:'fab',t:'Fabrication / cutting / repair',x:'Yard work orders',ic:'wrench',l:2},
   {d:'YW',k:'equip',t:'Equipment inspection',x:'Records, due dates',ic:'gauge',l:2},
   {d:'PR',k:'suppliers',t:'Suppliers',x:'Approved list, evaluation',ic:'store',l:1},
@@ -762,7 +787,7 @@ function seesMoney(a){return isDirector(a)||['SC','PR','AC'].some(function(d){re
 function myAccess(u){return u.depts||ROLEMAP[u.role]||{};}
 function myTiles(u){
   var a=myAccess(u);
-  return TILES.filter(function(t){return (a[t.d]||0)>=t.l;});
+  return TILES.filter(function(t){return (a[t.d]||0)>=t.l||(t.o||[]).some(function(d){return (a[d]||0)>=1;});});
 }
 function mePill(u){
   if(!u.depts) return '<span class="pill p-'+esc(u.role)+'">'+esc(u.role)+'</span>';
@@ -799,7 +824,7 @@ function viewHome(f){
   if(!ds.length) body+='<div class="empty">No screens are open for this login yet. Ask a Director to give you a department.</div>';
   ds.forEach(function(D){
     if(f&&f!==D.d) return;
-    body+='<section class="dsec '+D.c+'"><div class="dhead"><span class="dcode">'+D.d+'</span><b>'+esc(D.n)+'</b><span class="lv">'+LVL[a[D.d]]+'</span>'+(D.iso?'<small>ISO '+esc(D.iso)+'</small>':'')+'</div><div class="tiles">';
+    body+='<section class="dsec '+D.c+'"><div class="dhead"><span class="dcode">'+D.d+'</span><b>'+esc(D.n)+'</b><span class="lv">'+(LVL[a[D.d]]||'View')+'</span>'+(D.iso?'<small>ISO '+esc(D.iso)+'</small>':'')+'</div><div class="tiles">';
     mine.filter(function(t){return t.d===D.d;}).forEach(function(t){
       body+='<button type="button" class="tile '+D.c+'" data-k="'+t.k+'">'+(t.r?'':'<span class="soon">SOON</span>')+'<span class="ic">'+ic(t.ic)+'</span><b>'+esc(t.t)+'</b><small>'+esc(t.x)+'</small></button>';
     });
@@ -816,6 +841,8 @@ function viewHome(f){
     if(k==='newquote') return viewQuoteEdit();
     if(k==='customers') return viewCusts();
     if(k==='contracts') return viewContracts();
+    if(k==='stock') return viewStock();
+    if(k==='dos'||k==='returns') return viewCh(k);
     toast(b.querySelector('b').textContent+' — comes in a later step.');
   };});
 }
@@ -1014,7 +1041,7 @@ function nctFull(r){
   o.lines=cuArr(r.lines).map(function(l){l=l||{};return {id:cuS(l.id),n:+l.n||0,desc:cuS(l.desc),size:cuS(l.size),unit:cuS(l.unit),qty:ctNum(l.qty),months:ctNum(l.months),fab:l.fab===true,rate:ctNum(l.rate),amount:ctNum(l.amount)};}).filter(function(l){return l.id;});
   o.fab=o.lines.filter(function(l){return l.fab;}).length;
   o.lists={status:cuArr(L.status).map(cuS).filter(Boolean),sd:cuArr(L.sd).map(cuS).filter(Boolean)};o.staff=cuArr(r.staff).map(nctStaff).filter(function(s){return s.id;});
-  o.advPct=ctNum(r.advPct);o.set=ctNum(r.set)||0;
+  o.advPct=ctNum(r.advPct);o.set=ctNum(r.set)||0;o.ch=Array.isArray(r.ch)?chNorm({rows:r.ch}).rows:null;
   o.pi=r.pi&&typeof r.pi==='object'&&r.pi.no?{no:cuS(r.pi.no),status:cuS(r.pi.status)||'Draft',amount:ctNum(r.pi.amount)}:null;
   o.sd={amount:ctNum(sd.amount)||0,cheque:cuS(sd.cheque),status:cuS(sd.status)||'None'};
   return o;
@@ -1112,9 +1139,13 @@ function ctDraw(){
         (M?'<td class="r ra">'+ctTk(l.rate)+'</td><td class="r">'+ctTk(l.amount)+'</td>':'')+
         '<td>'+(E?'<button type="button" class="fab'+(l.fab?' on':'')+'" data-l="'+esc(l.id)+'" aria-pressed="'+l.fab+'"'+(c.pend&&c.pend[l.id]?' disabled':'')+'>'+ic('wrench')+t+'</button>':'<span class="fab'+(l.fab?' on':'')+'">'+t+'</span>')+'</td></tr>';}).join('')+
     '</tbody></table></div>':'<div class="empty">No lines.</div>')+'<div class="note">'+ic('alert')+'<span>"Needs fabrication" is for our own planning (feeds the fabrication work orders later). It is not printed on the quote or any client document.</span></div></div>';
+  if(c.ch)h+='<div class="box" style="margin-top:12px"><h4>Challans ('+c.ch.length+')</h4>'+(c.ch.length?'<div class="qlist" id="tch">'+c.ch.map(function(x){
+      return '<button type="button" class="qcard ch-c ch-'+esc(x.kind)+(x.st==='Cancelled'?' ch-cx':'')+'" data-c="'+esc(x.no)+'"><div class="qrow"><span class="qno">'+esc(x.no)+'</span><span class="sp"></span>'+chPill(x)+'</div><div class="qrow"><span class="tag">'+fmtDay(x.d)+' · '+x.n+' line'+(x.n===1?'':'s')+' · '+stQ(x.qty)+' qty'+(x.kg?' · ~'+stQ(x.kg)+' kg':'')+'</span><span class="sp"></span>'+(x.dn?'<span class="tag" style="color:var(--orange)">damage on '+esc(x.dn)+'</span>':'')+(x.veh?'<span class="tag">'+esc(x.veh)+'</span>':'')+'</div></button>';}).join('')+'</div>':'<div class="tag">No challans for this job yet.</div>')+'</div>';
   if(c.notes)h+='<div class="box" style="margin-top:12px"><h4>Notes</h4><div style="white-space:pre-line">'+esc(c.notes)+'</div></div>';
   V.innerHTML=h;
   var qb=document.getElementById('tquote');if(qb)qb.onclick=function(){viewQuote(c.quote);};
+  var tc=document.getElementById('tch');if(tc)tc.onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;var x=c.ch.filter(function(y){return y.no===b.getAttribute('data-c');})[0];
+    CH.tile=x?chTileOf(x.kind):'dos';var jn=c.job;chView(b.getAttribute('data-c'),{t:'Contract '+jn,go:function(){viewContract(jn);}});};
   if(!E)return;
   document.getElementById('tedit').onclick=function(){ctEditDlg(c);};
   var ab=document.getElementById('tadv');if(ab)ab.onclick=function(){ctAdvDlg(c);};
@@ -1255,6 +1286,641 @@ function ctAdvDlg(c){
   };
   setTimeout(function(){if(my===DLG.seq)document.getElementById('taa').focus();},30);
 }
+/* ======================= PS › delivery orders + returns, YW › transfers & rent-in (M8 challans) ======================= */
+I.cx='<path d="M6 6l12 12M18 6 6 18"/>';I.dl='<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>';
+var CH={seq:0,vs:0,tile:'dos',back:null,d:null,q:'',k:'all',s:'all',job:'',cur:null};
+var CH_YK=['Transfer','Hire-in','Off-hire'],CH_NEWK=['Delivery','Sale','Return','Transfer'],CH_NO=/^CAE\/DC\/20\d\d\/\d{3,6}$/; /* r34 F5: Hire-in / Off-hire are no longer made (old ones stay listed) */
+function chY(k){return CH_YK.indexOf(k)>=0;}
+function chCanNew(k){var c=CH.d&&CH.d.can||{};return chY(k)?c.YW===true:c.PS===true;}
+function chObj(x){return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}
+function chN(v){v=+v;return isFinite(v)?v:0;}
+function chNorm(r){
+  r=chObj(r);var o={rows:cuArr(r.rows).map(function(c){c=chObj(c);return {no:cuS(c.no),kind:cuS(c.kind),st:cuS(c.st)||'Draft',d:isDay(c.d)?c.d:'',job:cuS(c.job),cust:cuS(c.cust),from:cuS(c.from),to:cuS(c.to),sup:cuS(c.sup),supName:cuS(c.supName),sref:cuS(c.sref),veh:cuS(c.veh),n:chN(c.n),qty:chN(c.qty),kg:chN(c.kg),dn:cuS(c.dn),by:cuS(c.by),quote:cuS(c.quote),src:cuS(c.src)};}).filter(function(c){return c.no;})};
+  o.jobs=cuArr(r.jobs).map(function(j){j=chObj(j);return {no:cuS(j.no),cust:cuS(j.cust),site:cuS(j.site),siteName:cuS(j.siteName),type:cuS(j.type),ref:cuS(j.ref),st:cuS(j.st),quote:cuS(j.quote)};}).filter(function(j){return j.no;});
+  o.quotes=cuArr(r.quotes).map(function(q){q=chObj(q);return {no:cuS(q.no),cust:cuS(q.cust),siteName:cuS(q.siteName),type:cuS(q.type),st:cuS(q.st),job:cuS(q.job)};}).filter(function(q){return q.no;});o.vout=chObj(r.vout);
+  o.sups=cuArr(r.sups).map(function(s){s=chObj(s);return {id:cuS(s.id),name:cuS(s.name),off:s.off===true};}).filter(function(s){return s.id;});
+  o.locs=cuArr(r.locs).map(function(l){l=chObj(l);return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type)};}).filter(function(l){return l.code;});
+  o.items=cuArr(r.items).map(function(i){i=chObj(i);return {code:cuS(i.code),name:cuS(i.name),size:cuS(i.size),unit:cuS(i.unit),kg:chN(i.kg),set:i.set===true};}).filter(function(i){return i.code;});
+  o.kit=chObj(r.kit);o.pool=chObj(r.pool);o.hire=chObj(r.hire);o.hpool=chObj(r.hpool);o.rent=cuArr(r.rent).map(chObj);
+  var c=chObj(r.can);o.can={PS:c.PS===true,YW:c.YW===true,psH:c.psH===true,ywH:c.ywH===true};o.today=isDay(r.today)?r.today:'';o.SUP=cuS(r.sup)||'LOC-SUPPLIER';
+  return o;
+}
+function chItem(c){var a=CH.d?CH.d.items:[];for(var i=0;i<a.length;i++)if(a[i].code===c)return a[i];return null;}
+function chJob(n){var a=CH.d?CH.d.jobs:[];for(var i=0;i<a.length;i++)if(a[i].no===n)return a[i];return null;}
+function chQuote(n){var a=CH.d&&CH.d.quotes||[];for(var i=0;i<a.length;i++)if(a[i].no===n)return a[i];return null;}
+function chSup(id){var a=CH.d?CH.d.sups:[];for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];return {id:id,name:id};}
+function chLoc(c){var a=CH.d?CH.d.locs:[];for(var i=0;i<a.length;i++)if(a[i].code===c)return a[i];return {code:c,name:c,type:''};}
+function chKit(c){var k=CH.d&&CH.d.kit[c];return Array.isArray(k)?k:[];}
+function chParts(lines){var m={};lines.forEach(function(l){var q=+l.q||0,i=chItem(l.it);if(i&&i.set)chKit(l.it).forEach(function(p){m[p.p]=(m[p.p]||0)+chN(p.q)*q;});else if(l.it)m[l.it]=(m[l.it]||0)+q;});return m;}
+function chPl(k,l){var x=chObj(CH.d&&CH.d.pool[k]);return chObj(x[l]);}
+function chOwners(kind,sup,pl){var r=Object.keys(pl).filter(function(o){return o;}).sort();if(kind==='Sale')return [''];if(kind==='Off-hire')return [sup];if(kind==='Return')return r.concat(['']);return [''].concat(r);}
+function chUsable(kind,sup,k,from){if(from===CH.d.SUP)return Infinity;var pl=chPl(k,from);return chOwners(kind,sup,pl).reduce(function(s,w){return s+Math.max(0,chN(pl[w]));},0);}
+function chAlloc(c){var p=chParts(c.lines),al={},short={};
+  Object.keys(p).forEach(function(k){var need=p[k],sp={};if(c.from===CH.d.SUP){sp[c.sup]=need;al[k]=sp;return;}
+    var pl=chPl(k,c.from);chOwners(c.kind,c.sup,pl).forEach(function(w){var t=Math.min(need,Math.max(0,chN(pl[w])));if(t>0){sp[w]=t;need-=t;}});al[k]=sp;if(need>1e-9)short[k]=need;});
+  return {al:al,short:short,need:p};}
+function chOname(o){return o?chSup(o).name:'own';}
+function chSrc(sp){return Object.keys(chObj(sp)).filter(function(o){return chN(sp[o])>0;}).sort().map(function(o){return '<span class="ch-src'+(o?'':' own')+'">'+esc(chOname(o))+' '+stQ(sp[o])+'</span>';}).join(' · ');}
+function chTileKinds(){return CH.tile==='dos'?['Delivery','Sale']:CH.tile==='returns'?['Return']:CH_YK;}
+function chTitle(){return CH.tile==='dos'?'Projects & sites · Delivery orders':CH.tile==='returns'?'Projects & sites · Returns':'Yard · Transfers';}
+function chRoute(c){if(c.kind==='Return')return c.src==='Vendor'?esc(c.from)+' → vendor '+esc(c.supName||c.sup):esc(c.from)+' → '+esc(c.to)+' / repair / lost';if(c.kind==='Hire-in')return esc(c.supName||c.sup)+' → '+esc(c.to);if(c.kind==='Off-hire')return esc(c.from)+' → '+esc(c.supName||c.sup);
+  return (c.from===(CH.d&&CH.d.SUP)?esc(c.supName||c.sup)+' (direct)':esc(c.from))+' → '+esc(c.to);}
+function chPill(c){return '<span class="pill ch-k-'+esc(c.kind)+'">'+esc(c.kind)+'</span><span class="pill ch-s-'+esc(c.st)+'">'+esc(c.st)+'</span>';}
+function chErr(m){var k=code(m).split('|');
+  switch(k[0]){
+    case 'NOTPOSTED': return 'Not posted — nothing moved:<ul><li>'+esc(k.slice(1).join('|')).split('\n').join('</li><li>')+'</li></ul>';
+    case 'NOCANCEL': return 'Can\'t cancel — nothing changed:<ul><li>'+esc(k.slice(1).join('|')).split('\n').join('</li><li>')+'</li></ul>';
+    case 'CHSTATE': return 'This challan is <b>'+esc(k[1]||'not a draft')+'</b> now. It has been reloaded.';
+    case 'CHDATE': return 'The challan date is in the future. Change the date (Edit draft) or post it on that day.';
+    case 'CHPART': return 'The stock moves of this draft went in but its post did not finish. Press <b>Post</b> to finish it (nothing moves twice). It can\'t be edited or discarded now. It has been reloaded.';
+    case 'CHSHEET': return 'This return has a damaged / lost set-part line (Qty 0) made in the sheet panel. Edit it there.';
+    case 'POSTUNSURE': return 'The stock moves went in but the challan could not be marked. Press the button again to finish it — nothing moves twice.';
+    case 'SAVEUNSURE': return 'The save of new challan <b>'+esc(k[1]||'')+'</b> could not be confirmed. Press <b>Save</b> again: it saves into '+esc(k[1]||'')+', never a second challan.';
+    case 'NOPDF': return 'There is no PDF of this challan yet. Its department makes it.';
+    default: return errText(m);
+  }}
+function viewCh(tile){
+  CH.tile=tile||'dos';CH.back=null;CH.k='all';CH.s='all';CH.job='';CH.q='';CH.cur=null;document.title='Core Access · '+(CH.tile==='tr'?'Transfers & rent-in':CH.tile==='returns'?'Returns':'Delivery orders');
+  shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="chb">'+ic('back')+' '+(CH.tile==='tr'?'Stock':'Home')+'</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="chq" type="search" placeholder="Search challan no, job, customer, supplier or vehicle" autocomplete="off" aria-label="Search challans"></div>'+
+    (CH.tile==='tr'?'':'<select class="inp sm np" id="chj" style="width:auto" aria-label="Job"><option value="">All jobs</option></select>')+'<span id="chn"></span></div>'+
+    '<div id="chrent"></div><div class="chips" id="chk"></div><div class="chips" id="chs"></div><p class="cnt" id="chc">&nbsp;</p><div id="chl" class="qlist"><div class="empty">Loading challans…</div></div>');
+  document.getElementById('chb').onclick=function(){if(CH.tile==='tr')viewStock();else viewHome();};
+  document.getElementById('chq').oninput=function(){CH.q=this.value.trim().toLowerCase();chDraw();};
+  document.getElementById('chl').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(b)chView(b.getAttribute('data-c'));};
+  chLoad(chListUi);
+}
+function chLoad(then,fail){
+  var my=++CH.seq;
+  call('officeChallanList',S.token).then(function(r){if(my!==CH.seq)return;CH.d=chNorm(r);then();},function(m){if(my!==CH.seq)return;if(srvGate(m))return;
+    if(fail)return fail(m);var L=document.getElementById('chl');if(L){L.innerHTML='<div class="empty">Could not load the challans: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="chr">Try again</button></div>';document.getElementById('chr').onclick=function(){chLoad(then);};}});
+}
+function chListUi(){
+  if(!document.getElementById('chl'))return;
+  var ks=chTileKinds(),n=document.getElementById('chn');
+  n.innerHTML=ks.filter(function(k){return CH_NEWK.indexOf(k)>=0&&chCanNew(k);}).map(function(k){return '<button type="button" class="btn btn-primary btn-sm" data-n="'+k+'">'+ic('plus')+' New '+k.toLowerCase()+'</button>';}).join(' ');
+  [].forEach.call(n.querySelectorAll('[data-n]'),function(b){b.onclick=function(){var k=b.getAttribute('data-n');if(k==='Return')chRet(null);else chEdit(null,k);};});
+  var sj=document.getElementById('chj');if(sj){sj.innerHTML='<option value="">All jobs</option>'+CH.d.jobs.map(function(j){return '<option value="'+esc(j.no)+'">'+esc(j.no+' · '+j.cust)+'</option>';}).join('');sj.value=CH.job;sj.onchange=function(){CH.job=this.value;chDraw();};}
+  if(CH.tile==='tr')document.getElementById('chrent').innerHTML=chRentBox();
+  var fk=document.getElementById('chk');
+  fk.innerHTML=ks.length>1?[['all','All']].concat(ks.map(function(k){return [k,k];})).map(function(x){return '<button type="button" class="chip'+(CH.k===x[0]?' on':'')+'" data-k="'+x[0]+'">'+x[1]+'</button>';}).join(''):'';
+  fk.onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;CH.k=b.getAttribute('data-k');[].forEach.call(fk.children,function(x){x.classList.toggle('on',x===b);});chDraw();};
+  document.getElementById('chs').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;CH.s=b.getAttribute('data-s');chDraw();};
+  chDraw();
+}
+function chRentBox(){
+  var R=CH.d.rent;if(!R.length)return ''; /* r34 F5: rented-in stock only from old Hire-in challans */
+  return '<div class="box" style="margin-bottom:12px"><h4>Rented in now · not yet off-hired</h4><div class="tblw"><table class="ltab"><thead><tr><th>Supplier</th><th>Item</th><th class="r">In yard</th><th class="r">In repair</th><th class="r">On sites</th><th class="r">Lost</th><th class="r">Total held</th></tr></thead><tbody>'+
+    R.map(function(r){var i=chItem(cuS(r.it))||{},t=chN(r.yard)+chN(r.rep)+chN(r.site)+chN(r.lost);return '<tr><td>'+esc(chSup(cuS(r.sup)).name)+'<small>'+esc(cuS(r.sup))+'</small></td><td><span class="qno">'+esc(cuS(r.it))+'</span><small>'+esc(i.name||'')+'</small></td><td class="r">'+stQ(r.yard)+'</td><td class="r">'+stQ(r.rep)+'</td><td class="r">'+stQ(r.site)+'</td><td class="r">'+stQ(r.lost)+'</td><td class="r"><b>'+stQ(t)+'</b></td></tr>';}).join('')+
+    '</tbody></table></div><div class="note">'+ic('alert')+'<span>Rented items keep their owner: they are not our stock, can\'t be sold, and lost / damaged ones stay here until settled with the supplier (Accounts).</span></div></div>';
+}
+function chDraw(){
+  var L=document.getElementById('chl');if(!L||!CH.d)return;var ks=chTileKinds(),t=CH.q;
+  var base=CH.d.rows.filter(function(c){if(ks.indexOf(c.kind)<0)return false;if(CH.k!=='all'&&c.kind!==CH.k)return false;if(CH.job&&c.job!==CH.job)return false;
+    if(!t)return true;return (c.no+' '+c.job+' '+c.quote+' '+c.cust+' '+c.veh+' '+c.supName+' '+c.sup+' '+c.sref+' '+c.from+' '+c.to).toLowerCase().indexOf(t)>=0;});
+  var n={all:base.length,Draft:0,Posted:0,Cancelled:0};base.forEach(function(c){if(n[c.st]!=null)n[c.st]++;});
+  document.getElementById('chs').innerHTML=['all','Draft','Posted','Cancelled'].map(function(s){return '<button type="button" class="chip'+(CH.s===s?' on':'')+'" data-s="'+s+'">'+(s==='all'?'Any status':s)+' <b>'+n[s]+'</b></button>';}).join('');
+  var sh=base.filter(function(c){return CH.s==='all'||c.st===CH.s;}).sort(function(a,b){return a.no<b.no?1:a.no>b.no?-1:0;});
+  document.getElementById('chc').textContent=sh.length+' challan'+(sh.length===1?'':'s')+' shown · newest first';
+  L.innerHTML=sh.length?sh.map(function(c){var ttl=c.kind==='Transfer'?chLoc(c.from).name+' → '+chLoc(c.to).name:(c.kind==='Hire-in'||c.kind==='Off-hire')?(c.supName||c.sup):c.cust;
+    return '<button type="button" class="qcard ch-c ch-'+esc(c.kind)+(c.st==='Cancelled'?' ch-cx':'')+'" data-c="'+esc(c.no)+'"><div class="qrow"><span class="qno">'+esc(c.no)+'</span><span class="sp"></span>'+(c.kind==='Delivery'&&c.from===CH.d.SUP?'<span class="pill ch-rent">rented</span>':'')+chPill(c)+'</div>'+
+      '<div class="qc">'+esc(ttl)+'</div><div class="qp">'+(c.job?esc(c.job)+' · ':'')+(c.sref?esc(c.sref)+' · ':'')+chRoute(c)+'</div>'+
+      '<div class="qrow"><span class="tag">'+fmtDay(c.d)+' · '+c.n+' line'+(c.n===1?'':'s')+' · '+stQ(c.qty)+' qty'+(c.kg?' · ~'+stQ(c.kg)+' kg':'')+'</span><span class="sp"></span>'+(c.dn?'<span class="tag" style="color:var(--orange)">damage on '+esc(c.dn)+'</span>':'')+(c.veh?'<span class="tag">'+esc(c.veh)+'</span>':'')+'</div></button>';}).join(''):'<div class="empty">No challans match.</div>';
+}
+function chNormOne(r){r=chObj(r);var o=chNorm({rows:[r]}).rows[0]||{no:''};
+  o.lines=cuArr(r.lines).map(function(l){l=chObj(l);return {it:cuS(l.it),q:chN(l.q),g:chN(l.g),dm:chN(l.dm),l:chN(l.l)};}).filter(function(l){return l.it;});
+  o.notes=cuS(r.notes);o.reason=cuS(r.reason);o.ev=typeof r.ev==='number'?r.ev:null;o.ref=cuS(r.ref);o.siteName=cuS(r.siteName);o.jst=cuS(r.jst);o.jtype=cuS(r.jtype);o.al=chObj(r.al);
+  o.pdf=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.pdf))?cuS(r.pdf):'';o.pdfOk=r.pdfOk===true&&!!o.pdf;o.doc=/^https:\/\/(docs|drive)\.google\.com\//.test(cuS(r.doc))?cuS(r.doc):'';
+  o.out=chObj(r.out);o.canEdit=r.canEdit===true;o.canPost=r.canPost===true;o.canCancel=r.canCancel===true;o.unfin=r.unfin===true;o.sheet=r.sheet===true;return o;}
+function chTileOf(k){return k==='Return'?'returns':chY(k)?'tr':'dos';}
+function chBack(){var b=CH.back;if(b){CH.back=null;b.go();}else viewCh(CH.tile);} /* C5: back to the contract / item it was opened from */
+function chView(no,back){
+  no=cuS(no);var my=++CH.vs;CH.cur=null;if(back)CH.back=back;document.title='Core Access · '+no;
+  shell(chTitle(),'<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="cvb">'+ic('back')+' '+esc(CH.back?CH.back.t:'Challans')+'</button></div><div id="cv"><div class="empty">Loading '+esc(no)+'…</div></div>');
+  document.getElementById('cvb').onclick=chBack;
+  var go=function(){call('officeChallanGet',S.token,no).then(function(r){if(my!==CH.vs||!document.getElementById('cv'))return;var c=chNormOne(r);if(c.no!==no){chBack();return;}CH.cur=c;chViewDraw(c);},
+    function(m){if(my!==CH.vs||!document.getElementById('cv'))return;if(srvGate(m))return;if(code(m).split('|')[0]==='NOTFOUND'){chBack();toast(no+' no longer exists.');return;}
+      var v=document.getElementById('cv');if(v){v.innerHTML='<div class="empty">Could not open '+esc(no)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="cvr">Try again</button></div>';document.getElementById('cvr').onclick=go;}});};
+  if(CH.d)go();else chLoad(go,function(m){var v=document.getElementById('cv');if(v)v.innerHTML='<div class="empty">Could not load: '+esc(code(m))+'</div>';});
+}
+function chViewDraw(c){
+  var v=document.getElementById('cv');if(!v)return;
+  var isR=c.kind==='Return',isH=c.kind==='Hire-in',dr=c.st==='Draft',direct=c.kind==='Delivery'&&c.from===CH.d.SUP;
+  var sub=c.kind==='Transfer'?'Stock transfer, no job':isH?'Rented in from '+esc(c.supName||c.sup):c.kind==='Off-hire'?'Off-hire, back to '+esc(c.supName||c.sup):esc(c.cust)+(c.siteName?' · '+esc(c.siteName):'');
+  var h='<div class="qhead"><div><h2>'+esc(c.no)+'</h2><div class="sub">'+sub+'</div><div class="qrow" style="margin-top:8px">'+chPill(c)+(c.src==='Vendor'?'<span class="pill ch-rent">vendor rental · not our stock</span>':direct?'<span class="pill ch-rent">rented · direct from supplier</span>':'')+(c.dn?'<span class="pill ty">damage → '+esc(c.dn)+'</span>':'')+'</div></div><div class="qacts">';
+  if(c.canEdit)h+='<button type="button" class="btn btn-ghost btn-sm" id="cve">'+ic('edit')+'Edit draft</button>';
+  h+='<button type="button" class="btn '+(dr?'btn-ghost':'btn-primary')+' btn-sm" id="cvp">'+ic('doc')+(c.pdfOk?'Open PDF':dr?'Draft PDF':'PDF')+'</button>';
+  if(c.doc)h+='<a class="btn btn-ghost btn-sm" href="'+esc(c.doc)+'" target="_blank" rel="noopener">'+ic('edit')+'Editable Doc</a>';
+  if(c.canPost)h+='<button type="button" class="btn btn-primary btn-sm" id="cvo">'+ic('check')+'Post</button>';
+  if(c.canCancel)h+='<button type="button" class="btn btn-danger btn-sm" id="cvc">'+ic('ban')+(dr?'Discard draft':'Cancel challan')+'</button>';
+  h+='</div></div><div class="qgrid"><div class="box"><h4>Challan</h4>'+chKv([['Date',fmtDay(c.d)],['Kind',esc(c.kind)],['From → to',chRoute(c)],[c.src==='Vendor'?'Vendor (rent payable)':'Supplier',c.sup?esc((c.supName||c.sup)+' · '+c.sup):''],[c.src==='Vendor'?'Vendor\'s DO / ref':'Supplier\'s DO / ref',c.sup?esc(c.sref||'—'):''],
+    ['Vehicle no.',c.kind==='Transfer'&&!c.veh?'':esc(c.veh||'—')],['Made by',esc(c.by)],['Note',esc(c.notes)]])+'</div>';
+  if(!c.job&&c.quote)h+='<div class="box"><h4>Quote</h4>'+chKv([['Quote',esc(c.quote)],['Customer',esc(c.cust)],['Site',esc(c.to)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref','— none yet (the job is made at Post)']])+'</div>';
+  if(c.job)h+='<div class="box"><h4>Job</h4>'+chKv([['Job',esc(c.job)],['Quote',esc(c.quote||'—')],['Customer',esc(c.cust)],['Site',esc(c.to&&!isR?c.to:c.from)+(c.siteName?' · '+esc(c.siteName):'')],['PO / WO ref',esc(c.ref||'—')],['Job status',esc(c.jst)]])+'</div>';
+  h+='</div>';
+  if(c.st==='Cancelled')h+='<div class="msg warn">'+ic('alert')+'<div>Cancelled'+(c.reason?' — '+esc(c.reason):'')+'. Its stock moves (if it was posted) were reversed.</div></div>';
+  if(dr&&c.unfin)h+='<div class="msg warn">'+ic('alert')+'<div>Its stock moves went in but the post did not finish. Press <b>Post</b> to finish it — nothing moves twice.</div></div>';
+  else if(dr)h+='<div class="msg warn">'+ic('alert')+'<div>'+(c.src==='Vendor'?'Draft — vendor rental: <b>Post</b> makes the PDF; no stock moves.':'Draft — no stock has moved yet. <b>Post</b> moves stock and makes the PDF.')+'</div></div>';
+  if(dr&&c.sheet&&!c.unfin)h+='<div class="msg warn">'+ic('alert')+'<div>A damaged / lost set-part line (Qty 0) is on this return: edit it in the sheet panel.</div></div>';
+  var A=dr&&!isR&&!isH&&c.src!=='Vendor'?chAlloc(c):null,showU=!!A&&!direct,OUT=c.kind==='Delivery'||c.kind==='Sale';
+  h+='<div class="box"><h4>Lines</h4><div class="tblw"><table class="ltab"><thead><tr><th>Item</th>'+(isR?'<th class="r">Good</th><th class="r">Damaged</th><th class="r">Lost</th><th class="r">Total</th>':'<th class="r">Qty</th>'+(showU?'<th class="r">Usable at '+esc(c.from)+'</th>':''))+'</tr></thead><tbody>';
+  var tot=0;
+  c.lines.forEach(function(l){var i=chItem(l.it)||{name:'',size:'',unit:''};
+    if(isR){var s=l.g+l.dm+l.l;tot+=s;h+='<tr><td><span class="qno">'+esc(l.it)+'</span><small>'+esc([i.name,i.size].filter(Boolean).join(' · '))+'</small>'+(c.al[l.it]?'<small>'+chSrc(chRetTot(c.al[l.it]))+'</small>':'')+'</td><td class="r">'+stQ(l.g)+'</td><td class="r">'+(l.dm?'<span style="color:var(--orange)">'+stQ(l.dm)+'</span><small>→ repair</small>':'0')+'</td><td class="r">'+(l.l?'<span class="ch-neg">'+stQ(l.l)+'</span><small>→ lost</small>':'0')+'</td><td class="r">'+stQ(s)+'</td></tr>';return;}
+    tot+=l.q;h+='<tr><td><span class="qno">'+esc(l.it)+'</span>'+(i.set?' <span class="pill st-set">Set</span>':'')+'<small>'+esc([i.name,i.size].filter(Boolean).join(' · '))+'</small></td><td class="r">'+stQ(l.q)+' '+esc(i.unit)+'</td>'+(showU?(i.set?'<td class="r tag">parts ↓</td>':'<td class="r'+(A.short[l.it]?(OUT?' ch-out':' ch-neg'):'')+'">'+stQ(chUsable(c.kind,c.sup,l.it,c.from))+'</td>'):'')+'</tr>';
+    if(i.set)chKit(l.it).forEach(function(p){h+='<tr class="opt"><td>↳ <span class="qno">'+esc(p.p)+'</span> × '+stQ(p.q)+' per set</td><td class="r">'+stQ(p.q*l.q)+'</td>'+(showU?'<td class="r'+(A.short[p.p]?(OUT?' ch-out':' ch-neg'):'')+'">'+stQ(chUsable(c.kind,c.sup,p.p,c.from))+'</td>':'')+'</tr>';});});
+  h+='<tr><td><b>Total</b>'+(c.kg?' · approx. '+stQ(c.kg)+' kg':'')+'</td>'+(isR?'<td></td><td></td><td></td>':'')+'<td class="r"><b>'+stQ(tot)+'</b></td>'+(showU?'<td></td>':'')+'</tr></tbody></table></div>';
+  if(!isR&&!isH){var src=A?A.al:c.al,keys=A?Object.keys(A.need):Object.keys(c.al);
+    if(keys.length)h+='<div class="note">'+ic('alert')+'<span><b>'+(dr?'Post will take':'Taken from')+'</b>'+(direct?'':c.kind==='Sale'?' (own stock only)':c.kind==='Off-hire'?' (that supplier\'s items only)':' (own first, then rented)')+': '+keys.map(function(k){return esc(k)+' '+(chSrc(src[k])||'—')+(A&&A.short[k]?' <span class="'+(OUT?'ch-out">from outside ':'ch-neg">short ')+stQ(A.short[k])+'</span>':'');}).join(' · ')+'</span></div>';
+    if(A&&OUT&&Object.keys(A.short).length)h+='<div class="note">'+ic('alert')+'<span class="ch-out">More than our usable stock at '+esc(c.from)+': Post moves only what we have; the rest is from outside (not recorded in our stock) — '+Object.keys(A.short).map(function(k){return esc(k)+' '+stQ(A.short[k]);}).join(' · ')+'.</span></div>';
+    else if(A&&Object.keys(A.short).length)h+='<div class="note ch-neg">'+ic('alert')+'<span>'+(c.kind==='Sale'?'Not enough of our own stock at '+esc(c.from)+' — rented items can\'t be sold.':c.kind==='Off-hire'?'Fewer of this supplier\'s items at '+esc(c.from)+' than listed.':'Not enough at '+esc(c.from)+' (own + rented) for the red lines. Rent more in (Hire-in), deliver direct from a supplier, or lower the qty.')+' Post refuses until then.</span></div>';}
+  var ok=Object.keys(c.out).filter(function(k){return chN(c.out[k])>0;});if(!dr&&ok.length)h+='<div class="note">'+ic('alert')+'<span class="ch-out"><b>From outside</b> (not our stock, no stock moves; still on hire for billing): '+ok.sort().map(function(k){return esc(k)+' '+stQ(c.out[k]);}).join(' · ')+'</span></div>';
+  if(isR&&c.job&&c.src!=='Vendor'){var hr=chObj(CH.d.hire[c.job]),lf=Object.keys(hr);h+='<div class="note">'+ic('alert')+'<span>On hire for this job now: '+(lf.length?lf.map(function(k){return esc(k)+' '+stQ(hr[k]);}).join(' · '):'nothing')+'. Returns take rented items back first, so they can go back to the supplier.</span></div>';}
+  h+='</div><div class="lockn">'+ic('lock')+'<span>Challans carry no prices for any login. Damage → debit note; rent-in rates and supplier bills → Accounts.</span></div>';
+  v.innerHTML=h;
+  var e;if((e=document.getElementById('cve')))e.onclick=function(){if(isR)chRet(c);else chEdit(c,c.kind);};
+  if((e=document.getElementById('cvp')))e.onclick=function(){chPdf(c,this);};
+  if((e=document.getElementById('cvo')))e.onclick=function(){chPostDlg(c);};
+  if((e=document.getElementById('cvc')))e.onclick=function(){chCancelDlg(c);};
+}
+function chRetTot(sp){var o={};Object.keys(chObj(sp)).forEach(function(w){var a=cuArr(sp[w]);o[w]=chN(a[0])+chN(a[1])+chN(a[2]);});return o;}
+function chKv(rows){return '<div class="meta">'+rows.filter(function(x){return x[1]!==''&&x[1]!=null;}).map(function(x){return '<span>'+x[0]+'</span><b>'+x[1]+'</b>';}).join('')+'</div>';}
+function chPdf(c,b){
+  var ok=function(u){return /^https:\/\/(docs|drive)\.google\.com\//.test(u);},w=null;if(LIVE)try{w=window.open('','_blank');}catch(x){}
+  busyBtn(b,true,c.pdfOk?'Opening…':'Making PDF…');
+  call('officeChallanPdf',S.token,c.no).then(function(r){busyBtn(b,false);var u=cuS(r&&r.url);
+    if(!ok(u)){if(w)try{w.close();}catch(x){}toast(LIVE?'The PDF link looks wrong.':'Preview: the PDF would open in a new tab.');return;}
+    if(w)w.location.href=u;else toast('Allow pop-ups to open the PDF.');if(CH.cur===c&&!c.pdfOk)chView(c.no);},
+    function(m){busyBtn(b,false);if(w)try{w.close();}catch(x){}if(srvGate(m))return;toast(chErr(m).replace(/<[^>]+>/g,''));});
+}
+function chFld(id,lab,v,ph,type,hint,ro){return '<label class="fld"><span>'+lab+'</span><input class="inp np" id="'+id+'" type="'+(type||'text')+'" value="'+esc(v==null?'':v)+'" placeholder="'+esc(ph||'')+'" autocomplete="off"'+(ro?' readonly':'')+'>'+(hint?'<small>'+hint+'</small>':'')+'</label>';}
+function chSel(id,lab,opts,v,hint){return '<label class="fld"><span>'+lab+'</span><select class="inp np" id="'+id+'">'+opts.map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===v?' selected':'')+'>'+esc(o.t)+'</option>';}).join('')+'</select>'+(hint?'<small>'+hint+'</small>':'')+'</label>';}
+function chMsg(id,m,k){var el=document.getElementById(id);if(!el)return;el.innerHTML=m?'<div class="msg '+(k||'err')+'">'+ic('alert')+'<div>'+m+'</div></div>':'';if(m&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});}
+function chSend(c,isNew,mid,btn){
+  var p={kind:c.kind,job:c.job,from:c.from,to:c.to,sup:c.sup,sref:c.sref,date:c.d,veh:c.veh,notes:c.notes,lines:c.lines};
+  if(c.quote)p.quote=c.quote;if(c.src){p.src=c.src;if(c.newSup)p.newSup=c.newSup;}
+  if(c.no){p.no=c.no;p.ev=c.ev;}
+  busyBtn(btn,true,'Saving…');
+  call('officeChallanSave',S.token,p).then(function(r){busyBtn(btn,false);r=chObj(r);var no=cuS(r.no);CH.d=null;chView(no);toast((isNew?'Draft '+no+' saved.':'Draft saved.')+(r.warn?' (The log line could not be written.)':''));},
+    function(m){busyBtn(btn,false);if(srvGate(m))return;var k=code(m).split('|');
+      if(k[0]==='SAVEUNSURE'&&k[1]){c.no=k[1];c.ev=/^\d+$/.test(k[2]||'')?+k[2]:null;if(c.ev==null){CH.d=null;chView(c.no);toast('Check '+c.no+' and save it again if needed.');return;}}
+      if(k[0]==='STALE'||k[0]==='CHSTATE'||k[0]==='CHPART'||k[0]==='CHSHEET'){CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}
+      chMsg(mid,chErr(m));});
+}
+function chEdit(c0,kind){
+  var isT=kind==='Transfer',isH=kind==='Hire-in',isO=kind==='Off-hire',yk=chY(kind),isNew=!c0,D=CH.d;
+  if(!D){chLoad(function(){chEdit(c0,kind);});return;}
+  var c=c0?{no:c0.no,ev:c0.ev,kind:kind,job:c0.job,quote:c0.job?'':c0.quote,src:c0.src,from:c0.from,to:c0.to,sup:c0.sup,sref:c0.sref,d:c0.d,veh:c0.veh,notes:c0.notes,lines:c0.lines.map(function(l){return {it:l.it,q:l.q};})}
+    :{kind:kind,job:'',quote:'',src:'',from:isH?D.SUP:'LOC-YARD',to:isT?'':isH?'LOC-YARD':'',sup:'',sref:'',d:D.today,veh:'',notes:'',lines:[{it:'',q:''}]};
+  var oj=D.jobs.filter(function(j){return kind==='Sale'?j.type==='Sale':j.type!=='Sale';}),isD=kind==='Delivery';
+  var oq=D.quotes.filter(function(q){return kind==='Sale'?q.type==='Sale':q.type!=='Sale';});
+  var vo=[{v:'',t:'— pick the vendor —'}].concat(D.sups.filter(function(s){return !s.off;}).map(function(s){return {v:s.id,t:s.name+' · '+s.id};})).concat([{v:'__new',t:'+ New vendor…'}]);
+  var yl=D.locs.filter(function(l){return l.type==='Yard'||((isT||isO)&&l.type==='Repair')||(isO&&l.type==='Lost');}).map(function(l){return {v:l.code,t:l.code+' · '+l.name};});
+  var so=[{v:'',t:'— pick the supplier —'}].concat(D.sups.filter(function(s){return isO||!s.off;}).map(function(s){return {v:s.id,t:s.name+' · '+s.id+(s.off?' (inactive)':'')};}));
+  var sub=isT?'Yard ↔ repair / rack ↔ rack, no job.':isH?'Items rented in from a supplier, received into our yard. They stay the supplier\'s until off-hired.':isO?'Rented items going back to their supplier. Only that supplier\'s items can be listed.':kind==='Sale'?'Sale jobs or quotes, from our own stock; qty above it is from outside (not recorded).':'Open jobs or quotes (no PO needed). From the yard: own stock first; qty above our stock is from outside (not recorded). Vendor items: Material source.';
+  var h='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="ceb">'+ic('back')+' '+(isNew?'Challans':'Back')+'</button></div><div class="qhead"><div><h2>'+(isNew?'New '+esc(kind.toLowerCase()):'Edit '+esc(c.no))+'</h2><div class="sub">'+sub+' Saved as a draft; stock moves on Post.</div></div></div><div id="cem"></div><div class="box" style="margin-bottom:12px"><h4>Header</h4>';
+  var jopts=[{v:'',t:'— pick an open job or a quote —'}].concat(oj.map(function(j){return {v:j.no,t:j.no+(j.quote?' · '+j.quote:'')+' · '+j.cust+' · '+j.type+(j.ref?' · PO/WO '+j.ref:'')};}),oq.filter(function(q){return !q.job;}).map(function(q){return {v:'Q:'+q.no,t:q.no+' · '+q.cust+' · quote, no job yet'};})); /* r34 F5-a: a quote with a job shows on its job */
+  if(!yk)h+='<div class="f2">'+chFld('cejf','Find job / quote','','job no., quote no. or customer','search')+'<span></span></div><div class="f2">'+chSel('cej','Job / quote',jopts,c.job||(c.quote?'Q:'+c.quote:''),kind==='Sale'?'Goods leave stock (sold).':'Sale jobs use “New sale”.')+chFld('cet','To (job site)','','picked from the job','text','',true)+'</div>';
+  if(isD)h+='<div class="f2">'+chSel('cesrc','Material source',[{v:'',t:'Own stock (default)'},{v:'Vendor',t:'Vendor rental (not our stock)'}],c.src,'Vendor rental: no stock moves; the vendor prints on the challan for the rent owed.')+'<div id="cevw">'+chSel('cevd','Vendor',vo,c.src?c.sup:'')+'</div></div>'+
+    '<div id="cevn"><div class="f2">'+chFld('cevnn','New vendor name','','e.g. Dhaka Scaffold Rental')+chFld('cevnp','Vendor phone','','e.g. 01700-000000')+'</div><div class="f2">'+chFld('cevna','Vendor address','','')+'</div></div>'+
+    '<div class="f2" id="cevx">'+chFld('cevr','Vendor\'s challan / DO no.',c.src?c.sref:'','e.g. VDO-1021','text','optional')+'</div>';
+  h+='<div class="ch-f3">';
+  if(isH)h+=chSel('ceto','Received into',yl,c.to);else h+=chSel('cef','From',yl,c.from); /* r34 F5-b: no direct-from-supplier (Material source: Vendor rental) */
+  if(isT)h+=chSel('ceto','To',[{v:'',t:'— pick —'}].concat(yl),c.to);else if(isO)h+=chFld('ceto2','To','Supplier (leaves our yard)','','text','',true);
+  h+=chFld('ced','Date',c.d,'','date')+'</div>';
+  h+='<div class="f2" id="cesw">'+chSel('cesu','Supplier (rented from)',so,c.sup,isO?'Lines can only be that supplier\'s items.':'')+chFld('cesr','Supplier\'s challan / DO no.',c.sref,'e.g. DSR-DO-5521','text',isO?'optional':'needed — ties this to the supplier\'s bill')+'</div>';
+  h+='<div class="f2">'+(isT?'':chFld('cev','Vehicle no.',c.veh,'e.g. DM-TA 11-4821','text',kind==='Delivery'||kind==='Sale'?'can be filled at Post':'optional'))+chFld('cen','Note (prints on the challan)',c.notes,'optional')+'</div></div>';
+  h+='<div class="box"><h4>Lines</h4><datalist id="cedl">'+D.items.map(function(i){return '<option value="'+esc(i.code)+'">'+esc([i.name,i.size].filter(Boolean).join(' · ')+(i.set?' (set)':''))+'</option>';}).join('')+'</datalist><div id="cels"></div>'+
+    '<div class="bar" style="margin:0"><button type="button" class="btn btn-ghost btn-sm" id="cea">'+ic('plus')+'Add line</button>'+(isO?'<button type="button" class="btn btn-ghost btn-sm" id="celd">'+ic('dl')+'Load all of this supplier\'s items at From</button>':'')+'</div>'+
+    '<div class="note">'+ic('alert')+'<span>'+(isH?'A set can be received as a set (it becomes its parts). No stock check — it\'s coming in.':kind==='Delivery'||kind==='Sale'?'Sets expand into parts. Post is never refused for stock: it moves what we have, the rest is from outside (no stock moves; still on hire for billing).':'Sets expand into parts; stock is checked on the parts. Short lines show in red and can still be saved as a draft.')+'</span></div></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="cex">Cancel</button><button type="button" class="btn btn-primary" id="ces">'+ic('check')+(isNew?'Save draft':'Save changes')+'</button></div>';
+  shell((yk?'Yard · ':'Projects & sites · ')+(isNew?'New ':'Edit ')+kind.toLowerCase(),h);
+  var box=document.getElementById('cels'),g=function(i){var x=document.getElementById(i);return x?x.value.trim():'';};
+  var isV=function(){return isD&&g('cesrc')==='Vendor';},fromV=function(){return isH?D.SUP:isV()?'':g('cef');};
+  var supShow=function(){var V=isV(),f=document.getElementById('cef'),sh=function(i,on){var e=document.getElementById(i);if(e)e.style.display=on?'':'none';};sh('cevw',V);sh('cevx',V);sh('cevn',V&&g('cevd')==='__new');if(f)f.parentNode.style.display=V?'none':'';document.getElementById('cesw').style.display=(isH||isO||fromV()===D.SUP)?'':'none';};
+  var jobTo=function(){var t=document.getElementById('cet');if(!t)return;var v=g('cej'),j=chJob(v),q=!j&&v.indexOf('Q:')===0?chQuote(v.slice(2)):null;t.value=j?(kind==='Sale'?'Sold (leaves stock)':(j.site||'site')+(j.siteName?' · '+j.siteName:'')):q?(kind==='Sale'?'Sold (leaves stock)':'site of '+q.no+(q.siteName?' · '+q.siteName:'')):'';};
+  function addLine(l){var d=document.createElement('div');d.className='ch-ol';
+    d.innerHTML='<input class="inp np li" list="cedl" placeholder="Item code" value="'+esc(l.it)+'" aria-label="Item"><input class="inp np lq" type="number" min="'+(isO?'0.01':'1')+'" step="'+(isO?'0.01':'1')+'" placeholder="Qty" value="'+esc(l.q)+'" aria-label="Qty"><div class="ch-av"></div><button type="button" class="ch-mini" aria-label="Remove line">'+ic('cx')+'</button>';
+    d.querySelector('.ch-mini').onclick=function(){d.parentNode.removeChild(d);info();};d.querySelector('.li').oninput=info;d.querySelector('.lq').oninput=info;box.appendChild(d);}
+  function rows(){return [].map.call(box.querySelectorAll('.ch-ol'),function(d){return {d:d,it:d.querySelector('.li').value.trim().toUpperCase(),q:d.querySelector('.lq').value.trim()};});}
+  function info(){var from=fromV(),sup=g('cesu'),rs=rows(),need=chParts(rs.filter(function(r){return chItem(r.it);}).map(function(r){return {it:r.it,q:+r.q||0};}));supShow();
+    rs.forEach(function(r){var i=chItem(r.it),el=r.d.querySelector('.ch-av');if(!r.it){el.innerHTML='';return;}if(!i){el.innerHTML='<span class="ch-neg">Unknown item</span>';return;}
+      var one=function(k){var n=need[k]||0;if(isV())return esc(k)+' '+stQ(n)+' · <i>vendor rental — not our stock</i>';if(isH)return esc(k)+' '+stQ(n)+' coming in';if(from===D.SUP)return esc(k)+' '+stQ(n)+' · <i>direct from '+esc(sup?chSup(sup).name:'the supplier')+'</i>';
+        var pl=chPl(k,from),own=Math.max(0,chN(pl[''])),rt=Object.keys(pl).filter(function(w){return w&&chN(pl[w])>0&&(!isO||w===sup);}),u=chUsable(kind,sup,k,from);
+        var pa=(isO?[]:['own '+stQ(own)]).concat(rt.map(function(w){return '<i>'+esc(chSup(w).name)+' '+stQ(pl[w])+'</i>';}));
+        return (u<n-1e-9?(kind==='Delivery'||kind==='Sale'?'<span class="ch-out">'+esc(k)+' need '+stQ(n)+' · '+stQ(Math.max(0,u))+' from our stock, '+stQ(n-Math.max(0,u))+' from outside</span>':'<span class="ch-neg">'+esc(k)+' need '+stQ(n)+', usable '+stQ(u)+'</span>'):esc(k)+' need '+stQ(n)+' · <b>ok</b>')+' · '+(pa.join(' + ')||'none here')+(kind==='Sale'&&rt.length?' (rented can\'t be sold)':'');};
+      el.innerHTML=i.set?'<b style="color:var(--violet)">Set</b> → '+chKit(r.it).map(function(p){return one(p.p);}).join(' · '):esc(i.name)+' · '+one(r.it);});}
+  c.lines.forEach(addLine);jobTo();info();
+  document.getElementById('cea').onclick=function(){addLine({it:'',q:''});};
+  var e;if((e=document.getElementById('cef')))e.onchange=info;document.getElementById('cesu').onchange=info;if((e=document.getElementById('cesrc')))e.onchange=info;if((e=document.getElementById('cevd')))e.onchange=info;if((e=document.getElementById('cej')))e.onchange=jobTo;
+  if((e=document.getElementById('cejf')))e.oninput=function(){var t=this.value.trim().toLowerCase(),s=document.getElementById('cej'),cur=s.value;s.innerHTML=jopts.filter(function(o,i){return !i||o.v===cur||!t||(o.v+' '+o.t).toLowerCase().indexOf(t)>=0;}).map(function(o){return '<option value="'+esc(o.v)+'"'+(o.v===cur?' selected':'')+'>'+esc(o.t)+'</option>';}).join('');jobTo();};
+  if((e=document.getElementById('celd')))e.onclick=function(){var s=g('cesu'),from=g('cef');if(!s){chMsg('cem','Pick the supplier first.');return;}
+    var ks=Object.keys(D.pool).filter(function(k){return chN(chPl(k,from)[s])>0;});if(!ks.length){toast('None of '+chSup(s).name+'\'s items are at '+from+'.');return;}
+    box.innerHTML='';ks.sort().forEach(function(k){addLine({it:k,q:chPl(k,from)[s]});});info();};
+  document.getElementById('ceb').onclick=document.getElementById('cex').onclick=function(){if(isNew)viewCh(CH.tile);else chView(c.no);};
+  document.getElementById('ces').onclick=function(){var from=fromV(),needSup=isH||isO||from===D.SUP;chMsg('cem','');
+    [].forEach.call(box.querySelectorAll('.inp'),function(x){x.classList.remove('bad');});
+    if(!yk&&!g('cej'))return chMsg('cem','Pick the job or quote.');
+    if(isV()){if(!g('cevd'))return chMsg('cem','Pick the vendor (or + New vendor).');if(g('cevd')==='__new'&&(!g('cevnn')||!g('cevnp')||!g('cevna')))return chMsg('cem','New vendor: name, phone and address are needed.');}
+    if(isT&&(!g('ceto')||g('cef')===g('ceto')))return chMsg('cem','Pick a To location different from From.');
+    if(needSup&&!g('cesu'))return chMsg('cem','Pick the supplier the items are rented from.');
+    if((isH||from===D.SUP)&&!g('cesr'))return chMsg('cem','Enter the supplier\'s challan / DO no. — Accounts matches it to their bill.');
+    if(!isDay(g('ced')))return chMsg('cem','Date is needed.');
+    var rs=rows().filter(function(r){return r.it||r.q;}),seen={};if(!rs.length)return chMsg('cem','Add at least one line.');
+    for(var i=0;i<rs.length;i++){var r=rs[i],q=+r.q;if(!chItem(r.it)){r.d.querySelector('.li').classList.add('bad');return chMsg('cem','Line '+(i+1)+': pick an item from the list.');}
+      var fr=isO&&!(chItem(r.it)||{}).set;if(fr?(!(q>0)||Math.abs(Math.round(q*100)-q*100)>1e-6):(!(q>=1)||q%1)){r.d.querySelector('.lq').classList.add('bad');return chMsg('cem','Line '+(i+1)+': quantity must be '+(fr?'above 0 (2 decimals at most).':'a whole number above 0.'));}
+      if(seen[r.it])return chMsg('cem','Line '+(i+1)+': '+esc(r.it)+' is on two lines — put it on one.');seen[r.it]=1;}
+    c.job=yk?'':g('cej');c.from=from;c.to=isT||isH?g('ceto'):'';c.sup=needSup?g('cesu'):'';c.sref=needSup?g('cesr'):'';c.d=g('ced');c.veh=g('cev');c.notes=g('cen');
+    var jv=g('cej');if(!yk&&jv.indexOf('Q:')===0){c.job='';c.quote=jv.slice(2);}else c.quote='';c.src='';c.newSup=null;
+    if(isV()){var vd=g('cevd');c.src='Vendor';c.sup=vd==='__new'?'':vd;c.newSup=vd==='__new'?{name:g('cevnn'),phone:g('cevnp'),addr:g('cevna')}:null;c.sref=g('cevr');}
+    c.lines=rs.map(function(r){return {it:r.it,q:+r.q};});
+    chSend(c,isNew,'cem',document.getElementById('ces'));};
+}
+function chRet(c0){
+  var D=CH.d;if(!D){chLoad(function(){chRet(c0);});return;}
+  var isNew=!c0,c=c0?{no:c0.no,ev:c0.ev,kind:'Return',job:c0.job,to:c0.src==='Vendor'?'LOC-YARD':c0.to||'LOC-YARD',src:c0.src,sup:c0.src==='Vendor'?c0.sup:'',sref:c0.src==='Vendor'?c0.sref:'',d:c0.d,veh:c0.veh,notes:c0.notes,lines:c0.lines.slice()}:{kind:'Return',job:'',to:'LOC-YARD',src:'',sup:'',sref:'',d:D.today,veh:'',notes:'',lines:[]};
+  var jobs=D.jobs.filter(function(j){return Object.keys(chObj(D.hire[j.no])).length||Object.keys(chObj(D.vout[j.no])).length||j.no===c.job;}),yl=D.locs.filter(function(l){return l.type==='Yard';}).map(function(l){return {v:l.code,t:l.code+' · '+l.name};});
+  var h='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="crb">'+ic('back')+' '+(isNew?'Returns':'Back')+'</button></div><div class="qhead"><div><h2>'+(isNew?'New return':'Edit '+esc(c.no))+'</h2><div class="sub">Lines come from what is on hire for the job. Count each as good, damaged or lost; leave the rest empty.</div></div></div><div id="crm"></div>'+
+    '<div class="box" style="margin-bottom:12px"><h4>Header</h4><div class="ch-f3">'+chSel('crj','Job (on hire)',[{v:'',t:'— pick a job —'}].concat(jobs.map(function(j){return {v:j.no,t:j.no+' · '+j.cust};})),c.job,'Open jobs with items out.')+chSel('crt','Good items go to',yl,c.to)+chFld('crd','Date',c.d,'','date')+'</div>'+
+    '<div class="f2">'+chSel('crsrc','Material source',[{v:'',t:'Own stock (default)'},{v:'Vendor',t:'Vendor rental (back to the vendor)'}],c.src||'','Vendor rental: no stock moves; the vendor\'s items go back to them.')+'<div id="crvw">'+chSel('crvd','Vendor',[{v:'',t:'— pick the vendor —'}],c.sup)+'</div></div><div class="f2" id="crvx">'+chFld('crvr','Vendor\'s DO / ref',c.sref,'e.g. VRN-221','text','optional')+'<span></span></div>'+
+    '<div class="f2">'+chFld('crv','Vehicle no.',c.veh,'e.g. DM-TA 11-4821')+chFld('crn','Note (prints on the challan)',c.notes,'optional')+'</div></div>'+
+    '<div class="box"><h4>Count</h4><div id="crl"><div class="tag">Pick a job to load its on-hire items.</div></div><div class="note">'+ic('alert')+'<span>Damaged → repair (may be charged on a debit note) · Lost → lost. A set comes back whole (good only); a damaged part of a set: put the part on its own line in the sheet panel. Our own items come back to stock; anything from outside or a vendor never enters our stock.</span></div></div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="crx">Cancel</button><button type="button" class="btn btn-primary" id="crs">'+ic('check')+(isNew?'Save draft':'Save changes')+'</button></div>';
+  shell('Projects & sites · '+(isNew?'New return':'Edit return'),h);
+  var rl=document.getElementById('crl');
+  var isVr=function(){return document.getElementById('crsrc').value==='Vendor';};
+  function vend(){var jn=document.getElementById('crj').value,s=document.getElementById('crvd'),cur=s.value||c.sup,vo=chObj(D.vout[jn]),ids=Object.keys(vo).sort();if(c.sup&&ids.indexOf(c.sup)<0&&jn===c.job)ids.push(c.sup);
+    s.innerHTML='<option value="">— pick the vendor —</option>'+ids.map(function(id){return '<option value="'+esc(id)+'"'+(id===cur?' selected':'')+'>'+esc(chSup(id).name+' · '+id)+'</option>';}).join('');
+    var V=isVr();document.getElementById('crvw').style.display=V?'':'none';document.getElementById('crvx').style.display=V?'':'none';document.getElementById('crt').parentNode.style.display=V?'none':'';}
+  function load(){vend();var jn=document.getElementById('crj').value,V=isVr();if(!jn){rl.innerHTML='<div class="tag">Pick a job to load its on-hire items.</div>';return;}
+    if(V&&!document.getElementById('crvd').value){rl.innerHTML='<div class="tag">Pick the vendor to load their items out on this job.</div>';return;}
+    var hire=V?chObj(chObj(D.vout[jn])[document.getElementById('crvd').value]):chObj(D.hire[jn]),hp=V?{}:chObj(D.hpool[jn]),pre={};c.lines.forEach(function(l){pre[l.it]=l;});
+    var ks=Object.keys(hire);Object.keys(pre).forEach(function(k){if(ks.indexOf(k)<0)ks.push(k);});
+    if(!ks.length){rl.innerHTML='<div class="tag">'+(V?'None of this vendor\'s items are out on this job.':'Nothing is on hire for this job.')+'</div>';return;}
+    rl.innerHTML='<div class="bar" style="margin-bottom:8px"><button type="button" class="btn btn-ghost btn-sm" id="crall">'+ic('check')+'All good (full return)</button><button type="button" class="btn btn-ghost btn-sm" id="crclr">Clear</button></div><div class="tblw"><table class="ltab"><thead><tr><th>Item</th><th class="r">On hire</th><th class="r">Good</th><th class="r">Damaged</th><th class="r">Lost</th><th class="r">Still out</th></tr></thead><tbody>'+
+      ks.sort().map(function(k){var i=chItem(k)||{name:'',size:''},p=pre[k]||{},o=chN(hire[k]);return '<tr data-k="'+esc(k)+'" data-o="'+o+'"><td><span class="qno">'+esc(k)+'</span>'+(i.set?' <span class="pill st-set">Set</span>':'')+'<small>'+esc([i.name,i.size].filter(Boolean).join(' · '))+'</small>'+((hp[k]||(!V&&D.hpool[jn]))?'<small>'+chSrc(hp[k])+(function(){var s=0;Object.keys(chObj(hp[k])).forEach(function(w){s+=chN(hp[k][w]);});return o-s>1e-9?(hp[k]?' · ':'')+'<span class="ch-out">outside '+stQ(o-s)+'</span>':'';})()+'</small>':'')+(V?'<small class="ch-src">vendor rental</small>':'')+'</td><td class="r">'+stQ(o)+'</td>'+
+        ['g','dm','l'].map(function(f){return '<td class="r"><input class="inp np ch-n" type="number" min="0" step="1" data-f="'+f+'" value="'+(p[f]||'')+'" aria-label="'+f+'"'+(i.set&&f!=='g'?' disabled':'')+'></td>';}).join('')+'<td class="r ch-so">'+stQ(o)+'</td></tr>';}).join('')+'</tbody></table></div>';
+    [].forEach.call(rl.querySelectorAll('input'),function(x){x.oninput=calc;});
+    document.getElementById('crall').onclick=function(){[].forEach.call(rl.querySelectorAll('tr[data-k]'),function(r){r.querySelector('[data-f=g]').value=r.getAttribute('data-o');r.querySelector('[data-f=dm]').value='';r.querySelector('[data-f=l]').value='';});calc();};
+    document.getElementById('crclr').onclick=function(){[].forEach.call(rl.querySelectorAll('input'),function(x){x.value='';});calc();};calc();}
+  function calc(){[].forEach.call(rl.querySelectorAll('tr[data-k]'),function(r){var o=+r.getAttribute('data-o'),s=0;[].forEach.call(r.querySelectorAll('input'),function(x){s+=+x.value||0;});var td=r.querySelector('.ch-so');td.textContent=stQ(o-s);td.className='r ch-so'+(o-s<-1e-9?' ch-neg':'');});}
+  document.getElementById('crj').onchange=function(){c.lines=[];load();};document.getElementById('crsrc').onchange=function(){c.lines=[];load();};document.getElementById('crvd').onchange=function(){c.lines=[];load();};load();
+  document.getElementById('crb').onclick=document.getElementById('crx').onclick=function(){if(isNew)viewCh(CH.tile);else chView(c.no);};
+  document.getElementById('crs').onclick=function(){chMsg('crm','');var jn=document.getElementById('crj').value;if(!jn)return chMsg('crm','Pick the job.');if(!isDay(document.getElementById('crd').value))return chMsg('crm','Date is needed.');
+    var ls=[],bad=null;[].forEach.call(rl.querySelectorAll('tr[data-k]'),function(r){var v={it:r.getAttribute('data-k')},s=0,o=+r.getAttribute('data-o');
+      [].forEach.call(r.querySelectorAll('input'),function(x){x.classList.remove('bad');var n=+x.value||0;if(n<0||n%1){x.classList.add('bad');bad=bad||esc(v.it)+': counts must be whole numbers, 0 or more.';}v[x.getAttribute('data-f')]=n;s+=n;});
+      if(s>o+1e-9){[].forEach.call(r.querySelectorAll('input'),function(x){x.classList.add('bad');});bad=bad||esc(v.it)+': good + damaged + lost = '+s+', but only '+stQ(o)+' is on hire.';}
+      if(s)ls.push(v);});
+    if(bad)return chMsg('crm',bad);if(!ls.length)return chMsg('crm','Count at least one item.');
+    c.src='';c.sup='';c.sref='';if(isVr()){if(!document.getElementById('crvd').value)return chMsg('crm','Pick the vendor.');c.src='Vendor';c.sup=document.getElementById('crvd').value;c.sref=document.getElementById('crvr').value.trim();}
+    c.job=jn;c.to=document.getElementById('crt').value;c.d=document.getElementById('crd').value;c.veh=document.getElementById('crv').value.trim();c.notes=document.getElementById('crn').value.trim();c.lines=ls;
+    chSend(c,isNew,'crm',document.getElementById('crs'));};
+}
+function chPostDlg(c){
+  var vr=c.kind==='Delivery'||c.kind==='Sale',vd=c.src==='Vendor';
+  var my=openDlg('<h3 id="dlgt">Post '+esc(c.no)+'?</h3><p class="sub">'+(vd?'Vendor rental: no stock moves; the PDF is made.':'Stock moves now and the PDF is made.')+' A posted challan can only be cancelled, not edited.</p><div id="derr"></div>'+(vr?chFld('cpv','Vehicle no.',c.veh,'e.g. DM-TA 11-4821','text','prints on the challan'):'')+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Back</button><button type="button" class="btn btn-primary" id="dyes">'+ic('check')+'Post + make PDF</button></div>');
+  var yes=document.getElementById('dyes');document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){if(DLG.busy)return;var pv=document.getElementById('cpv'),veh=pv?pv.value.trim():'';dlgErr('');
+    if(pv&&!veh&&!vd){pv.classList.add('bad');return dlgErr('Vehicle no. is needed to post a '+esc(c.kind.toLowerCase())+'.');}
+    DLG.busy=true;busyBtn(yes,true,'Posting…');var w=null;if(LIVE)try{w=window.open('','_blank');}catch(x){}
+    call('officeChallanPost',S.token,c.no,c.ev,veh).then(function(r){if(my!==DLG.seq){if(w)try{w.close();}catch(x){}return;}DLG.busy=false;closeDlg();r=chObj(r);var u=cuS(r.url);
+      if(/^https:\/\/(docs|drive)\.google\.com\//.test(u)){if(w)w.location.href=u;}else if(w)try{w.close();}catch(x){}
+      CH.d=null;chView(c.no);toast('Posted. '+(vd?'No stock moved (vendor rental)':chN(r.out)>0?'Moved what our stock has; '+stQ(r.out)+' from outside (not our stock)':'Stock moved')+(u?' · PDF made.':' · the PDF could not be made now — press PDF.'));},
+      function(m){if(w)try{w.close();}catch(x){}if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k=code(m).split('|')[0];
+        if(k==='STALE'||k==='CHSTATE'||k==='CHPART'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
+  setTimeout(function(){if(my===DLG.seq)yes.focus();},30);
+}
+function chCancelDlg(c){
+  var dr=c.st==='Draft';
+  var my=openDlg('<h3 id="dlgt">'+(dr?'Discard draft ':'Cancel ')+esc(c.no)+'?</h3><p class="sub">'+(dr?'The draft is marked Cancelled; nothing moved.':'Its stock moves are reversed and the PDF is marked CANCELLED.')+' The number is kept, not reused.</p><div id="derr"></div><label class="fld"><span>Reason</span><textarea class="inp np" id="ccr" placeholder="e.g. wrong job picked" style="height:auto;min-height:70px;padding-top:10px"></textarea></label>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Back</button><button type="button" class="btn btn-danger" id="dyes">'+ic('ban')+(dr?'Discard draft':'Cancel challan')+'</button></div>');
+  var yes=document.getElementById('dyes');document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  yes.onclick=function(){if(DLG.busy)return;var r=document.getElementById('ccr').value.replace(/\s+/g,' ').trim();dlgErr('');if(!r)return dlgErr('Give a reason.');
+    DLG.busy=true;busyBtn(yes,true,'Working…');
+    call('officeChallanCancel',S.token,c.no,c.ev,r).then(function(x){if(my!==DLG.seq)return;DLG.busy=false;closeDlg();CH.d=null;chView(c.no);toast(c.no+(dr?' discarded.':' cancelled, stock moves reversed.')+(chObj(x).warn?' (The reason could not be written.)':''));},
+      function(m){if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);var k=code(m).split('|')[0];
+        if(k==='STALE'||k==='CHSTATE'||k==='CHPART'){closeDlg();CH.d=null;chView(c.no);toast(chErr(m).replace(/<[^>]+>/g,''));return;}dlgErr(chErr(m));});};
+}
+/* ======================= YW › stock (M3) ======================= */
+var ST={rows:[],loaded:false,can:false,head:false,money:false,price:false,cats:[],units:[],defs:[],locs:[],today:'',q:'',f:'all',low:false,seq:0,c:null};
+var ST_F=[['all','All'],['yard','Yard'],['site','On sites'],['rep','Repair'],['lost','Lost / scrap'],['items','All items']]; /* All items: also catalogue-only items (not stock-tracked, no stock) */
+var ST_CODE=/^[A-Z0-9][A-Z0-9.-]{1,23}$/;
+function stN(x){return typeof x==='number'&&isFinite(x)?x:0;}
+function stQ(n){n=+n;return isFinite(n)?n.toLocaleString('en-IN',{maximumFractionDigits:2}):'—';}
+function stKg(n){n=+n;return isFinite(n)?n.toLocaleString('en-IN',{maximumFractionDigits:3}):'—';}
+function stTk(n){return typeof n==='number'&&isFinite(n)?'Tk '+tk(n):'—';}
+function stList(x){return cuArr(x).map(cuS).filter(Boolean);}
+function nst(r){r=r||{};return {code:cuS(r.code),name:cuS(r.name),cat:cuS(r.cat),size:cuS(r.size),unit:cuS(r.unit),isSet:r.isSet===true,tracked:r.tracked===true,status:cuS(r.status)||'Active',reorder:stN(r.reorder),
+  yard:stN(r.yard),site:stN(r.site),rep:stN(r.rep),lost:stN(r.lost),own:stN(r.own),low:r.low===true,cata:r.cata===true,kitBad:r.kitBad===true,parts:stN(r.parts),make:stN(r.make),cost:ctNum(r.cost),val:ctNum(r.val),hz:stHz(r.hz),op:cuArr(r.op).map(cuS)};}
+function stHz(z){if(!z||typeof z!=='object')return null;var o={};['yard','site','rep','lost'].forEach(function(k){o[k]=z[k]===true;});return o;} /* CR run 14: raw presence per group (server) */
+function nstFull(r){
+  r=r||{};var o=nst(r),ls=r.lists||{};
+  o.kg=ctNum(r.kg);o.forHire=r.forHire===true;o.forSale=r.forSale===true;o.ev=typeof r.ev==='number'?r.ev:0;o.can=r.can===true;o.head=r.head===true;o.money=r.money===true;o.price=r.price===true;
+  o.hire=ctNum(r.hire);o.sale=ctNum(r.sale);o.repl=ctNum(r.repl);o.repair=ctNum(r.repair);o.avg=ctNum(r.avg);o.lists={cats:stList(ls.cats),units:stList(ls.units)};o.ulk=r.ulk===true;o.picOk=r.picOk===true;o.pic=r.pic&&typeof r.pic.id==='string'&&r.pic.id?{id:r.pic.id,img:SG_IMG.test(String(r.pic.img||''))?r.pic.img:''}:null; /* F3 */
+  o.where=cuArr(r.where).map(function(w){w=w||{};return {code:cuS(w.code),name:cuS(w.name),type:cuS(w.type),job:cuS(w.job),cust:cuS(w.cust),qty:stN(w.qty)};}).filter(function(w){return w.code;});
+  o.moves=cuArr(r.moves).map(function(m){m=m||{};return {d:isDay(m.d)?m.d:'',f:cuS(m.f),t:cuS(m.t),q:stN(m.q),ref:cuS(m.ref),k:cuS(m.k),job:cuS(m.job)};});o.nMoves=stN(r.nMoves);
+  var pt=function(p){p=p||{};return {code:cuS(p.code),name:cuS(p.name),size:cuS(p.size),q:stN(p.q),yard:stN(p.yard),mk:stN(p.mk)};};
+  o.kit=cuArr(r.kit).map(pt).filter(function(p){return p.code;});o.sets=cuArr(r.sets).map(pt).filter(function(p){return p.code;});o.opened=stList(r.opened);
+  return o;
+}
+function viewStock(){
+  document.title='Core Access · Stock';
+  ST.rows=[];ST.loaded=false;ST.can=false;ST.head=false;ST.money=false;ST.price=false;ST.defs=[];ST.locs=[];ST.c=null;ST.q='';ST.f='all';ST.low=false; /* nothing of an earlier sign-in is shown */
+  var body='<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="back">'+ic('back')+' Home</button>'+
+    '<div class="inwrap grow">'+ic('search')+'<input class="inp sm" id="sq" type="search" placeholder="Search item code, name, category or size" autocomplete="off" aria-label="Search stock"></div>'+
+    '<button type="button" class="btn btn-ghost btn-sm" id="str">'+ic('truck')+' Transfers &amp; rent-in</button><span id="sacts"></span></div>'+
+    '<div class="chips t-amber" id="sf" role="group" aria-label="Show">'+ST_F.map(function(x){return '<button type="button" class="chip'+(x[0]==='all'?' on':'')+'" data-f="'+x[0]+'" aria-pressed="'+(x[0]==='all')+'">'+x[1]+'</button>';}).join('')+
+    '<button type="button" class="chip st-lw" id="slw" aria-pressed="false">Low stock</button></div>'+
+    '<p class="cnt" id="scnt">&nbsp;</p><div id="slist" class="qlist"><div class="empty">Loading stock…</div></div>';
+  shell('Yard · Stock',body);
+  document.getElementById('back').onclick=function(){viewHome();};
+  document.getElementById('str').onclick=function(){viewCh('tr');};
+  document.getElementById('sq').oninput=function(){ST.q=this.value.trim().toLowerCase();stsDraw();};
+  document.getElementById('sf').onclick=function(e){var b=e.target.closest?e.target.closest('.chip'):null;if(!b)return;
+    if(b.id==='slw'){ST.low=!ST.low;b.classList.toggle('on',ST.low);b.setAttribute('aria-pressed',ST.low);}
+    else{ST.f=b.getAttribute('data-f');[].forEach.call(this.children,function(x){if(x.id==='slw')return;var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-pressed',on);});}
+    stsDraw();};
+  document.getElementById('slist').onclick=function(e){var b=e.target.closest?e.target.closest('.qcard'):null;if(!b)return;
+    var c=b.getAttribute('data-i');if(ST.rows.some(function(x){return x.code===c;}))viewItem(c);};
+  stsLoad();
+}
+function stsLoad(){
+  var my=++ST.seq;
+  call('officeStockList',S.token).then(function(r){
+    if(my!==ST.seq||!document.getElementById('slist'))return;
+    r=r||{};ST.loaded=true;ST.can=r.can===true;ST.head=r.head===true;ST.money=r.money===true;ST.price=r.price===true;ST.cats=stList(r.cats);ST.units=stList(r.units);
+    ST.defs=cuArr(r.defs).filter(function(x){return Array.isArray(x)&&typeof x[0]==='string'&&x[0];}).map(function(x){return [x[0],x[1]==='Yes'?'Yes':'No',x[2]==='Yes'?'Yes':'No'];});ST.today=isDay(r.today)?r.today:'';
+    ST.locs=cuArr(r.locs).map(function(l){l=l||{};return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type)};}).filter(function(l){return l.code;});
+    ST.rows=cuArr(r.rows).map(nst).filter(function(x){return x.code;});
+    ST.rows.sort(function(a,b){return a.code.localeCompare(b.code);});
+    var a=document.getElementById('sacts');
+    if(a){a.innerHTML=(ST.head?'<button type="button" class="btn btn-ghost btn-sm" id="sl">'+ic('pin')+' Locations</button><button type="button" class="btn btn-ghost btn-sm" id="so">'+ic('box')+' Opening stock</button>':'')+
+        (ST.can?'<button type="button" class="btn btn-primary btn-sm" id="sn">'+ic('plus')+' New item</button>':'');
+      if(ST.head){document.getElementById('sl').onclick=function(){stLocDlg();};document.getElementById('so').onclick=function(){stOpenDlg('');};}
+      if(ST.can)document.getElementById('sn').onclick=function(){stItemDlg(null);};}
+    stsDraw();
+  },function(m){
+    if(my!==ST.seq||!document.getElementById('slist'))return;
+    if(srvGate(m))return;
+    document.getElementById('slist').innerHTML='<div class="empty">Could not load the stock: '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="sretry">Try again</button></div>';
+    document.getElementById('sretry').onclick=stsLoad;
+  });
+}
+function stsDraw(){
+  var L=document.getElementById('slist');if(!L||!ST.loaded)return;
+  var stk=ST.rows.filter(function(x){return !x.cata;}),n=stk.length,low=stk.filter(function(x){return x.low;}).length; /* counts: stock items only */
+  var show=(ST.f==='items'?ST.rows:stk).filter(function(x){
+    if(ST.f!=='all'&&ST.f!=='items'&&(x.isSet||!(x.hz?x.hz[ST.f]===true:Math.abs(+x[ST.f]||0)>1e-9)))return false; /* CR run 8: a negative balance shows too; CR run 14: on the raw balance (hz) */
+    if(ST.low&&!x.low)return false;
+    return !ST.q||(x.code+' '+x.name+' '+x.cat+' '+x.size).toLowerCase().indexOf(ST.q)>=0;
+  });
+  document.getElementById('scnt').textContent=n+' item'+(n===1?'':'s')+' · '+low+' below reorder level · '+show.length+' shown';
+  L.innerHTML=show.length?show.map(stCard).join(''):'<div class="empty">'+(n?'No items match.':'No stock items yet.')+'</div>';
+}
+function stPills(x){return (x.isSet?'<span class="pill st-set">Set</span>':'')+(x.kitBad?'<span class="pill st-low">Parts list problem</span>':'')+(!x.isSet&&!x.tracked?'<span class="pill st-off">Not tracked</span>':'')+(x.low?'<span class="pill st-low">Low</span>':'')+(x.status!=='Active'?'<span class="pill st-off">'+esc(x.status)+'</span>':'');}
+function stCard(x){
+  var top='<div class="qrow"><span class="qno">'+esc(x.code)+'</span><span class="sp"></span>'+stPills(x)+'</div><div class="qc">'+esc(x.name)+'</div><div class="qp">'+esc([x.cat,x.size,x.unit].filter(Boolean).join(' · '))+'</div>';
+  if(x.isSet)return '<button type="button" class="qcard st-st" data-i="'+esc(x.code)+'">'+top+'<div class="qrow"><span class="tag">'+x.parts+' part'+(x.parts===1?'':'s')+' · stock kept as parts</span><span class="sp"></span><span class="tag">Can make from yard: <b>'+stQ(x.make)+'</b></span></div></button>';
+  var c=function(k,l){return '<div class="'+(ST.f===k?'hl ':'')+(x[k]?'':'z ')+(k==='yard'&&x.low?'lw':'')+'">'+l+'<b>'+stQ(x[k])+'</b></div>';};
+  return '<button type="button" class="qcard st-c'+(x.low?' st-lc':'')+'" data-i="'+esc(x.code)+'">'+top+'<div class="st-grp">'+c('yard','YARD')+c('site','SITES')+c('rep','REPAIR')+c('lost','LOST/SCRAP')+'</div>'+
+    '<div class="qrow"><span class="tag">Owned '+stQ(x.own)+' '+esc(x.unit)+'</span><span class="sp"></span>'+(x.reorder?'<span class="tag">Reorder at '+stQ(x.reorder)+'</span>':'')+(ST.money&&x.cost&&x.val!=null?'<span class="tag">· value '+stTk(x.val)+'</span>':'')+'</div></button>';
+}
+function viewItem(c){
+  c=cuS(c);document.title='Core Access · '+c;ST.c=null;
+  shell('Yard · Item','<div class="bar"><button type="button" class="btn btn-ghost btn-sm" id="ib">'+ic('back')+' Stock</button></div><div id="iv"><div class="empty">Loading '+esc(c)+'…</div></div>');
+  document.getElementById('ib').onclick=function(){viewStock();};
+  stItLoad(c);
+}
+function stItLoad(c){
+  var my=++ST.seq;
+  call('officeStockItem',S.token,c).then(function(r){
+    if(my!==ST.seq||!document.getElementById('iv'))return;
+    var o=nstFull(r);if(o.code!==c){viewStock();toast(c+' could not be opened.');return;}
+    ST.c=o;stItDraw();
+  },function(m){
+    if(my!==ST.seq||!document.getElementById('iv'))return;
+    if(srvGate(m))return;
+    if(code(m).split('|')[0]==='NOTFOUND'){viewStock();toast(c+' no longer exists.');return;}
+    document.getElementById('iv').innerHTML='<div class="empty">Could not load '+esc(c)+': '+esc(code(m))+' <button type="button" class="btn btn-ghost btn-sm" id="ivretry">Try again</button></div>';
+    document.getElementById('ivretry').onclick=function(){stItLoad(c);};
+  });
+}
+function stTab(head,rows,empty){return '<div class="tblw"><table class="ltab"><thead><tr>'+head+'</tr></thead><tbody>'+(rows.length?rows.join(''):'<tr><td colspan="4" class="tag">'+empty+'</td></tr>')+'</tbody></table></div>';}
+function stItDraw(){
+  var o=ST.c,V=document.getElementById('iv');if(!o||!V)return;
+  var h='<div class="qhead"><div><h2>'+esc(o.code)+'</h2><div class="sub">'+esc([o.name,o.size].filter(Boolean).join(' · '))+'</div><div class="qrow" style="margin-top:8px">'+(o.cat?'<span class="pill ty">'+esc(o.cat)+'</span>':'')+stPills(o)+'</div></div>'+
+    '<div class="qacts">'+(o.can?'<button type="button" class="btn btn-ghost btn-sm" id="ie">'+ic('edit')+'Edit item</button>':'')+(o.head&&!o.isSet&&o.tracked&&o.status==='Active'?'<button type="button" class="btn btn-ghost btn-sm" id="io">'+ic('box')+'Opening stock</button>':'')+'</div></div>';
+  h+='<div class="qgrid">';
+  if(!o.isSet)h+='<div class="box"><h4>Quantity</h4>'+cuKv([['In yard',stQ(o.yard)+(o.reorder?' <span class="tag">(reorder at '+stQ(o.reorder)+')</span>':'')],['On sites',stQ(o.site)],['In repair',stQ(o.rep)],['Owned',stQ(o.own)+' '+esc(o.unit)],['Lost / scrap',stQ(o.lost)]])+'</div>';
+  else h+='<div class="box"><h4>Set</h4>'+cuKv([['Stock','kept as parts (a challan expands the set)'],['Can make from yard',stQ(o.make)+' set'+(o.make===1?'':'s')]].concat(o.kitBad?[['Parts list','<span class="pill st-low">Problem</span> a challan for this set is refused until its parts (KitParts) are added or fixed']]:[]))+'</div>';
+  h+='<div class="box"><h4>Item</h4>'+cuKv([['Unit',esc(o.unit)],['Weight',o.kg!=null?stKg(o.kg)+' kg':''],['Stock tracked',o.tracked?'Yes':'No'],['For hire',o.forHire?'Yes':'No'],['For sale',o.forSale?'Yes':'No'],['Status',esc(o.status)]])+'</div>';
+  h+=o.money?'<div class="box"><h4>Prices &amp; cost</h4>'+cuKv([['Hire rate',o.hire!=null?stTk(o.hire)+' / month':'—'],['Sale price',stTk(o.sale)],['Replacement cost',stTk(o.repl)],['Repair rate',stTk(o.repair)],['Average buy cost',o.avg!=null?stTk(o.avg):''],['Owned value',o.repl!=null&&!o.isSet&&o.val!=null?stTk(o.val):'—']])+'</div>'
+    :'<div class="box"><h4>Prices &amp; cost</h4><div class="lockn">'+ic('lock')+'<div>Hidden for your login (Sales / Procurement / Accounts only).</div></div></div>';
+  if(o.picOk)h+='<div class="box"><h4>Picture</h4>'+(o.pic?(o.pic.img?'<img class="st-pic" alt="Item picture" src="'+o.pic.img+'">':'<span class="muted">Picture on file</span>'):'<span class="muted">No picture</span>')+'<div class="tag">Printed with this item on Rental quotes.</div></div>'; /* F3 */
+  h+='</div>';
+  if(o.isSet)h+='<div class="box"><h4>Parts per set</h4>'+stTab('<th>Part</th><th class="r">Per set</th><th class="r">In yard</th><th class="r">Enough for</th>',o.kit.map(function(p){
+      return '<tr class="go" data-i="'+esc(p.code)+'"><td><button type="button" class="st-mono st-lnk" aria-label="Open part '+esc(p.code)+'">'+esc(p.code)+'</button><small>'+esc([p.name,p.size].filter(Boolean).join(' · '))+'</small></td><td class="r">'+stQ(p.q)+'</td><td class="r">'+stQ(p.yard)+'</td><td class="r">'+stQ(p.mk)+' sets</td></tr>';}),'No parts listed (KitParts).')+'</div>';
+  else{
+    h+='<div class="box"><h4>Where it is</h4>'+stTab('<th>Location</th><th>Type</th><th>Job / customer</th><th class="r">Qty</th>',o.where.map(function(w){
+      return '<tr><td><span class="st-mono">'+esc(w.code)+'</span><small>'+esc(w.name)+'</small></td><td>'+esc(w.type)+'</td><td>'+(w.job||w.cust?'<span class="st-mono">'+esc(w.job||'—')+'</span><small>'+esc(w.cust)+'</small>':'—')+'</td><td class="r'+(w.qty<0?' st-neg':'')+'">'+stQ(w.qty)+'</td></tr>';}),'No stock anywhere.')+'</div>';
+    if(o.sets.length)h+='<div class="box"><h4>Part of sets</h4>'+stTab('<th>Set</th><th class="r">Per set</th>',o.sets.map(function(s){
+      return '<tr class="go" data-i="'+esc(s.code)+'"><td><button type="button" class="st-mono st-lnk" aria-label="Open set '+esc(s.code)+'">'+esc(s.code)+'</button><small>'+esc([s.name,s.size].filter(Boolean).join(' · '))+'</small></td><td class="r">'+stQ(s.q)+' per set</td></tr>';}),'')+'</div>';
+    h+='<div class="box"><h4>Last moves ('+(o.nMoves>o.moves.length?o.moves.length+' of '+o.nMoves:o.moves.length)+')</h4>'+stTab('<th>Date</th><th>From → to</th><th>Ref</th><th class="r">Qty</th>',o.moves.map(function(m){
+      return '<tr><td>'+fmtDay(m.d)+'</td><td>'+(m.f?esc(m.f):'<span class="tag">—</span>')+' → '+(m.t?esc(m.t):'—')+'<small>'+esc(m.k)+(m.job?' · '+esc(m.job):'')+'</small></td><td class="st-mono">'+(CH_NO.test(m.ref)?'<button type="button" class="st-mono st-lnk" data-ch="'+esc(m.ref)+'" aria-label="Open challan '+esc(m.ref)+'">'+esc(m.ref)+'</button>':esc(m.ref))+'</td><td class="r">'+stQ(m.q)+'</td></tr>';}),'No moves yet.')+
+      '<div class="note">'+ic('alert')+'<span>Moves come only from posted challans, receipts and opening stock. Yard ↔ repair transfers use a Transfer challan.</span></div></div>';
+  }
+  V.innerHTML=h;
+  var e=document.getElementById('ie');if(e)e.onclick=function(){stItemDlg(o);};
+  var oo=document.getElementById('io');if(oo)oo.onclick=function(){stOpenDlg(o.code);};
+  [].forEach.call(V.querySelectorAll('button[data-ch]'),function(b){b.onclick=function(){var ic0=o.code;CH.tile='tr';chView(b.getAttribute('data-ch'),{t:'Item '+ic0,go:function(){viewItem(ic0);}});};});
+  [].forEach.call(V.querySelectorAll('tr.go'),function(r){var go=function(){viewItem(r.getAttribute('data-i'));};r.onclick=go;r.onkeydown=function(ev){if(ev.key==='Enter'){ev.preventDefault();go();}};});
+}
+function stSeg(id,lab,opts,v){return '<span class="seg t-amber" id="'+id+'" role="radiogroup" aria-label="'+esc(lab)+'">'+opts.map(function(o){return '<button type="button" role="radio" data-v="'+o+'" aria-checked="'+(o===v)+'"'+(o===v?' class="on"':'')+'>'+o+'</button>';}).join('')+'</span>';}
+function stSegOn(id,cb){document.getElementById(id).onclick=function(e){var b=e.target.closest?e.target.closest('button[data-v]'):null;if(!b||DLG.busy)return;
+  [].forEach.call(this.children,function(x){var on=x===b;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});cb(b.getAttribute('data-v'));};}
+/* CR run 8: every radio group (role=radiogroup): arrow keys / Home / End move to and select a choice; one Tab stop (the checked one, else the first) */
+(function(){var rs=function(g){return [].filter.call(g.querySelectorAll('[role=radio]'),function(x){return x.closest('[role=radiogroup]')===g&&!x.disabled;});};
+  var fix=function(g){var r=rs(g),a=[].filter.call(g.querySelectorAll('[role=radio]'),function(x){return x.closest('[role=radiogroup]')===g;});if(!r.length)return;var c=r.filter(function(x){return x.getAttribute('aria-checked')==='true';})[0]||r[0];a.forEach(function(x){var t=x===c?'0':'-1';if(x.getAttribute('tabindex')!==t)x.setAttribute('tabindex',t);});};
+  var all=function(n){if(!n||n.nodeType!==1)return;if(n.matches('[role=radiogroup]'))fix(n);[].forEach.call(n.querySelectorAll('[role=radiogroup]'),fix);};
+  var go=function(){all(document.body);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==='attributes'){var g=m.target.closest&&m.target.closest('[role=radiogroup]');if(g)fix(g);}else{[].forEach.call(m.addedNodes,all);var g2=m.target.closest&&m.target.closest('[role=radiogroup]');if(g2)fix(g2);}});}).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-checked','disabled']});}; /* CR run 10: a removed / disabled radio moves the Tab stop */
+  if(document.body)go();else document.addEventListener('DOMContentLoaded',go);
+  document.addEventListener('keydown',function(e){var k=e.key,d=k==='ArrowRight'||k==='ArrowDown'?1:k==='ArrowLeft'||k==='ArrowUp'?-1:k==='Home'?-2:k==='End'?2:0;if(!d||e.altKey||e.ctrlKey||e.metaKey)return;
+    var b=e.target&&e.target.closest?e.target.closest('[role=radio]'):null,g=b&&b.closest('[role=radiogroup]');if(!g)return;var r=rs(g),i=r.indexOf(b);if(i<0)return;
+    var j=d===-2?0:d===2?r.length-1:(i+d+r.length)%r.length;e.preventDefault();r[j].focus();if(r[j].getAttribute('aria-checked')!=='true')r[j].click();},true);
+})();
+function stOpts(list,v){var o=list.slice();if(v&&o.indexOf(v)<0)o.unshift(v);return o.map(function(x){return [x,x];});}
+function stNumIn(s,dp){s=String(s).trim();if(s==='')return '';
+  if(s.indexOf(',')>=0){if(!/^(\d{1,3}(,\d{3})+|\d{1,2}(,\d{2})+,\d{3})(\.\d+)?$/.test(s))return null;s=s.replace(/,/g,'');} /* commas only as thousands groups (1,500 · 1,00,000); 1,5 refused */
+  var re=dp?new RegExp('^\\d+(\\.\\d{1,'+dp+'})?$'):/^\d+$/;return re.test(s)?+s:null;}
+/* a new item's starting For hire / For sale = what most items of its category have (server: defs); none: hire Yes, sale No */
+function stDef(cat){var r=ST.defs.filter(function(x){return x[0]===cat;})[0];return r?[r[1],r[2]]:['Yes','No'];}
+function stSegSet(id,v){[].forEach.call(document.getElementById(id).children,function(x){var on=x.getAttribute('data-v')===v;x.classList.toggle('on',on);x.setAttribute('aria-checked',on);});}
+function stItemDlg(o){
+  var nw=!o,P=o?o.price:ST.price,M=o?o.money:ST.money,cats=o?o.lists.cats:ST.cats,units=o?o.lists.units:ST.units;
+  o=o||{code:'',name:'',cat:cats[0]||'',size:'',unit:units[0]||'',kg:null,reorder:0,status:'Active',tracked:true,isSet:false,hire:null,sale:null,repl:null,repair:null};
+  var df=nw?stDef(o.cat):[o.forHire?'Yes':'No',o.forSale?'Yes':'No'],fh=df[0],fs=df[1],fT=false;
+  var tr=o.tracked?'Yes':'No',st=o.isSet?'Yes':'No',pv=function(x){return x==null?'':x;};
+  var PK=!nw&&o.picOk===true,pic=PK&&o.pic?o.pic.id:'',picImg=PK&&o.pic?o.pic.img:'',pic0=pic; /* F3: the item's picture (edit only) */
+  var sel=function(id,lab,list,v){return list.length?ctSel(id,lab,stOpts(list,v),v):cuFld(id,lab,v,{m:40});};
+  var my=openDlg('<h3 id="dlgt">'+(nw?'New item':'Edit item')+'</h3><p class="sub">'+(nw?'The code can\'t be changed later.':esc(o.code)+' · changes are logged.')+'</p><div id="derr"></div>'+
+    '<div class="f2">'+(nw?cuFld('xc','Item code','',{m:24}):'<label class="fld"><span>Item code</span><input class="inp np" id="xc" value="'+esc(o.code)+'" readonly></label>')+cuFld('xn','Name',o.name,{m:80})+'</div>'+
+    '<div class="st-f3">'+sel('xk','Category',cats,o.cat)+cuFld('xs','Size',o.size,{m:40})+(o.ulk?'<label class="fld"><span>Unit (in use: fixed)</span><input class="inp np" id="xu" value="'+esc(o.unit)+'" readonly></label>':sel('xu','Unit',units,o.unit))+'</div>'+
+    '<div class="st-f3">'+cuFld('xw','Weight (kg)',pv(o.kg),{im:'decimal',m:10})+cuFld('xr','Reorder level',o.reorder||'',{im:'numeric',m:7})+ctSel('xt','Status',stOpts(['Active','Inactive'],o.status),o.status)+'</div>'+
+    '<div class="f2"><div class="fld"><span class="lbl">Stock tracked</span>'+stSeg('xtr','Stock tracked',['Yes','No'],tr)+'</div><div class="fld"><span class="lbl">Is a set (made of parts)</span>'+stSeg('xst','Is a set',['No','Yes'],st)+'</div></div>'+
+    '<div class="f2"><div class="fld"><span class="lbl">For hire (Rental quotes)</span>'+stSeg('xfh','For hire',['Yes','No'],fh)+'</div><div class="fld"><span class="lbl">For sale (Sale quotes)</span>'+stSeg('xfs','For sale',['Yes','No'],fs)+'</div></div>'+
+    (PK?'<div class="fld"><span>Picture · optional, printed with this item on Rental quotes</span><div class="qe-pic" id="xpic"></div></div>':'')+
+    (P?'<span class="lbl">Prices &amp; cost (Directors)</span><div class="f2">'+cuFld('xp1','Hire rate / month',pv(o.hire),{im:'decimal',m:14})+cuFld('xp2','Sale price',pv(o.sale),{im:'decimal',m:14})+'</div><div class="f2">'+cuFld('xp3','Replacement cost',pv(o.repl),{im:'decimal',m:14})+cuFld('xp4','Repair rate',pv(o.repair),{im:'decimal',m:14})+'</div>'
+      :'<div class="lockn">'+ic('lock')+'<div>Prices and cost '+(M?'are changed by a Director only':'are not shown to your login')+' — they are kept as they are.</div></div>')+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">'+(nw?'Add item':'Save changes')+'</button></div>');
+  var yes=document.getElementById('dyes'),v=function(i){return document.getElementById(i).value.trim();},vl=function(i){var e=document.getElementById(i);return e.tagName==='SELECT'||e.readOnly?e.value:e.value.trim();}; /* CR run 10: a list value as offered */
+  var picDraw=function(){var b=document.getElementById('xpic');if(!b)return; /* F3: PNG / JPG, max 1 MB, uploaded at once, kept on the item by Save */
+    b.innerHTML=(pic?(SG_IMG.test(picImg)?'<img alt="Item picture" src="'+picImg+'">':'<span class="muted">Picture on file</span>'):'<span class="muted">No picture</span>')+
+      '<label class="btn btn-ghost btn-sm">'+(pic?'Change':'Add picture')+'<input type="file" id="xpf" accept="image/png,image/jpeg" hidden></label>'+(pic?'<button type="button" class="btn btn-ghost btn-sm" id="xpx">Remove</button>':'');
+    var no=function(m){dlgErr(sgErr(m));};
+    document.getElementById('xpf').onchange=function(){
+      var f=this.files&&this.files[0];this.value='';if(!f||DLG.busy||my!==DLG.seq)return;
+      if(!/^image\/(png|jpeg)$/.test(f.type))return no('BADIMG|type');
+      if(f.size>1048576)return no('BADIMG|size');
+      var rd=new FileReader();
+      rd.onload=function(){
+        var d=String(rd.result||'').replace(/^data:image\/jpg;/,'data:image/jpeg;');if(my!==DLG.seq||DLG.busy)return;if(!SG_IMG.test(d))return no('BADIMG|type');
+        DLG.busy=true;ifz(true);busyBtn(yes,true,'Adding picture…');dlgErr('');
+        call('officeItemPicPut',S.token,d.slice(d.indexOf(',')+1)).then(function(r){if(my!==DLG.seq)return;DLG.busy=false;ifz(false);busyBtn(yes,false);if(!r||typeof r.id!=='string')return;pic=r.id;picImg=d;picDraw();toast('Picture added. Save to keep it on the item.');},
+          function(m){if(my!==DLG.seq)return;DLG.busy=false;ifz(false);busyBtn(yes,false);if(srvGate(m))return;no(m);});
+      };
+      rd.onerror=function(){no('BADIMG|broken');};
+      rd.readAsDataURL(f);
+    };
+    var x=document.getElementById('xpx');if(x)x.onclick=function(){if(DLG.busy)return;pic='';picImg='';picDraw();};
+  };
+  stSegOn('xtr',function(x){tr=x;});stSegOn('xst',function(x){st=x;});stSegOn('xfh',function(x){fh=x;fT=true;});stSegOn('xfs',function(x){fs=x;fT=true;});
+  if(nw){var kc=function(){if(fT)return;var d2=stDef(vl('xk'));fh=d2[0];fs=d2[1];stSegSet('xfh',fh);stSegSet('xfs',fs);};document.getElementById('xk').addEventListener('change',kc);document.getElementById('xk').addEventListener('input',kc);}
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  var ifz=function(on){['xc','xn','xk','xs','xu','xw','xr','xt','xp1','xp2','xp3','xp4','xpf','xpx'].forEach(function(i){var e=document.getElementById(i);if(e)e.disabled=on;});};
+  picDraw(); /* CR run 14: no edit while Save is pending (no field of this form is disabled otherwise) */
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    var c=nw?v('xc').toUpperCase():o.code;
+    if(nw&&!ST_CODE.test(c)){dlgErr('Item code: 2–24 capitals, digits, . or - (starting with a capital or digit).');return;}
+    if(!v('xn')){dlgErr('The name is needed.');return;}
+    if(!vl('xk').trim()||(!vl('xu').trim()&&(nw||String(o.unit||'').trim()))){dlgErr('The category and the unit are needed.');return;} /* CR run 13: a blank unit kept as it was on edit */
+    var kg=stNumIn(v('xw'),3);if(kg===null||kg>10000){dlgErr('Weight: a number in kg (up to 3 decimals).');return;}
+    var rl=stNumIn(v('xr'),0);if(rl===null||rl>1e6){dlgErr('Reorder level: a whole number, 0 or more.');return;}
+    if(st==='Yes'&&tr==='Yes'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No.');return;} /* CR run 15 */
+    var d={code:c,name:v('xn'),cat:vl('xk'),size:v('xs'),unit:vl('xu'),kg:kg,reorder:rl===''?'':rl,status:document.getElementById('xt').value,tracked:tr,isSet:st,forHire:fh,forSale:fs};
+    if(!nw)d.ev=o.ev;
+    if(PK&&pic!==pic0)d.pic=pic; /* F3: only a changed picture is sent (none = kept) */
+    if(P){var ks=[['xp1','hire','Hire rate'],['xp2','sale','Sale price'],['xp3','repl','Replacement cost'],['xp4','repair','Repair rate']];
+      for(var i=0;i<ks.length;i++){var n=stNumIn(v(ks[i][0]),2);if(n===null||n>1e9){dlgErr(ks[i][2]+': an amount in Tk (up to 2 decimals).');return;}d[ks[i][1]]=n;}}
+    DLG.busy=true;ifz(true);busyBtn(yes,true,'Saving…');dlgErr('');
+    call('officeItemSave',S.token,d).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();
+      var od=r&&+r.old||0;toast((r&&r.same?'Nothing changed.':nw?c+' added.':'Saved.')+(od?' '+od+' open PDF'+(od===1?'':'s')+' printing this item marked old.':'')+(r&&r.warn==='LOG'?' (Log entry not written.)':''));viewItem(c);
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;ifz(false);if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='STALE'){staleClose(function(){viewItem(c);});return;}
+      if(k[0]==='EXISTS'){dlgErr('Code <b>'+esc(k[1]||c)+'</b> already exists. Nothing saved.');return;}
+      if(k[0]==='NOTFOUND'){closeDlg();viewStock();toast('This item no longer exists.');return;}
+      if(k[0]==='DNOPEN'){dlgErr('Debit note <b>'+esc(k[1]||'')+'</b> (Draft) prints this item\'s repair / replacement rate. Issue or cancel it first, then change the rate. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='set'){dlgErr('"Is a set" can\'t change: this item already has stock moves or set parts. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='unit'){dlgErr('The unit can\'t change: stock, moves, set parts or challan / damage / PO lines already count this item in '+esc(o.unit)+'. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='stock tracked'){dlgErr('Stock tracking can\'t be switched off while this item has stock. Nothing saved.');return;}
+      if(k[0]==='ONORDER'){dlgErr('Stock tracking can\'t be switched off: PO <b>'+esc(k[1]||'')+'</b> still has this item to receive. Receive it, or cancel / close the PO, first. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='picture'){dlgErr('The picture could not be kept — add it again. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='set tracked'){dlgErr('A set is not stock-tracked itself — its parts are. Set <b>Stock tracked</b> to No. Nothing saved.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='part tracked'){dlgErr('This item is a part of a set (KitParts): it must stay stock-tracked. Take it out of the set first. Nothing saved.');return;}
+      dlgErr(errText(m));
+    });
+  };
+  setTimeout(function(){if(my===DLG.seq)document.getElementById(nw?'xc':'xn').focus();},30);
+}
+function stOpenDlg(pre,fr){ /* CR run 8: items + locations read fresh each time the form opens (fr = just read) */
+  var items=ST.rows.filter(function(x){return !x.isSet&&x.tracked&&x.status==='Active';}),locs=ST.locs;
+  var sel=pre&&items.some(function(x){return x.code===pre;})?pre:null; /* CR run 9: an item the fresh list no longer offers (inactive, not tracked, a set) is not put back: the post would be refused */
+  if(!fr||!locs.length||!items.length){
+    if(!fr){var my=++ST.seq,d0=DLG.seq,on=function(){return my===ST.seq&&!!document.getElementById(pre?'iv':'slist');}; /* a late answer after leaving does nothing: another item / the list bump ST.seq, other screens remove the view */
+      call('officeStockList',S.token).then(function(r){if(!on())return;r=r||{};ST.locs=cuArr(r.locs).map(function(l){l=l||{};return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type)};}).filter(function(l){return l.code;});
+      ST.rows=cuArr(r.rows).map(nst).filter(function(x){return x.code;});ST.today=isDay(r.today)?r.today:ST.today;ST.rows.sort(function(a,b){return a.code.localeCompare(b.code);});ST.loaded=true;if(document.getElementById('slist'))stsDraw();if(d0===DLG.seq)stOpenDlg(pre,true);} /* CR run 12: a dialog opened / closed meanwhile: the form does not open over it */,function(m){if(!on())return;if(!srvGate(m))toast('Could not load the stock: '+code(m));});return;}
+    toast(locs.length?'No active stock items to count.':'No yard / repair location to count into.');return;
+  }
+  if(pre&&!sel){toast(pre+' can\'t take opening stock now (inactive, not stock-tracked or a set).');return;} /* CR run 13: never another item in its place */
+  var my=openDlg('<h3 id="dlgt">Opening stock</h3><p class="sub">Counted quantities on the go-live day. Each item + location gets an opening balance <b>once</b>; after that stock only moves by challans and receipts.</p><div id="derr"></div>'+
+    '<div class="f2">'+cuFld('od','Count date',ST.today||ctToday(),{t:'date'})+'<div></div></div><span class="lbl">Lines</span><div id="ols"></div>'+
+    '<button type="button" class="btn btn-ghost btn-sm" id="oadd">'+ic('plus')+'Add line</button>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Cancel</button><button type="button" class="btn btn-primary" id="dyes">Post opening stock</button></div>');
+  var box=document.getElementById('ols'),nl=0;
+  /* CR run 15: locations this item had an opening at when the list loaded: flagged, and a new line starts on one not opened; the post
+     alone refuses (EXISTS: this list can be old, CR run 5) */
+  var opd=function(c){var x=items.filter(function(y){return y.code===c;})[0];return x&&x.op||[];};
+  var olf=function(d){var s=d.querySelector('.oloc'),v=s.value,op=opd(d.querySelector('.oi').value),f=locs.filter(function(l){return op.indexOf(l.code)<0;})[0];
+    s.innerHTML=locs.map(function(l){return '<option value="'+esc(l.code)+'">'+esc(l.code+' · '+l.name)+(op.indexOf(l.code)>=0?' (opened)':'')+'</option>';}).join('');
+    s.value=v&&op.indexOf(v)<0&&locs.some(function(l){return l.code===v;})?v:(f||locs[0]).code;};
+  var line=function(it){var d=document.createElement('div');d.className='st-ol';nl++;
+    d.innerHTML='<select class="inp np oi" aria-label="Item">'+items.map(function(x){return '<option value="'+esc(x.code)+'"'+(x.code===it?' selected':'')+'>'+esc(x.code+' · '+[x.name,x.size].filter(Boolean).join(' '))+'</option>';}).join('')+'</select>'+
+      '<select class="inp np oloc" aria-label="Location"></select>'+
+      '<input class="inp np oq" type="number" min="1" step="1" inputmode="numeric" placeholder="Qty" aria-label="Quantity"><button type="button" class="st-mini" aria-label="Remove line">'+ic('ban')+'</button>';
+    d.querySelector('.st-mini').onclick=function(){if(!DLG.busy)d.parentNode.removeChild(d);};d.querySelector('.oi').addEventListener('change',function(){olf(d);});olf(d);box.appendChild(d);};
+  line(sel||items[0].code);
+  document.getElementById('oadd').onclick=function(){if(!DLG.busy&&box.children.length<200)line(items[0].code);};
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  var yes=document.getElementById('dyes');
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    var ls=[].slice.call(box.children),seen={},rows=[],dd=document.getElementById('od').value.trim();
+    [].forEach.call(box.querySelectorAll('.inp'),function(x){x.classList.remove('bad');});
+    if(!isDay(dd)){dlgErr('The count date is needed.');return;}
+    if(!ls.length){dlgErr('Add at least one line.');return;}
+    for(var i=0;i<ls.length;i++){var it=ls[i].querySelector('.oi').value,l=ls[i].querySelector('.oloc').value,qi=ls[i].querySelector('.oq'),q=stNumIn(qi.value,0),k=it+'|'+l;
+      if(q===null||q===''||q<1||q>1e6){qi.classList.add('bad');dlgErr('Line '+(i+1)+': the quantity must be a whole number above 0.');return;}
+      if(seen[k]){dlgErr('Line '+(i+1)+': '+esc(it)+' at '+esc(l)+' is on two lines.');return;}
+      seen[k]=1;rows.push({item:it,loc:l,qty:q});}
+    var frz=function(on){[].forEach.call(document.querySelectorAll('#od,#ols select,#ols input,#ols button,#oadd'),function(x){x.disabled=on;});}; // CR run 6: nothing changes while the post is on its way
+    DLG.busy=true;frz(true);busyBtn(yes,true,'Posting…');dlgErr('');
+    call('officeStockOpening',S.token,{date:dd,rows:rows}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;closeDlg();var n=r&&+r.n||0;
+      toast(n+' opening line'+(n===1?'':'s')+' posted.'+(r&&r.warn==='LOG'?' (Log entry not written.)':''));if(pre)viewItem(pre);else viewStock();
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;if(srvGate(m))return;busyBtn(yes,false);frz(false);
+      var k=code(m).split('|');
+      if(k[0]==='EXISTS'){dlgErr(esc(k[1]||'')+' at '+esc(k[2]||'')+' already has an opening balance. Nothing saved — use a challan to change stock.');return;}
+      if(k[0]==='BADINPUT'&&k[1]==='count date'){dlgErr('The count date can\'t be in the future (or before 2020). Nothing saved.');return;}
+      dlgErr(errText(m));
+    });
+  };
+}
+function stLocDlg(){
+  var ty='Yard',rows=[];
+  var my=openDlg('<h3 id="dlgt">Locations</h3><p class="sub">Yard racks and repair bays. Site locations are made when a project is added (Customers) and are not changed here.</p><div id="derr"></div>'+
+    '<div class="tblw" style="margin-bottom:14px"><table class="ltab"><thead><tr><th>Code</th><th>Name</th><th>Type</th></tr></thead><tbody id="lt"><tr><td colspan="3" class="tag">Loading…</td></tr></tbody></table></div>'+
+    '<span class="lbl">Add location</span><div class="f2">'+cuFld('lc','Code','',{m:24})+cuFld('ln','Name','',{m:60})+'</div><div style="margin-bottom:10px">'+stSeg('lty','Location type',['Yard','Repair'],ty)+'</div>'+
+    '<div class="dfoot"><button type="button" class="btn btn-ghost" id="dno">Close</button><button type="button" class="btn btn-primary" id="dyes">Add</button></div>');
+  var draw=function(){var t=document.getElementById('lt');if(!t)return;t.innerHTML=rows.length?rows.map(function(l){return '<tr><td class="st-mono">'+esc(l.code)+'</td><td>'+esc(l.name)+(l.job||l.cust?'<small>'+esc([l.job,l.cust].filter(Boolean).join(' · '))+'</small>':'')+'</td><td>'+esc(l.type)+(l.type==='Site'?' <small>from project add</small>':'')+(l.status!=='Active'?' <small>'+esc(l.status)+'</small>':'')+'</td></tr>';}).join(''):'<tr><td colspan="3" class="tag">No locations.</td></tr>';};
+  var ls=0,load=function(){var me=++ls; /* CR run 9: only the newest list answer is drawn */ call('officeLocList',S.token).then(function(r){if(my!==DLG.seq||me!==ls)return;rows=cuArr(r&&r.rows).map(function(l){l=l||{};return {code:cuS(l.code),name:cuS(l.name),type:cuS(l.type),status:cuS(l.status)||'Active',job:cuS(l.job),cust:cuS(l.cust)};}).filter(function(l){return l.code;});draw();},
+    function(m){if(my!==DLG.seq||me!==ls)return;if(srvGate(m))return;var t=document.getElementById('lt');if(t)t.innerHTML='<tr><td colspan="3" class="tag">Could not load: '+esc(code(m))+'</td></tr>';});};
+  load();stSegOn('lty',function(x){ty=x;});
+  document.getElementById('dno').onclick=function(){if(!DLG.busy)closeDlg();};
+  var yes=document.getElementById('dyes');
+  var lfz=function(on){['lc','ln'].forEach(function(i){var e=document.getElementById(i);if(e)e.disabled=on;});}; /* CR run 13 */
+  yes.onclick=function(){
+    if(DLG.busy)return;
+    var c=document.getElementById('lc').value.trim().toUpperCase(),n=document.getElementById('ln').value.trim();
+    if(!ST_CODE.test(c)||/^LOC-S\d+$/.test(c)){dlgErr('Code: 2–24 capitals, digits, . or - (LOC-S + digits is kept for site locations).');return;}
+    if(rows.some(function(l){return l.code.toUpperCase()===c;})){dlgErr('Location <b>'+esc(c)+'</b> already exists.');return;}
+    if(!n){dlgErr('The name is needed.');return;}
+    DLG.busy=true;lfz(true);busyBtn(yes,true,'Adding…');dlgErr('');
+    call('officeLocSave',S.token,{code:c,name:n,type:ty}).then(function(r){
+      if(my!==DLG.seq)return;DLG.busy=false;lfz(false);busyBtn(yes,false);document.getElementById('lc').value='';document.getElementById('ln').value='';
+      toast(c+' added.'+(r&&r.warn==='LOG'?' (Log entry not written.)':''));ST.locs.push({code:c,name:n,type:ty});load();
+    },function(m){
+      if(my!==DLG.seq)return;DLG.busy=false;lfz(false);if(srvGate(m))return;busyBtn(yes,false);
+      var k=code(m).split('|');
+      if(k[0]==='EXISTS'){dlgErr('Location <b>'+esc(k[1]||c)+'</b> already exists.');load();return;}
+      dlgErr(errText(m));
+    });
+  };
+}
 /* ======================= server errors (any screen) ======================= */
 /* a dead session goes back to sign-in; no access goes Home; the rest is text for the screen */
 function srvGate(m){
@@ -1266,6 +1932,7 @@ function srvGate(m){
 function errText(m){
   var k=code(m).split('|');
   switch(k[0]){
+    case 'SAVEUNSURE': return 'The save of new quote <b>'+esc(k[1]||'')+'</b> could not be confirmed. Press <b>Save</b> again to finish it: it saves into '+esc(k[1]||'')+', never a second quote.';
     case 'DUP': return 'This email already has a login. Find it in the list and use <b>Edit</b>.';
     case 'LASTDIR': return 'There must always be at least one <b>enabled Director</b>. Make another Director first.';
     case 'SELF': return 'You can\'t block yourself or change your own access. Ask another Director.';
@@ -1281,6 +1948,7 @@ function errText(m){
     case 'SLOW': return 'Many saves from this login in a short time. Please wait a few minutes and try again.';
     case 'SAVEFAIL': return 'The sheet refused the save: '+esc(k.slice(1).join('|')||'unknown reason')+'. Nothing was saved.';
     case 'NOPDF': return 'There is no PDF of this quote yet. Sales staff make it.';
+    case 'PDFLOCK': return 'A locked quote (job, or not Draft / Sent) gets no new PDF.';
     case 'SENTNOW': return 'This quote was emailed a moment ago. Check before sending it again.';
     case 'SENTNOREC': return 'The email went out, but the system could not record it (status / log). Do not send it again — reload in a minute and check the quote.';
     case 'LIMIT': return 'You have sent many emails today. Please try again tomorrow or ask a Director.';
@@ -1599,6 +2267,7 @@ var DTYPES=['Form','Procedure','Record'], DSTAT=['Active','Draft','Withdrawn'];
 /* sign-in / sign-out: forget the lists of the earlier login (another person may sign in on this device) */
 function resetCaches(){US.rows=[];US.me='';US.staff=null;US.loaded=false;DR.rows=[];DR.can=false;DR.depts=[];DR.setup=true;DR.loaded=false;
   QS.rows=[];QS.can=false;QS.money=false;QS.cur=null;QS.loaded=false;QS.seq++;
+  ST.rows=[];ST.loaded=false;ST.defs=[];ST.locs=[];ST.c=null;ST.seq++;
   QE.d=null;QE.q=null;QE.dirty=false;QE.saving=false;QE.seq++;QE.job=null;QB.ep++;QB.pend={};QB.jobs={};QB.lost={};qePickClose();}
 var RECEX={Quote:'CAE/Q/2026/002',PI:'CAE/PI/2026/001',Invoice:'CAE/INV/2026/001',Note:'CAE/DN/2026/001',Challan:'CAE/DC/2026/001',PO:'CAE/PO/2026/001'};
 function deptOf(c){var o=null;DEPTS.forEach(function(D){if(D.d===c)o=D;});return o;}
@@ -1608,7 +2277,7 @@ function ndoc(r){
   r=r||{};var rev=+r.rev;
   return {code:String(r.code||''),title:String(r.title||'—'),dept:deptOf(r.dept)?r.dept:'',type:DTYPES.indexOf(r.type)>=0?r.type:'Form',
     rev:(rev>=0&&rev===Math.floor(rev))?rev:0,revDate:isDay(r.revDate)?r.revDate:'',owner:String(r.owner||''),
-    status:DSTAT.indexOf(r.status)>=0?r.status:'Draft',sys:RECEX[r.sys]?String(r.sys):'',issued:(+r.issued>0)?Math.floor(+r.issued):0,
+    status:DSTAT.indexOf(r.status)>=0?r.status:'Draft',sys:RECEX[r.sys]?String(r.sys):'',issued:(+r.issued>0)?Math.floor(+r.issued):0,blank:/^https:\/\/docs\.google\.com\/document\/d\/[A-Za-z0-9_-]{25,80}\/edit$/.test(cuS(r.blank))?cuS(r.blank):'',
     hist:(Array.isArray(r.hist)?r.hist:[]).map(function(h){h=h||{};return {rev:+h.rev||0,date:isDay(h.date)?h.date:'',by:String(h.by||'—'),note:String(h.note||'')};})};
 }
 function footerTxt(d){return '<b>'+esc(d.code)+'</b> · Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+' · Page 1 / 2 · '+(d.sys?esc(RECEX[d.sys]):'record no.');}
@@ -1690,7 +2359,8 @@ function docsDraw(){
       '<div class="meta"><span>Revision</span><b>Rev '+d.rev+' · '+esc(fmtDay(d.revDate))+'</b>'+
         '<span>Department</span><b>'+esc(D.d)+(D.n?' · '+esc(D.n):'')+'</b>'+
         '<span>Owner</span><b>'+(d.owner?esc(d.owner):'—')+'</b>'+
-        '<span>Made by</span><b>'+(d.sys?'System — auto PDF · '+d.issued+' issued':'By hand (not in the system yet)')+'</b></div>'+
+        '<span>Made by</span><b>'+(d.sys?'System — auto PDF · '+d.issued+' issued':'By hand (not in the system yet)')+'</b>'+
+        (d.blank?'<span>Blank form</span><b><a class="st-lnk" href="'+esc(d.blank)+'" target="_blank" rel="noopener">Open template (Google Doc)</a> <small class="tag">for hand use when the system is down</small></b>':'')+'</div>'+
       '<div class="fpv" title="Footer printed on every page">PDF footer: '+footerTxt(d)+'</div>'+
       '<div class="acts">'+acts+'</div></article>';
   }).join('');
@@ -2178,7 +2848,7 @@ function qeTot(){
 /* the server's answer, tidied (a missing field never breaks the screen) */
 function qeForm(r){
   r=r||{};var arr=function(x){return Array.isArray(x)?x:[];},s=r.set||{},n=function(v,d){v=+v;return isFinite(v)?v:d;};
-  var o={money:r.money===true,today:isDay(r.today)?r.today:'',myStaff:String(r.myStaff||''),units:arr(r.units).map(String),kits:r.kits&&typeof r.kits==='object'?r.kits:{},
+  var o={picOk:r.picOk===true,money:r.money===true,today:isDay(r.today)?r.today:'',myStaff:String(r.myStaff||''),units:arr(r.units).map(String),kits:r.kits&&typeof r.kits==='object'?r.kits:{},
     set:{vat:n(s.vat,15),at:n(s.at,0),ait:n(s.ait,0),adv:n(s.adv,50),validDays:n(s.validDays,30)},
     items:arr(r.items).map(function(i){i=i||{};return {code:String(i.code||''),name:String(i.name||i.code||''),cat:String(i.cat||'Other'),size:String(i.size||''),unit:String(i.unit||'pc'),
       forSale:i.forSale===true,forHire:i.forHire===true,isSet:i.isSet===true,sale:typeof i.sale==='number'?i.sale:null,hire:typeof i.hire==='number'?i.hire:null};}).filter(function(i){return i.code;}),
@@ -2189,7 +2859,7 @@ function qeForm(r){
   var x=r.quote;
   if(x&&typeof x==='object'){o.quote={no:String(x.no||''),rev:+x.rev||0,status:String(x.status||'Draft'),ev:typeof x.ev==='number'?x.ev:0,type:['Rental','Sale','Project'].indexOf(x.type)>=0?x.type:'',
     cust:String(x.cust||''),site:String(x.site||''),attention:String(x.attention||''),subject:String(x.subject||''),date:isDay(x.date)?x.date:o.today,valid:isDay(x.valid)?x.valid:'',prep:String(x.prep||''),adv:n(x.adv,o.set.adv),
-    svc:x.svc===true,lines:arr(x.lines).map(qeLine)};}
+    svc:x.svc===true,pic:x.pic&&typeof x.pic==='object'&&typeof x.pic.id==='string'?{id:x.pic.id,img:String(x.pic.img||'')}:null,lines:arr(x.lines).map(qeLine)};}
   return o;
 }
 function qeShell(no){ /* W4g: the form's frame (open + reopen) */
@@ -2210,8 +2880,9 @@ function viewQuoteEdit(no,cu){ /* M1: cu = customer to pick on a new quote */
     if(my!==QE.seq||!document.getElementById('qe'))return;
     var D=qeForm(r),x=D.quote,today=D.today;QE.d=D;
     if(no&&!x){viewQuotes();toast(no+' could not be opened.');return;}
-    QE.q=x?{no:x.no,rev:x.rev,status:x.status,ev:x.ev,svc:x.svc,type:x.type,cust:x.cust,site:x.site,attention:x.attention,subject:x.subject,date:x.date,valid:x.valid,prep:x.prep,adv:x.adv,lines:x.lines.length?x.lines:[qeLine()]}
-      :{no:'',rev:0,status:'Draft',ev:0,type:'',cust:'',site:'',attention:'',subject:'',date:today,valid:qeAddDays(today,D.set.validDays),prep:D.myStaff,adv:D.set.adv,lines:[qeLine(),qeLine(),qeLine()]};
+    QE.q=x?{no:x.no,rev:x.rev,status:x.status,ev:x.ev,svc:x.svc,type:x.type,cust:x.cust,site:x.site,attention:x.attention,subject:x.subject,date:x.date,valid:x.valid,prep:x.prep,adv:x.adv,pic:x.pic?x.pic.id:'',lines:x.lines.length?x.lines:[qeLine()]}
+      :{no:'',rev:0,status:'Draft',ev:0,type:'',cust:'',site:'',attention:'',subject:'',date:today,valid:qeAddDays(today,D.set.validDays),prep:D.myStaff,adv:D.set.adv,pic:'',lines:[qeLine(),qeLine(),qeLine()]};
+    QE.picImg=x&&x.pic?x.pic.img:'';
     if(!D.staff.some(function(s){return s.id===QE.q.prep;}))QE.q.prep='';
     if(!x&&cu&&D.customers.some(function(c){return c.id===cu;}))QE.q.cust=cu;
     if(!isDirector(S.user.depts))QE.q.prep=D.staff.some(function(s){return s.id===D.myStaff;})?D.myStaff:''; /* D2: the person who saves is the preparer (signs the PDF) */
@@ -2253,6 +2924,7 @@ function qeDraw(){
       '<div class="qe-chosen" id="qesic">'+(s?'<span class="ok">'+ic('okc')+'</span><span>'+esc(s.address||s.id)+'</span>':c?'Pick a project or add a new one.':'')+'</div></label>'+
     '<label class="fld"><span>Attention</span><input class="inp np" id="qeat" value="'+esc(q.attention)+'" placeholder="'+esc(c&&c.contact||'Contact person')+'" maxlength="80"></label>'+
     '<label class="fld"><span>Subject</span><input class="inp np" id="qesu" value="'+esc(q.subject)+'" placeholder="'+esc(qeSubj())+'" maxlength="140"></label>'+
+    (D.picOk&&q.type==='Project'?'<div class="fld"><span>Picture · optional, printed on the quote for reference (Project quotes only; rental / sale quotes print each component\'s own picture)</span><div class="qe-pic" id="qepic"></div></div>':'')+
   '</div></div>';
   /* 3 quote details */
   var staff='<option value="">—</option>'+(D.staff||[]).map(function(x){return '<option value="'+esc(x.id)+'"'+(x.id===q.prep?' selected':'')+'>'+esc(x.name)+'</option>';}).join('');
@@ -2288,12 +2960,12 @@ function qeBindType(){
   [].forEach.call(document.querySelectorAll('.qe-type'),function(b){b.onclick=function(){
     var t=b.getAttribute('data-t'),q=QE.q;if(t===q.type)return;
     var used=q.lines.some(qeUsed);
-    var go=function(){var was=q.type;q.type=t;QE.dirty=true;
+    var go=function(){var was=q.type;q.type=t;QE.dirty=true;if(t!=='Project'&&q.pic){q.pic='';QE.picImg='';} /* r33: the quote picture is for Project quotes only */
       if(was)q.lines.forEach(function(l){ /* the unit follows the type: rental = per month, sale = plain */
         if(t==='Sale'&&qeMonthly(l.unit))l.unit=qeBaseUnit(l.unit);
         if(t==='Rental'&&l.code&&!qeMonthly(l.unit)&&qeItem(l.code)&&qeItem(l.code).forHire)l.unit=l.unit+' / month';});
       qeDraw();};
-    if(q.type&&used)askDlg('Change the type to '+esc(t)+'?','The lines stay as they are (check the units and rates), and the quote gets the standard <b>'+esc(t)+'</b> terms instead of the '+esc(q.type)+' terms.','Change to '+esc(t),false,function(){return Promise.resolve();},go);
+    if(q.type&&used)askDlg('Change the type to '+esc(t)+'?','The lines stay as they are (check the units and rates), and the quote gets the standard <b>'+esc(t)+'</b> terms instead of the '+esc(q.type)+' terms.'+(q.pic&&t!=='Project'?' The quote picture is removed (Project quotes only).':''),'Change to '+esc(t),false,function(){return Promise.resolve();},go);
     else go();
   };});
 }
@@ -2309,6 +2981,7 @@ function qeBindHead(){
   si.onkeydown=qePickKey;
   document.getElementById('qeat').oninput=function(){q.attention=this.value;mark();};
   document.getElementById('qesu').oninput=function(){q.subject=this.value;mark();};
+  qePicDraw();
   document.getElementById('qedt').onchange=function(){q.date=this.value;mark();};
   document.getElementById('qevu').onchange=function(){q.valid=this.value;mark();};
   document.getElementById('qepb').onchange=function(){q.prep=this.value;mark();};
@@ -2433,7 +3106,7 @@ function qeRowsHtml(){
       '<td class="sz">'+(P?'<div class="qe-szw"><input class="c" data-f="size" value="'+esc(l.size)+'" readonly placeholder="📐 measure" title="From the measure (📐)" aria-label="Line '+(i+1)+' size"><button type="button" class="mini" data-a="dim" title="Measure: L × H = m², L × W × H = m³" aria-label="Measure line '+(i+1)+'">📐</button></div>':
         '<input class="c" data-f="size" value="'+esc(l.size)+'" readonly title="From the item" aria-label="Line '+(i+1)+' size">')+'</td>'+
       '<td class="q"><input class="c n" data-f="qty" inputmode="decimal" value="'+esc(l.qty)+'"'+(l.basis==='lump'||l.dim?' readonly':'')+' aria-label="Line '+(i+1)+' quantity"></td>'+
-      '<td class="u"><input class="c" data-f="unit" value="'+esc(l.unit)+'" maxlength="30" list="qeunits"'+(l.basis==='lump'||l.dim?' readonly':'')+' aria-label="Line '+(i+1)+' unit"></td>'+
+      '<td class="u"><select class="c" data-f="unit" aria-label="Line '+(i+1)+' unit">'+qeUnitOpts(l.unit)+'</select></td>'+
       (M?'<td class="ra"><input class="c n" data-f="rate" inputmode="decimal" value="'+esc(l.rate)+'" aria-label="Line '+(i+1)+' rate"></td><td class="am r" data-am>'+(a===null?'—':(qeOff(l)?'(':'')+tk(a)+(qeOff(l)?')':''))+'</td>':'')+
       '<td class="ac"><button type="button" class="mini" data-a="menu" title="More: optional, lump sum, copy, move" aria-label="More for line '+(i+1)+'">⋯</button> '+
         '<button type="button" class="mini del" data-a="del" title="Delete row" aria-label="Delete line '+(i+1)+'">🗑</button></td></tr>';
@@ -2444,8 +3117,33 @@ function qeUnits(){
   if(t==='Rental')u=['pc','set','m²','m','lot'].filter(function(x){return base.indexOf(x)>=0;}).map(function(x){return x+' / month';}).concat(base);
   else if(t==='Project'&&!QE.q.svc)u=['m²','m³','set'].filter(function(x){return base.indexOf(x)>=0;}).map(function(x){return x+' / month';}).concat(base);
   else u=base.slice();
-  var d=document.getElementById('qeunits');if(!d){d=document.createElement('datalist');d.id='qeunits';document.body.appendChild(d);}
-  d.innerHTML=u.map(function(x){return '<option value="'+esc(x)+'">';}).join('');
+  return u;
+}
+function qeUnitOpts(cur){ /* the unit is picked from the list (a unit not in it any more stays as it is) */
+  var u=qeUnits();cur=String(cur||'');if(u.indexOf(cur)<0)u=[cur].concat(u);
+  return u.map(function(x){return '<option value="'+esc(x)+'"'+(x===cur?' selected':'')+'>'+(x?esc(x):'— pick —')+'</option>';}).join('');
+}
+function qePicDraw(){ /* QP: the quote's picture (PNG / JPG, max 1 MB): uploaded at once, kept on the quote by Save */
+  var b=document.getElementById('qepic');if(!b)return;var q=QE.q,u=QE.picImg||'';
+  b.innerHTML=(q.pic?(SG_IMG.test(u)?'<img alt="Quote picture" src="'+u+'">':'<span class="muted">Picture on file</span>'):'<span class="muted">No picture</span>')+
+    '<label class="btn btn-ghost btn-sm">'+(q.pic?'Change':'Add picture')+'<input type="file" id="qepf" accept="image/png,image/jpeg" hidden></label>'+
+    (q.pic?'<button type="button" class="btn btn-ghost btn-sm" id="qepx">Remove</button>':'');
+  var no=function(m){toast(String(sgErr(m)).replace(/<[^>]+>/g,''));};
+  document.getElementById('qepf').onchange=function(){
+    var f=this.files&&this.files[0];this.value='';if(!f)return;
+    if(!/^image\/(png|jpeg)$/.test(f.type))return no('BADIMG|type');
+    if(f.size>1048576)return no('BADIMG|size');
+    var my=QE.q,rd=new FileReader();
+    rd.onload=function(){
+      var d=String(rd.result||'').replace(/^data:image\/jpg;/,'data:image/jpeg;');if(QE.q!==my)return;if(!SG_IMG.test(d))return no('BADIMG|type');
+      toast('Adding the picture…');
+      call('officeQuotePicPut',S.token,d.slice(d.indexOf(',')+1)).then(function(r){if(QE.q!==my||!r||typeof r.id!=='string')return;my.pic=r.id;QE.picImg=d;QE.dirty=true;qePicDraw();toast('Picture added. Save to keep it on the quote.');},
+        function(m){if(srvGate(m))return;if(QE.q===my)no(m);});
+    };
+    rd.onerror=function(){no('BADIMG|broken');};
+    rd.readAsDataURL(f);
+  };
+  var x=document.getElementById('qepx');if(x)x.onclick=function(){q.pic='';QE.picImg='';QE.dirty=true;qePicDraw();};
 }
 function qeRedrawRows(focus){
   var tb=document.getElementById('qerows');if(!tb)return;tb.innerHTML=qeRowsHtml();qeBindRows();qeSums();
@@ -2453,10 +3151,11 @@ function qeRedrawRows(focus){
 }
 function qeGrow(t){t.style.height='auto';t.style.height=Math.min(Math.max(t.scrollHeight+2,40),160)+'px';}
 function qeBindRows(){
-  qeUnits();
   var tb=document.getElementById('qerows'),q=QE.q;
   [].forEach.call(tb.querySelectorAll('textarea.c'),qeGrow);
   tb.oninput=function(e){var f=e.target.getAttribute('data-f');if(!f||e.target.readOnly)return;var tr=e.target.closest('tr'),i=+tr.getAttribute('data-r'),l=q.lines[i];
+    if(f==='unit'&&e.target.value!==l.unit&&(l.basis==='lump'||(l.dim&&qeBaseUnit(e.target.value)!==qeBaseUnit(l.unit)))){ /* any unit on any line: another unit ends lump sum / the measure (qty typed) */
+      l.unit=e.target.value;l.basis='unit';if(l.dim)l.size='';l.dim=null;QE.dirty=true;qeRedrawRows([i,'qty']);return;}
     l[f]=e.target.value;QE.dirty=true;
     if(f==='desc'){qeGrow(e.target);qeItemPick(e.target,i);}
     if(f==='qty'||f==='rate'){var v=qeNum(e.target.value);e.target.classList.toggle('bad',e.target.value!==''&&(v===null||isNaN(v)||v<0));
@@ -2648,7 +3347,7 @@ function qeSave(pdf){
   if(c.e.length){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Please check: '+c.e.slice(0,6).join(' · ')+(c.e.length>6?' · …':'')+'</div></div>';return;}
   box.innerHTML='';
   var b1=document.getElementById('qesave');if(b1&&b1.disabled)return;
-  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,
+  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,pic:QE.d&&QE.d.picOk?(q.type==='Project'?String(q.pic||''):''):undefined,
     lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
   var cu=qeCust(),si=qeSite(),s={d:d,q:JSON.parse(JSON.stringify(q)),qd:QE.d,cust:cu?cu.name:'',project:si?si.project:'',type:q.type};
   if(!J)J=QE.job={id:++QB.n,busy:false,next:null,pdf:false,no:q.no||'',ev:q.ev};
@@ -2668,6 +3367,7 @@ function qeSend(J,s){
   var d=s.d,ep=QB.ep,pk=J.no?'':'p'+J.id;J.busy=true;QB.jobs[J.id]=J;
   var fail=function(m){
     if(ep!==QB.ep)return;if(pk){delete QB.pend[pk];quotesDraw();}
+    var u=code(m).split('|');if(u[0]==='SAVEUNSURE'&&!J.no&&u[1]){J.no=u[1];J.ev=/^\d+$/.test(u[2]||'')?+u[2]:null;if(QE.job===J&&QE.q){QE.q.no=J.no;QE.q.ev=J.ev;}} /* CR run 17 L2334: the new quote is there: Save again edits it */
     var n=J.next||s,here=QE.job===J&&!!document.getElementById('qe'),no=J.no||d.no,k=code(m).split('|')[0];J.next=null;J.busy=false;J.pdf=J.made=J.chg=false;delete QB.jobs[J.id];
     if(srvGate(m)){toast((no||'The new quote')+' was not saved — sign in and enter the changes again.');return;} /* review M3 */
     if(k==='QLOCKED'){if(here){QE.dirty=false;QE.job=null;viewQuote(no);}toast(no+' is locked now — nothing saved.');qeWake(J);return;}
@@ -2697,7 +3397,7 @@ function qeWake(J){if(J.wait){var f=J.wait;J.wait=null;setTimeout(f,0);}}
 /* a refused save can take over the screen only when nothing unsaved / in flight / no dialog is there */
 function qeFree(){return !document.getElementById('dlg')&&!(document.getElementById('qe')&&(QE.dirty||(QE.job&&QE.job.busy)));}
 function qePark(J,s,m){var k=J.no||'p'+J.id;QB.lost[k]={J:J,s:s,m:m};quotesDraw();
-  var k=code(m).split('|')[0],why={STALE:'changed by someone meanwhile',NOEV:'version not confirmed',BUSY:'the system was busy'}[k]||k.toLowerCase();
+  var k=code(m).split('|')[0],why={SAVEUNSURE:'the save could not be confirmed',STALE:'changed by someone meanwhile',NOEV:'version not confirmed',BUSY:'the system was busy'}[k]||k.toLowerCase();
   toast((J.no||'The new quote')+' was not saved ('+why+') — your changes are kept: open it from Quotes.');}
 function qeUnpark(k){var x=QB.lost[k];delete QB.lost[k];qeReopen(x.J,x.s);qeErr(x.m,x.J.no||x.s.d.no,false);}
 /* the form again with the data of a refused background save (the person had left it) */

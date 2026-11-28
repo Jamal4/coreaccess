@@ -1,0 +1,50 @@
+# M3 CR run 13 fix: sabotage only the new / changed lines. usage (harness root): [A= B=] python3 tools8/sabotage_m3cr13.py <src dir>
+import sys, os
+G = 'CAE_Ops_Office.gs'; H = 'Office.html'
+SAB = [
+ (G, "|| oStHas_(Q[String(it.ItemCode)]))) o.cata = true;", "|| Q[String(it.ItemCode)])) o.cata = true;", 'S1 cata by move history (r12)'),
+ (G, "return Math.abs(q[l]) > 1e-9; }); } // CR run 13", "return q[l] > 1e-9; }); } // CR run 13", 'S2 negatives hidden'),
+ (G, "return Math.abs(q[l]) > 1e-9; }); } // CR run 13", "return Math.abs(q[l]) > 0; }); } // CR run 13", 'S3 float rest counts as stock'),
+ (G, "has = oStHas_(q);", "has = false;", 'S4 off-switch ignores stock'),
+ (G, "g.raw = g.yard + g.site + g.rep;", "g.raw = r2(g.yard) + r2(g.site) + r2(g.rep);", 'S5 raw from rounded parts'),
+ (G, "g.raw = g.yard + g.site + g.rep;", "g.raw = g.yard + g.site + g.rep + g.lost;", 'S6 lost counted as owned'),
+ (G, "if (o.cost != null && !set) o.val = r2(g.raw * o.cost); }", "if (o.cost != null && !set) o.val = r2(g.own * o.cost); }", 'S7 value from the rounded own (r12)'),
+ (G, "if (o.cost != null && !set) o.val = r2(g.raw * o.cost); }", "if (o.cost != null) o.val = r2(g.raw * o.cost); }", 'S8 value for a set'),
+ (G, "if (o.cost != null && !set) o.val = r2(g.raw * o.cost); }", "if (!set) o.val = r2(g.raw * o.cost); }", 'S9 value with no cost'),
+ (G, "  if (M) { o.cost = oStN_(it.ReplacementCost); if (o.cost != null && !set) o.val = r2(g.raw * o.cost); }", "  o.cost = oStN_(it.ReplacementCost); if (o.cost != null && !set) o.val = r2(g.raw * o.cost);", 'S10 value / cost to any login'),
+ (H, "cost:ctNum(r.cost),val:ctNum(r.val)};}", "cost:ctNum(r.cost)};}", 'S11 page drops val'),
+ (H, "stTk(x.val)+'</span>':'')", "stTk(x.own*x.cost)+'</span>':'')", 'S12 card value from own (r12)'),
+ (H, "o.val!=null?stTk(o.val):'—']", "o.val!=null?stTk(o.own*o.repl):'—']", 'S13 item value from own (r12)'),
+ (G, "Unit: row && x.unit === '' && blank(row.Unit) ? '' : oStList_(", "Unit: oStList_(", 'S14 blank unit refused on edit (r12)'),
+ (G, "Unit: row && x.unit === '' && blank(row.Unit) ? '' : oStList_(", "Unit: x.unit === '' ? '' : oStList_(", 'S15 blank unit on a new item'),
+ (H, "(!vl('xu').trim()&&(nw||String(o.unit||'').trim()))", "!vl('xu').trim()", 'S16 page refuses a kept blank unit (r12)'),
+ (H, "(!vl('xu').trim()&&(nw||String(o.unit||'').trim()))", "(!vl('xu').trim()&&String(o.unit||'').trim())", 'S17 page: new item without a unit'),
+ (H, "  if(pre&&!sel){toast(pre+' can\\'t take opening stock now (inactive, not stock-tracked or a set).');return;}", "", 'S18 opens with another item (r12)'),
+ (H, "  if(pre&&!sel){toast(pre+' can\\'t take opening stock now (inactive, not stock-tracked or a set).');return;}", "  if(!sel){toast(pre+' can\\'t take opening stock now (inactive, not stock-tracked or a set).');return;}", 'S19 general form never opens'),
+ (H, "DLG.busy=true;lfz(true);busyBtn(yes,true,'Adding…');", "DLG.busy=true;busyBtn(yes,true,'Adding…');", 'S20 fields editable while pending (r12)'),
+ (H, "DLG.busy=false;lfz(false);busyBtn(yes,false);document.getElementById('lc').value='';", "DLG.busy=false;busyBtn(yes,false);document.getElementById('lc').value='';", 'S21 left locked after success'),
+ (H, "DLG.busy=false;lfz(false);if(srvGate(m))return;", "DLG.busy=false;if(srvGate(m))return;", 'S22 left locked after a refusal'),
+ (G, "if (OW4C_ON_ && OW4C_NOREAD_[t] && !Object.keys(CALC[t] || {}).length) {", "if (false) {", 'S23 Log not atomic (r12)'),
+ (G, "if (ca) ca.push(o); });", "});", 'S24 read cache not updated'),
+ (G, "return cellVal_(o[k]); })); if (ca)", "return o[k]; })); if (ca)", 'S25 text marks lost'),
+ (G, "if (OW4C_ON_ && OW4C_NOREAD_[t] && !Object.keys", "if (OW4C_NOREAD_[t] && !Object.keys", 'S26 switch ignored'),
+ (G, "else { env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true;", "else { wr = true;", 'S27 no pending fingerprint (r12)'),
+ (G, "else { env.put('OQPN:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true;", "else { env.put('OQP:' + no, oQPdfRec_(env, no, v, oQFid_(url))); wr = true;", 'S28 pending written as the record'),
+ (G, "if (pn && pn.f === fid) p = pn; }", "}", 'S30 pending never read'),
+ (G, "    try { env.del('OQPN:' + q.QuoteNo); } catch (e) {", "    try { } catch (e) {", 'S31 pending kept'),
+ (G, "var rid = !no && typeof d.rid === 'string'", "var rid = typeof d.rid === 'string'", 'S32 id used on an edit'),
+ (G, "/^[a-z0-9]{8,40}$/.test(d.rid) ? 'OQRID:' + String(L.email) + ':' + d.rid", "/./.test(d.rid) ? 'OQRID:' + String(L.email) + ':' + d.rid", 'S33 any id accepted'),
+ (G, "? 'OQRID:' + String(L.email) + ':' + d.rid : '';", "? 'OQRID:' + d.rid : '';", 'S34 id shared across logins'),
+ (G, "if (q0) { var o0 = {", "if (g0) { var o0 = {", 'S35 missing quote returned'),
+ (G, "    if (rid) try { env.cput(rid, { no: String(r.ref) }, 21600); }", "    if (false) try { env.cput(rid, { no: String(r.ref) }, 21600); }", 'S36 id never recorded (r12)'),
+ (G, "changed: false, again: true };", "changed: false };", 'S37 again not said'),
+ (G, "        if (d.pdf !== true) try { o0.view = oQView_(db, env, q0, L); }", "        if (false) try { o0.view = oQView_(db, env, q0, L); }", 'S38 no view'),
+ (H, "if(J.no)d.ev=J.ev;else if(J.rid)d.rid=J.rid;", "if(J.no)d.ev=J.ev;", 'S39 page sends no id (r12)'),
+ (H, "ev:q.ev,rid:q.no?'':qeRid()};", "ev:q.ev,rid:''};", 'S40 page makes no id'),
+ (H, "toast(r.again===true?'Quote '+no+' had been saved already", "toast(false?'Quote '+no+' had been saved already", 'S41 again not told'),
+ (H, "s+=(x>>>0).toString(36);});return s.slice(0,40);}", "s+=(x>>>0).toString(36);});return s.toUpperCase();}", 'S42 id refused by the server'),
+]
+sys.argv = ['x', sys.argv[1]]
+src = open('tools8/sabotage_m3.py', encoding='utf-8').read()
+src = src.replace(src[src.index('SAB = ['):src.index("SAB = SAB[int(")], '')
+exec(compile(src.replace("import sys, os, shutil, subprocess, tempfile", "import sys, os, shutil, subprocess, tempfile\nSAB = __SAB__").replace("SAB = SAB[int(", "SAB = __SAB__[int("), 'sab', 'exec'), {'__SAB__': SAB, '__name__': '__main__'})
