@@ -2913,7 +2913,7 @@ function qeDraw(){
       '<div class="qe-chosen" id="qesic">'+(s?'<span class="ok">'+ic('okc')+'</span><span>'+esc(s.address||s.id)+'</span>':c?'Pick a project or add a new one.':'')+'</div></label>'+
     '<label class="fld"><span>Attention</span><input class="inp np" id="qeat" value="'+esc(q.attention)+'" placeholder="'+esc(c&&c.contact||'Contact person')+'" maxlength="80"></label>'+
     '<label class="fld"><span>Subject</span><input class="inp np" id="qesu" value="'+esc(q.subject)+'" placeholder="'+esc(qeSubj())+'" maxlength="140"></label>'+
-    (D.picOk?'<div class="fld"><span>Picture · optional, printed on the quote for reference</span><div class="qe-pic" id="qepic"></div></div>':'')+
+    (D.picOk&&q.type==='Project'?'<div class="fld"><span>Picture · optional, printed on the quote for reference (Project quotes only; rental / sale quotes print each component\'s own picture)</span><div class="qe-pic" id="qepic"></div></div>':'')+
   '</div></div>';
   /* 3 quote details */
   var staff='<option value="">—</option>'+(D.staff||[]).map(function(x){return '<option value="'+esc(x.id)+'"'+(x.id===q.prep?' selected':'')+'>'+esc(x.name)+'</option>';}).join('');
@@ -2949,12 +2949,12 @@ function qeBindType(){
   [].forEach.call(document.querySelectorAll('.qe-type'),function(b){b.onclick=function(){
     var t=b.getAttribute('data-t'),q=QE.q;if(t===q.type)return;
     var used=q.lines.some(qeUsed);
-    var go=function(){var was=q.type;q.type=t;QE.dirty=true;
+    var go=function(){var was=q.type;q.type=t;QE.dirty=true;if(t!=='Project'&&q.pic){q.pic='';QE.picImg='';} /* r33: the quote picture is for Project quotes only */
       if(was)q.lines.forEach(function(l){ /* the unit follows the type: rental = per month, sale = plain */
         if(t==='Sale'&&qeMonthly(l.unit))l.unit=qeBaseUnit(l.unit);
         if(t==='Rental'&&l.code&&!qeMonthly(l.unit)&&qeItem(l.code)&&qeItem(l.code).forHire)l.unit=l.unit+' / month';});
       qeDraw();};
-    if(q.type&&used)askDlg('Change the type to '+esc(t)+'?','The lines stay as they are (check the units and rates), and the quote gets the standard <b>'+esc(t)+'</b> terms instead of the '+esc(q.type)+' terms.','Change to '+esc(t),false,function(){return Promise.resolve();},go);
+    if(q.type&&used)askDlg('Change the type to '+esc(t)+'?','The lines stay as they are (check the units and rates), and the quote gets the standard <b>'+esc(t)+'</b> terms instead of the '+esc(q.type)+' terms.'+(q.pic&&t!=='Project'?' The quote picture is removed (Project quotes only).':''),'Change to '+esc(t),false,function(){return Promise.resolve();},go);
     else go();
   };});
 }
@@ -3336,7 +3336,7 @@ function qeSave(pdf){
   if(c.e.length){box.innerHTML='<div class="msg warn">'+ic('alert')+'<div>Please check: '+c.e.slice(0,6).join(' · ')+(c.e.length>6?' · …':'')+'</div></div>';return;}
   box.innerHTML='';
   var b1=document.getElementById('qesave');if(b1&&b1.disabled)return;
-  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,pic:QE.d&&QE.d.picOk?String(q.pic||''):undefined,
+  var d={no:q.no,ev:q.ev,type:q.type,cust:q.cust,site:q.site,attention:q.attention.trim(),subject:q.subject.trim()||qeSubj(),date:q.date,valid:q.valid,prep:q.prep,adv:qeNum(q.adv),pdf:false,pic:QE.d&&QE.d.picOk?(q.type==='Project'?String(q.pic||''):''):undefined,
     lines:c.lines.map(function(l){var o={code:l.code,desc:l.desc.trim(),qty:l.basis==='lump'?1:qeNum(l.qty),unit:l.unit.trim(),opt:l.opt===true,chosen:l.chosen===true,basis:l.basis,dim:l.dim||null};o.rate=qeNum(l.rate)||0;return o;})};
   var cu=qeCust(),si=qeSite(),s={d:d,q:JSON.parse(JSON.stringify(q)),qd:QE.d,cust:cu?cu.name:'',project:si?si.project:'',type:q.type};
   if(!J)J=QE.job={id:++QB.n,busy:false,next:null,pdf:false,no:q.no||'',ev:q.ev};

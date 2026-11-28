@@ -10,7 +10,7 @@
           files.FOREIGNdoc1 = { b: [1, 2, 3], m: 'application/pdf', n: 'x.pdf' }; files.FOREIGNpng1 = { b: png(10, 10), m: 'image/png', n: 'y.png' };
           db.ensureColumn('Quotes', 'PicID');
           var SV = function (o) { rc(); return officeQuoteSave(tS, o); }, PUT = function (b) { rc(); return officeQuotePicPut(tS, B64(b)); };
-          var BQ = function (s, o) { return Object.assign(base({ subject: s, lines: [{ code: 'RL-STD-20', desc: 'std', qty: 2, unit: 'pc / month', rate: 50 }] }), o || {}); };
+          var BQ = function (s, o) { return Object.assign(base({ type: 'Project', subject: s, lines: [{ code: 'RL-STD-20', desc: 'std', qty: 2, unit: 'pc / month', rate: 50 }] }), o || {}); };
           var E = function (f) { return String(err(f)).split('|').slice(0, 2).join('|'); };
           // CH-74: upload, Save with it = PicID; the form and the PDF show it; a file not uploaded here / not a picture refused; no pic = kept; blank = removed
           (function () { if (!hasQP) { EQ('CH-74 quote picture', 'no QP', 'QP'); return; } var res = [], s = SV(BQ('QP pic')), up = PUT(png(400, 300)); res.push(typeof up.id);
@@ -26,6 +26,16 @@
           (function () { if (!hasQP) { EQ('CH-75 quote picture', 'no QP', 'QP'); return; } var s = SV(BQ('QP sent')); db.update('Quotes', oQRow_(db, s.no), { Status: 'Sent' }); var v0 = oQPdfVer_(db, s.no).v, up = PUT(png(200, 200));
             var s2 = SV(BQ('QP sent', { no: s.no, ev: oQeEv_(db, oQRow_(db, s.no)), pic: up.id })), q2 = oQRow_(db, s.no);
             EQ('CH-75 picture-only change: a Sent quote becomes the next Rev (Draft); its PDF version changes', [num(q2.Rev), q2.Status, s2.changed, oQPdfVer_(db, s.no).v !== v0].join('|'), '1|Draft|true|true'); })();
+          // CH-85 (r33, user 28 Nov): the quote picture (tower / scaffold) is for Project quotes only: a Rental / Sale save drops it, the PDF prints it only on a Project quote
+          (function () { if (!hasQP) { EQ('CH-85 quote picture', 'no QP', 'QP'); return; } var res = [], up = PUT(png(400, 300)), pq = function (no) { return PDF_SPECS.Quote(db, no).blocks.some(function (b) { return b.t === 'pic'; }); };
+            var r = SV(BQ('QP rental', { type: 'Rental', pic: up.id })); res.push(blank(oQRow_(db, r.no).PicID));
+            var sl = SV(BQ('QP sale', { type: 'Sale', pic: up.id, lines: [{ code: 'RL-STD-20', desc: 'std', qty: 2, unit: 'pc', rate: 50 }] })); res.push(blank(oQRow_(db, sl.no).PicID));
+            var pj = SV(BQ('QP project', { pic: up.id })); res.push(String(oQRow_(db, pj.no).PicID) === up.id, pq(pj.no));
+            db.update('Quotes', oQRow_(db, r.no), { PicID: up.id }); res.push(pq(r.no));
+            var r2 = SV(BQ('QP rental', { type: 'Rental', no: r.no, ev: oQeEv_(db, oQRow_(db, r.no)) })); res.push(blank(oQRow_(db, r.no).PicID));
+            var pj2 = SV(BQ('QP project', { type: 'Rental', no: pj.no, ev: oQeEv_(db, oQRow_(db, pj.no)), pic: up.id })); res.push(blank(oQRow_(db, pj.no).PicID));
+            EQ('CH-85 quote picture on Project quotes only: Rental / Sale save drop it, PDF prints it for Project only, a Project changed to Rental loses it',
+              res.join('|'), 'true|true|true|true|false|true|true'); })();
           // CH-76 (CR run 5 #1): the Queued marker write fails -> no job queued, the request stays Requested
           (function () { var qq = db.rows('Quotes')[1] || db.rows('Quotes')[0], a0 = appRoleCheck_, u0 = db.update, own = Object.prototype.hasOwnProperty.call(db, 'update'), L = [], res = [];
             appRoleCheck_ = function () {};

@@ -40,5 +40,5 @@
             IS(NI('CHF-PA', { pic: a.id })); IS(NI('CHF-PB', { pic: b.id })); IS(NI('CHF-PC', { pic: '' }));
             res.push(pics(QR), pics(QS));
             var bl = PDF_SPECS.Quote(db, QR).blocks.map(function (x) { return x.t; }), gi = bl.indexOf('grid'), pi = bl.indexOf('pics'); res.push(gi >= 0 && pi > gi ? 'after prices' : bl.join(','));
-            EQ('CH-84 Rental quote PDF: a picture per component, line order, once each; Sale none', res.join('|'), a.id + '=No. 1, 4 - Pic standard 2, 2 m;' + b.id + '=No. 3 - Pic ledger 1.8 m|none|after prices'); })();
+            EQ('CH-84 Rental + Sale quote PDF (r33): a picture per component, line order, once each', res.join('|'), a.id + '=No. 1, 4 - Pic standard 2, 2 m;' + b.id + '=No. 3 - Pic ledger 1.8 m|' + a.id + '=No. 1 - Pic standard 2, 2 m|after prices'); })();
         } catch (e) { eq('CH-F3 crashed after ' + LAST.slice(0, 6), String(e && e.stack || e).slice(0, 400), 'no crash'); } finally { OSG_DRV_ = kd; if (has) OIPIC_ADD_ = ka; } })();

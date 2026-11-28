@@ -140,7 +140,7 @@ function specQuote(db, quoteNo) {
   b.push({ t: 'pairs', rows: [['To', cu.Name, 'Quotation No.', no], ['Attention', q.Attention, 'Date', longDate(q.QuoteDate)], ['Address', cu.Address, 'Valid until', longDate(valid)],
     ['Phone / Email', phoneMail_(cu), 'Your reference', q.YourRef], ['Client BIN', cu.BIN, 'Project / Site', site]] });
   b.push({ t: 'p', text: [['Subject:  ', { bold: true }], [blank(q.Subject) ? 'Quotation for ' + typeTxt + (site ? ' at ' + site : '') : String(q.Subject), { bold: true }]], before: 12, after: 9 });
-  if (!blank(q.PicID)) b.push({ t: 'pic', f: String(q.PicID).trim(), w: 220, h: 165, cap: 'Picture for visual reference only - not to scale.' }); // QP
+  if (type === 'Project' && !blank(q.PicID)) b.push({ t: 'pic', f: String(q.PicID).trim(), w: 220, h: 165, cap: 'Picture for visual reference only - not to scale.' }); // QP
   b.push({ t: 'p', text: 'Dear Sir / Madam,', after: 6 });
   b.push({ t: 'p', text: type === 'Sale'
     ? 'Thank you for your enquiry. We are pleased to submit our offer for the supply of the goods below. This quotation, once accepted, forms a binding contract on the terms set out in it.'
@@ -151,7 +151,7 @@ function specQuote(db, quoteNo) {
     { t: 'sums', width: cols[cols.length - 1].w, rows: sums_(t.subtotal, q.VATPct).rows.concat([['Total payable (BDT)', tk(t.total), true]]) },
     { t: 'p', text: [['Amount in words:  ', { bold: true }], [takaWords(t.total) + '.', {}]], size: 9, before: 8, after: 4 }];
   if (t.advance > 0) com.push({ t: 'p', text: [['Advance with order:  ', { bold: true }], [pctTxt(t.advancePct) + ' of the total = Tk ' + tk(t.advance), {}]], size: 9, after: 6 });
-  if (type === 'Rental') { var pics = quotePics_(db, lines); if (pics.length) com.push({ t: 'pics', items: pics, cap: 'Pictures for visual reference only - not to scale.' }); } // F3: a picture per component
+  if (type === 'Rental' || type === 'Sale') { var pics = quotePics_(db, lines); if (pics.length) com.push({ t: 'pics', items: pics, cap: 'Pictures for visual reference only - not to scale.' }); } // F3: a picture per component
   if (lines.some(function (l) { return isMilestone(l) && l.Selected === 'Yes'; })) {
     var ms = milestoneRows(db, quoteNo), base = milestoneBase(db, quoteNo), list;
     if (ms.length) list = milestoneAmounts(db, quoteNo).map(function (x) { return [x.row.StageNo, x.row.Stage, num(x.row.Pct), x.amount]; });

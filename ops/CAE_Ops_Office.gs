@@ -2847,7 +2847,7 @@ function oQeArgs_(db, d, q, env) {
     if (!blank(q.MinMonths) && (type === 'Rental' || type === 'Project')) h.MinMonths = num(q.MinMonths);
     ['VATPct'].concat(typeof QF4_COLS_ !== 'undefined' ? QF4_COLS_ : []).forEach(function (k) { if (!blank(q[k])) h[k] = num(q[k]); });
   }
-  return { a: { quoteNo: q ? String(q.QuoteNo) : '', header: h, lines: lines, customer: { mode: 'existing', id: String(cu.CustID) }, site: { mode: 'existing', id: String(si.SiteID) } }, days: dv - dd, pic: oQPicArg_(db, d, q, env) };
+  return { a: { quoteNo: q ? String(q.QuoteNo) : '', header: h, lines: lines, customer: { mode: 'existing', id: String(cu.CustID) }, site: { mode: 'existing', id: String(si.SiteID) } }, days: dv - dd, pic: type === 'Project' ? oQPicArg_(db, d, q, env) : '' }; /* r33 (user 28 Nov): the quote picture (tower / scaffold) is for Project quotes only */
 }
 // W4g: would this save change any cell? The same save (every wrapper of saveQuoteFull) runs on a copy-on-read shadow of the
 // lock's batch (a tab's rows are copied when first read; writes stay in the copy). Any error, another type, other validity days,

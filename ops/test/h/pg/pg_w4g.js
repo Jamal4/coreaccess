@@ -324,6 +324,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   db(`PD.ensureColumn('Quotes', 'PicID'); var QPF = {}; OSG_DRV_ = { info: function (id) { var f = QPF[id]; return f ? { size: f.b.length, mime: f.m, name: 'p' } : null; }, b64: function (id) { return QPF[id] ? Utilities.base64Encode(QPF[id].b) : null; },
     blob: function () { return null; }, decodes: function () { return true; }, bin: function () { return true; }, add: function () { throw new Error('x'); } };
     if (typeof OQPIC_ADD_ !== 'undefined') OQPIC_ADD_ = function (d, n, m, b) { var id = 'QPICPG' + Object.keys(QPF).length + 'x'; QPF[id] = { b: b, m: m }; return id; };`);
+  const ty74 = db("String(must(PD,'Quotes','QuoteNo','" + no + "').QuoteType)"); w.viewQuoteEdit(no); await wait(80); const rent74 = !$('#qepf'); /* r33: no picture field on a non-Project quote */
+  db("PD.update('Quotes', must(PD,'Quotes','QuoteNo','" + no + "'), { QuoteType: 'Project' })");
   w.viewQuoteEdit(no); await wait(80);
   const be74 = n => [n >>> 24 & 255, n >>> 16 & 255, n >>> 8 & 255, n & 255];
   const png74 = [137, 80, 78, 71, 13, 10, 26, 10, ...be74(13), 73, 72, 68, 82, ...be74(40), ...be74(30), 8, 6, 0, 0, 0, 1, 2, 3, 4, ...be74(2), 73, 68, 65, 84, 120, 1, 5, 6, 7, 8, ...be74(0), 73, 69, 78, 68, 174, 66, 96, 130];
@@ -335,6 +337,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     w.viewQuoteEdit(no); await wait(80); back74 = !!$('#qepic img'); click($('#qepx')); click($('#qesave')); await wait(300);
     pic2 = db("String(must(PD,'Quotes','QuoteNo','" + no + "').PicID||'')");
   }
+  db("PD.update('Quotes', must(PD,'Quotes','QuoteNo','" + no + "'), { QuoteType: '" + ty74 + "' })");
+  ok('P74b (r33) a ' + ty74 + ' quote has no picture field (Project quotes only)', ty74 !== 'Project' && rent74, [ty74, rent74]);
   ok('P74 picture: Add uploads it, Save keeps it (PicID), reopened form shows it, Remove + Save clears it', /^QPICPG/.test(id74) && img74 && pic1 === id74 && back74 && pic2 === '', [id74, img74, pic1, back74, pic2, toast()]);
   // P75 (QP): every line has the unit dropdown; another unit on a measured line drops the measure (qty typed), on a lump-sum line ends lump sum
   w.viewQuoteEdit(no); await wait(80); w.QE.q.lines[0].dim = { L: 10, W: '', H: 5, N: '' }; w.QE.q.lines[0].unit = 'm²'; w.QE.q.lines[0].qty = 50; w.QE.q.lines[0].size = '10 × 5 m';
