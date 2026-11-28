@@ -113,7 +113,7 @@ function quotePics_(db, lines) { // F3: the printed lines' components that have 
     var c = String(l.ItemCode == null ? '' : l.ItemCode).trim(); if (!c) return;
     if (seen[c]) { seen[c].no.push(i + 1); return; }
     var it = find(items, 'ItemCode', c); if (out.length >= 9 || !it || blank(it.PicID)) return;
-    seen[c] = { f: String(it.PicID).trim(), name: dash(it.Name) + (blank(it.Size) ? '' : ', ' + it.Size), no: [i + 1] }; out.push(seen[c]);
+    seen[c] = { f: String(it.PicID).trim(), name: dash(it.Name) + (blank(it.Size) || String(it.Name).indexOf(String(it.Size).trim()) >= 0 ? '' : ', ' + it.Size), no: [i + 1] }; /* a size already in the name is not repeated (live r31) */ out.push(seen[c]);
   });
   return out.map(function (x) { return { f: x.f, cap: 'No. ' + x.no.join(', ') + ' - ' + x.name }; });
 }

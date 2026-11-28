@@ -13,7 +13,7 @@
           var NI = function (c, o) { var k = CARD(c); return Object.assign({ code: c, name: k.name, cat: k.cat, size: k.size, unit: k.unit, kg: k.kg, reorder: k.reorder || '', status: k.status, tracked: k.tracked ? 'Yes' : 'No', isSet: k.isSet ? 'Yes' : 'No', forHire: k.forHire ? 'Yes' : 'No', forSale: k.forSale ? 'Yes' : 'No', ev: k.ev }, o || {}); };
           var IS = function (d) { rc(); return officeItemSave(tI, d); };
           db.insert('Items', [{ ItemCode: 'CHF-PA', Name: 'Pic standard', Category: 'Ringlock', Size: '2 m', Unit: 'pc', WeightKg: 10, StockTracked: 'Yes', IsSet: 'No', ForHire: 'Yes', ForSale: 'No', Status: 'Active' },
-            { ItemCode: 'CHF-PB', Name: 'Pic ledger', Category: 'Ringlock', Size: '1.8 m', Unit: 'pc', WeightKg: 6, StockTracked: 'Yes', IsSet: 'No', ForHire: 'Yes', ForSale: 'No', Status: 'Active' },
+            { ItemCode: 'CHF-PB', Name: 'Pic ledger 1.8 m', Category: 'Ringlock', Size: '1.8 m', Unit: 'pc', WeightKg: 6, StockTracked: 'Yes', IsSet: 'No', ForHire: 'Yes', ForSale: 'No', Status: 'Active' },
             { ItemCode: 'CHF-PC', Name: 'No pic brace', Category: 'Ringlock', Unit: 'pc', WeightKg: 5, StockTracked: 'Yes', IsSet: 'No', ForHire: 'Yes', ForSale: 'No', Status: 'Active' }]);
           var QR = 'CAE/Q/2026/886', QS = 'CAE/Q/2026/887';
           db.insert('Quotes', [{ QuoteNo: QR, Rev: 0, QuoteType: 'Rental', CustID: 'CUST-0001', SiteID: 'SITE-0881', Status: 'Draft', QuoteDate: new Date(2026, 10, 20), VATPct: 0.15, PDF: 'https://x/qr' },
@@ -40,5 +40,5 @@
             IS(NI('CHF-PA', { pic: a.id })); IS(NI('CHF-PB', { pic: b.id })); IS(NI('CHF-PC', { pic: '' }));
             res.push(pics(QR), pics(QS));
             var bl = PDF_SPECS.Quote(db, QR).blocks.map(function (x) { return x.t; }), gi = bl.indexOf('grid'), pi = bl.indexOf('pics'); res.push(gi >= 0 && pi > gi ? 'after prices' : bl.join(','));
-            EQ('CH-84 Rental quote PDF: a picture per component, line order, once each; Sale none', res.join('|'), a.id + '=No. 1, 4 - Pic standard 2, 2 m;' + b.id + '=No. 3 - Pic ledger, 1.8 m|none|after prices'); })();
+            EQ('CH-84 Rental quote PDF: a picture per component, line order, once each; Sale none', res.join('|'), a.id + '=No. 1, 4 - Pic standard 2, 2 m;' + b.id + '=No. 3 - Pic ledger 1.8 m|none|after prices'); })();
         } catch (e) { eq('CH-F3 crashed after ' + LAST.slice(0, 6), String(e && e.stack || e).slice(0, 400), 'no crash'); } finally { OSG_DRV_ = kd; if (has) OIPIC_ADD_ = ka; } })();
