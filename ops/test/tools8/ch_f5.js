@@ -95,4 +95,12 @@
             var r = SV(tA, { kind: 'Return', job: J, to: Y, date: D, lines: [{ it: I, g: y0 + 3 }] }); postChallan(db, r.no);
             res.push(String(find(db.rows('Challans'), 'ChallanNo', r.no).Status), 'yard ' + (yard(I) - y0), 'site own ' + Math.round(chOwnMap_(db, J)[I + '|' + String(must(db, 'Challans', 'ChallanNo', d.no).ToLoc)][''] || 0) * 100 / 100, 'out ' + db.rows('ChallanLines').filter(function (x) { return x.ChallanNo === r.no; })[0].QtyOut, 'hire ' + hire(I));
             EQ('CH-92 strict-path Return (own 2 on site + 3 outside out): posted, only our 2 back to the yard, site own 0 (not -1), 1 outside, 5 still on hire', res.join('|'), 'Posted|yard 2|site own 0|out 1|hire 5'); });
+          // CH-93 (r34b live check): Post tells how many came from outside; a vendor Return PDF ticks "Return to the vendor", an own one "Return to yard"
+          T(function () { var res = [], y0 = yard(I);
+            var d = SV(tA, { kind: 'Delivery', job: J, from: Y, date: D, veh: 'V', lines: [{ it: I, q: y0 + 4 }] }); rc(); var pr = officeChallanPost(tA, d.no, officeChallanGet(tA, d.no).ev, 'V');
+            var d2 = SV(tA, { kind: 'Delivery', job: J, src: 'Vendor', sup: String(find(db.rows('Suppliers'), 'Name', 'F5 Vendor (test)').SupID), date: D, lines: [{ it: I, q: 1 }] }); PO(tA, d2.no);
+            var sup = String(find(db.rows('Challans'), 'ChallanNo', d2.no).SupID), vr = SV(tA, { kind: 'Return', job: J, src: 'Vendor', sup: sup, date: D, lines: [{ it: I, g: 1 }] }); PO(tA, vr.no);
+            var orr = SV(tA, { kind: 'Return', job: J, to: Y, date: D, lines: [{ it: I, g: 1 }] }), tick = function (no) { var t = PDF_SPECS.Challan(db, no).blocks.filter(function (x) { return x.t === 'p' && Array.isArray(x.text) && /Delivery to site/.test(JSON.stringify(x.text)); })[0]; return t ? /Return to the vendor/.test(JSON.stringify(t.text)) ? 'vendor' : /Return to yard/.test(JSON.stringify(t.text)) ? 'yard' : '?' : 'none'; };
+            res.push('out ' + pr.out, tick(vr.no), tick(orr.no)); CX(tA, orr.no);
+            EQ('CH-93 Post result carries the outside qty; vendor Return PDF ticks Return to the vendor, own Return to yard', res.join('|'), 'out 4|vendor|yard'); });
         } catch (e) { eq('CH-F5 crashed after ' + LAST.slice(0, 6), String(e && e.stack || e).slice(0, 400), 'no crash'); } })();

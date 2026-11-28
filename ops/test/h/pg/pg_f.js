@@ -123,8 +123,10 @@ V(`PD.insert('Quotes', { QuoteNo: 'CAE/Q/2026/951', Rev: 0, QuoteType: 'Rental',
   pick($('#cej'), 'CAE/J/2026/902'); type($('.ch-ol .li'), 'RL-STD-20'); type($('.ch-ol .lq'), String(y5 + 5)); await wait(5);
   ok('P5d line over our stock: "5 from outside", not red', /5 from outside/.test($('.ch-av').textContent) && !/ch-neg/.test($('.ch-av').innerHTML), $('.ch-av').innerHTML);
   type($('#cev'), 'V5'); click($('#ces')); await wait(250);
+  ok('P5k usable cell amber (ch-out), not red', !!$('#cv td.ch-out') && !$('#cv td.ch-neg'), $('#cv .ltab') && $('#cv .ltab').innerHTML.slice(0, 400));
   ok('P5e draft view: from-outside note, no "Post refuses"', /from outside/.test($('#cv').textContent) && !/Post refuses/.test($('#cv').textContent), $('#cv').textContent.slice(0, 600));
   click($('#cvo')); await wait(30); click($('#dyes')); await wait(300);
+  ok('P5l Post toast says 5 came from outside', /5 from outside/.test(toast()), toast());
   ok('P5f Post allowed: Posted, yard 0, view shows From outside RL-STD-20 5', /Posted/.test($('#cv .qhead').textContent) && V(`stockAt(PD, 'RL-STD-20', 'LOC-YARD')`) === 0 && /From outside[^]*RL-STD-20 5/.test($('#cv').textContent), [toast(), $('#cv').textContent.slice(0, 600)]);
   w.viewCh('returns'); await wait(150); click($('[data-n="Return"]')); await wait(40);
   pick($('#crj'), 'CAE/J/2026/902'); await wait(5);
@@ -135,6 +137,7 @@ V(`PD.insert('Quotes', { QuoteNo: 'CAE/Q/2026/951', Rev: 0, QuoteType: 'Rental',
   ok('P5i vendor items out: BD-ST-207 7', !!$('#crl tr[data-k="BD-ST-207"]') && $('#crl tr[data-k="BD-ST-207"]').getAttribute('data-o') === '7' && !$('#crl tr[data-k="RL-STD-20"]'), $('#crl').textContent.slice(0, 300));
   type($('#crl [data-f=g]'), '3'); type($('#crvr'), 'VRN-5'); click($('#crs')); await wait(250);
   const vr = V(`(function(){var c=PD.rows('Challans').filter(function(c){return c.Kind==='Return'&&c.MatSource==='Vendor';});return c.length?c[0].SupID+'|'+c[0].SupplierRef+'|'+c[0].ToLoc:'';})()`);
+  ok('P5m vendor return draft says no stock moves; Return notes no longer mention Off-hire', /vendor rental: Post makes the PDF; no stock moves/.test($('#cv').textContent) && !/Off-hire\./.test(d.body.innerHTML), $('#cv').textContent.slice(0, 300));
   ok('P5j vendor return saved (vendor, ref, to the vendor) and the view route says vendor', vr === 'SUP-0001|VRN-5|LOC-SUPPLIER' && /vendor/.test($('#cv').textContent), [vr, $('#cv').textContent.slice(0, 300)]);
   ok('F no JS errors', !jsErr.length, jsErr);
   console.log('page-f ' + pass + '/' + (pass + fail));

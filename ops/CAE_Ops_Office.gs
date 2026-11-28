@@ -2600,7 +2600,8 @@ function officeChallanPost(token, no, ev, veh) {
       try { if (v !== v0) d2.update('Challans', oChRow_(d2, no), { Vehicle: v0 }); } catch (x) { /* the vehicle no. stays; the challan is still a Draft */ }
       oFail_('NOTPOSTED|' + String(e && e.message || e).replace(/^Not posted:\s*/, '').replace(/\|/g, '/').slice(0, 1500));
     }
-    return { no: no };
+    var ot = 0; try { oChLines_(env2.db() || db, no).forEach(function (l) { ot += num(l.QtyOut); }); } catch (x) { ot = 0; } /* r34b: the page says how many came from outside */
+    return ot > 1e-9 ? { no: no, out: r2(ot) } : { no: no };
   });
   try { var p = oChPdfAs_(env, no, token); res.url = p.url; res.doc = p.doc; } catch (e) { res.url = ''; res.pdfErr = 1; }
   return res;
