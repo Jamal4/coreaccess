@@ -266,9 +266,9 @@ function specChallan(db, no) {
       ['To', c.Kind === 'Off-hire' ? dash(su.Name) : loc(c.ToLoc), 'Driver', c.Driver]]
     : c.Kind === 'Transfer' && blank(c.JobNo) ? [['From', loc(c.FromLoc), 'Challan No.', c.ChallanNo], ['To', loc(c.ToLoc), 'Date', longDate(c.ChallanDate)], ['Vehicle no.', c.Vehicle, 'Driver', c.Driver]]
     : [['Customer', cu.Name, 'Challan No.', c.ChallanNo], ['Project / Site', siteTxt_(db, job.SiteID), 'Date', longDate(c.ChallanDate)], ['Site contact', [si.SiteRep, si.SiteRepPhone].filter(function (x) { return !blank(x); }).join(', '), 'Quotation / ' + ok, qwo],
-      ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ['From', vend && !ret ? 'Vendor rental · ' + dash(vn.Name) + (blank(c.SupplierRef) ? '' : ' (DO ' + c.SupplierRef + ')') + ' · direct to site' : direct ? 'Direct to site' : loc(c.FromLoc), 'Driver', c.Driver], ret ? ['To', vend ? 'Vendor rental · ' + dash(vn.Name) + (blank(c.SupplierRef) ? '' : ' (DO ' + c.SupplierRef + ')') + ' · collected from site' : loc(c.ToLoc), 'Related challan', rel] : ['To', loc(c.ToLoc), 'Received by', c.ReceivedBy]]; // a direct delivery never prints the rental supplier on the client's copy
+      ['Job no.', c.JobNo, 'Vehicle no.', c.Vehicle], ret ? ['Driver', c.Driver, 'Related challan', rel] : ['Driver', c.Driver, 'Received by', c.ReceivedBy]]; // AC1 round (user 28 Nov 20:07): the client's copy prints no From / To / material source (yard, vendor, vendor DO); the DB and the office screens keep them
   var b = [{ t: 'title', text: title, sub: sub + (blank(c.Status) || c.Status === 'Draft' ? '   ·   DRAFT — not posted' : c.Status === 'Cancelled' ? '   ·   CANCELLED' : '') }];
-  if (client) b.push({ t: 'p', text: [[(ret ? '☐' : '☒') + ' Delivery to site' + (sale ? ' (sale)' : '') + '          ', { bold: true }], [(ret ? '☒' : '☐') + (ret && vend ? ' Return to the vendor' : ' Return to yard'), { bold: true }]], size: 10, after: 4 });
+  if (client) b.push({ t: 'p', text: [[(ret ? '☐' : '☒') + ' Delivery to site' + (sale ? ' (sale)' : '') + '          ', { bold: true }], [(ret ? '☒' : '☐') + ' Return from site', { bold: true }]], size: 10, after: 4 });
   b = b.concat([
     { t: 'pairs', rows: pr },
     { t: 'p', text: '', size: 2, after: 0 }, { t: 'grid', cols: cols, rows: rows },

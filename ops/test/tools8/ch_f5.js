@@ -44,11 +44,11 @@
             var vo = (officeChallanList(tA).vout || {})[J] || {}; res.push('out ' + ((vo[sup] || {})[I] || 0));
             var r2_ = SV(tA, { kind: 'Return', job: J, src: 'Vendor', sup: sup, date: D, lines: [{ it: I, g: 5 }] }); res.push(E(function () { PO(tA, r2_.no); }).split('|')[0]);
             res.push(E(function () { CX(tH, d.no); }).split('|')[0], String(find(db.rows('Challans'), 'ChallanNo', d.no).Status));
-            var pr = PDF_SPECS.Challan(db, r.no).blocks.filter(function (b) { return b.t === 'pairs'; })[0].rows, to = pr.filter(function (x) { return x[0] === 'To'; })[0];
-            res.push(/F5 Vendor/.test(to[1]) && /collected from site/.test(to[1]) && /VRN-1/.test(to[1]) ? 'pdf to vendor' : to[1], to[3] === d.no ? 'related vendor DO' : to[3]);
+            var pr = PDF_SPECS.Challan(db, r.no).blocks.filter(function (b) { return b.t === 'pairs'; })[0].rows, to = pr[pr.length - 1];
+            res.push(!pr.some(function (x) { return x[0] === 'To' || x[0] === 'From'; }) && !/F5 Vendor|VRN-1/.test(JSON.stringify(pr)) ? 'pdf no source' : 'pdf shows source', to[3] === d.no ? 'related vendor DO' : to[3]); // AC1 round (user 28 Nov): no From / To / source on the client's copy
             CX(tA, r2_.no);
             EQ('CH-88 vendor Return: no moves / damage rows, stock + on hire unchanged, 4 still out, over-return refused, delivery cancel refused, PDF To = vendor', res.join('|'),
-              'Vendor:to vendor|Posted|0|stock same|no damage row|out 4|NOTPOSTED|NOCANCEL|Posted|pdf to vendor|related vendor DO'); });
+              'Vendor:to vendor|Posted|0|stock same|no damage row|out 4|NOTPOSTED|NOCANCEL|Posted|pdf no source|related vendor DO'); });
           // CH-89 (F5-c): yard 19, Delivery 29: Post allowed, 19 move (yard 0), 10 from outside (QtyOut, no moves), 29 on hire; view shows outside 10;
           // Return 29 good: 19 back to the yard, 10 outside (no moves), 0 on hire; returning more than on hire still refused
           T(function () { var res = [], d = SV(tA, { kind: 'Delivery', job: J, from: Y, date: D, veh: 'V', lines: [{ it: I, q: 29 }] }); PO(tA, d.no);
@@ -100,7 +100,7 @@
             var d = SV(tA, { kind: 'Delivery', job: J, from: Y, date: D, veh: 'V', lines: [{ it: I, q: y0 + 4 }] }); rc(); var pr = officeChallanPost(tA, d.no, officeChallanGet(tA, d.no).ev, 'V');
             var d2 = SV(tA, { kind: 'Delivery', job: J, src: 'Vendor', sup: String(find(db.rows('Suppliers'), 'Name', 'F5 Vendor (test)').SupID), date: D, lines: [{ it: I, q: 1 }] }); PO(tA, d2.no);
             var sup = String(find(db.rows('Challans'), 'ChallanNo', d2.no).SupID), vr = SV(tA, { kind: 'Return', job: J, src: 'Vendor', sup: sup, date: D, lines: [{ it: I, g: 1 }] }); PO(tA, vr.no);
-            var orr = SV(tA, { kind: 'Return', job: J, to: Y, date: D, lines: [{ it: I, g: 1 }] }), tick = function (no) { var t = PDF_SPECS.Challan(db, no).blocks.filter(function (x) { return x.t === 'p' && Array.isArray(x.text) && /Delivery to site/.test(JSON.stringify(x.text)); })[0]; return t ? /Return to the vendor/.test(JSON.stringify(t.text)) ? 'vendor' : /Return to yard/.test(JSON.stringify(t.text)) ? 'yard' : '?' : 'none'; };
+            var orr = SV(tA, { kind: 'Return', job: J, to: Y, date: D, lines: [{ it: I, g: 1 }] }), tick = function (no) { var t = PDF_SPECS.Challan(db, no).blocks.filter(function (x) { return x.t === 'p' && Array.isArray(x.text) && /Delivery to site/.test(JSON.stringify(x.text)); })[0]; return t ? /Return to the vendor|Return to yard/.test(JSON.stringify(t.text)) ? 'names where' : /Return from site/.test(JSON.stringify(t.text)) ? 'site' : '?' : 'none'; }; // AC1 round: the tick no longer names the vendor / yard
             res.push('out ' + pr.out, tick(vr.no), tick(orr.no)); CX(tA, orr.no);
-            EQ('CH-93 Post result carries the outside qty; vendor Return PDF ticks Return to the vendor, own Return to yard', res.join('|'), 'out 4|vendor|yard'); });
+            EQ('CH-93 Post result carries the outside qty; vendor Return PDF ticks Return to the vendor, own Return to yard', res.join('|'), 'out 4|site|site'); });
         } catch (e) { eq('CH-F5 crashed after ' + LAST.slice(0, 6), String(e && e.stack || e).slice(0, 400), 'no crash'); } })();

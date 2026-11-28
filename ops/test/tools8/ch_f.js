@@ -34,7 +34,7 @@
               CX(tFH, s.no); res.push(String(find(db.rows('Challans'), 'ChallanNo', s.no).Status), String(mvs(s.no)));
               try { postChallan(db, s2.no); res.push('panel ' + mvs(s2.no)); } catch (e) { res.push('panel ' + String(e.message || e).slice(0, 30)); } }
             EQ('CH-79 vendor-rental challan: vendor made once, no StockMoves on post / cancel / panel post, stock + on-hire unchanged, vendor on card + PDF', res.join('|'),
-              'saved|1|Vendor|Vendor F2 Ltd|same vendor|Posted|0|0|0|none|pdf vendor|Vendor|Cancelled|0|panel 0'); })();
+              'saved|1|Vendor|Vendor F2 Ltd|same vendor|Posted|0|0|0|none|pdf no vendor|Vendor|Cancelled|0|panel 0'); })();
           // CH-80 (step R): a draft from a quote that is Lost before Post: Post refused, no job made, the quote stays Lost (quoteToJob would mark it Accepted)
           (function () { var res = [], QL = 'CAE/Q/2026/883'; db.insert('Quotes', { QuoteNo: QL, Rev: 0, QuoteType: 'Rental', CustID: 'CUST-0001', SiteID: 'SITE-0881', Status: 'Sent' });
             var s = SV(tF, { kind: 'Delivery', quote: QL, from: Y, date: '2026-11-20', veh: 'V1', lines: [{ it: 'CHF-STD', q: 1 }] });

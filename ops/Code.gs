@@ -50,6 +50,9 @@ function withLock(fn) {
   try { return fn(); } finally { l.releaseLock(); }
 }
 var PAY_METHODS = ['Bank transfer', 'Cheque', 'Pay order'];
+var PAY_OUT_METHODS = PAY_METHODS.concat(['Cash']); // AC1 (28 Nov): cash only for payments out to suppliers; receipts stay no-cash
+function payMethodsFor_(dir) { return dir === 'Out' ? PAY_OUT_METHODS : PAY_METHODS; }
+function payVoid_(st) { return st === 'Dishonoured' || st === 'Cancelled'; } // AC1: a cancelled payment counts as nothing, like a dishonoured cheque
 var LOC = { YARD: 'LOC-YARD', REPAIR: 'LOC-REPAIR', LOST: 'LOC-LOST', SOLD: 'LOC-SOLD', SUPPLIER: 'LOC-SUPPLIER' };
 
 // ======================================================================= calculated columns
@@ -84,7 +87,7 @@ var CALC = {
   Notes: { VAT: '=ROUND({Amount}*{VATPct},2)', Total: '={Amount}+{VAT}' },
   Payments: {
     Allocated: '=SUMIFS([Allocations.Amount],[Allocations.PayID],{PayID})',
-    Unallocated: '=IF({ChequeStatus}="Dishonoured",0,{Amount}+IF({Mushak66Received}="Yes",N({VDSDeducted}),0)-{Allocated})',
+    Unallocated: '=IF(OR({ChequeStatus}="Dishonoured",{ChequeStatus}="Cancelled"),0,{Amount}+IF({Mushak66Received}="Yes",N({VDSDeducted}),0)-{Allocated})',
   },
   POs: { Subtotal: '=SUMIFS([POLines.Amount],[POLines.PONo],{PONo})', VAT: '=ROUND({Subtotal}*{VATPct},2)', Total: '={Subtotal}+{VAT}' },
   POLines: {
@@ -297,6 +300,7 @@ function quoteToJob(db, quoteNo, o) {
   if (o.extra) Object.keys(o.extra).forEach(function (k) { job[k] = o.extra[k]; }); // M2: contract fields in the same row write
   db.insert('Jobs', job);
   if (ms) linkMilestones_(db, quoteNo, job.JobNo);
+  billsToJob_(db, quoteNo, job.JobNo);
   if (q.Status !== 'Accepted') db.update('Quotes', q, { Status: 'Accepted' });
   try { log_(db, 'Quote → Job', job.JobNo, quoteNo + ' (' + type + (basis ? ', ' + basis : '') + (ms ? ', milestones' : '') + ')'); } catch (e) { } // audit only: job row already written
   return job.JobNo;
@@ -717,14 +721,14 @@ function openDocs(db, partyType, partyId) {
     .sort(function (a, b) { return a.date - b.date || order[a.type] - order[b.type] || (a.no < b.no ? -1 : 1); });
 }
 function payAvailable(db, p) {
-  if (p.ChequeStatus === 'Dishonoured') return 0;
+  if (payVoid_(p.ChequeStatus)) return 0;
   var cap = num(p.Amount) + (p.Mushak66Received === 'Yes' ? num(p.VDSDeducted) : 0);
   return r2(cap - sum(db.rows('Allocations').filter(function (a) { return a.PayID === p.PayID; }), function (a) { return num(a.Amount); }));
 }
 // p = { Direction, PayDate, PartyType, PartyID, Method, RefNo, Bank, Amount, VDSDeducted, Mushak66Received, Notes }
 function recordPayment(db, p, o) {
   o = o || {};
-  if (PAY_METHODS.indexOf(p.Method) < 0) throw new Error('Payment method must be: ' + PAY_METHODS.join(', ') + ' (no cash)');
+  if (payMethodsFor_(p.Direction).indexOf(p.Method) < 0) throw new Error('Payment method must be: ' + payMethodsFor_(p.Direction).join(', ') + (p.Direction === 'Out' ? '' : ' (no cash)'));
   if (!(num(p.Amount) > 0)) throw new Error('Amount must be > 0');
   var party = p.PartyType === 'Supplier' ? ['Suppliers', 'SupID'] : ['Customers', 'CustID'];
   must(db, party[0], party[1], p.PartyID);
@@ -732,7 +736,7 @@ function recordPayment(db, p, o) {
   var row = {
     PayID: nextId(db, p.Direction === 'Out' ? 'PV' : 'MR', date), Direction: p.Direction || 'In', PayDate: date, PartyType: p.PartyType || 'Customer',
     PartyID: p.PartyID, Method: p.Method, RefNo: p.RefNo || '', Bank: p.Bank || '', Amount: num(p.Amount), VDSDeducted: num(p.VDSDeducted) || '',
-    Mushak66Received: p.Mushak66Received || (num(p.VDSDeducted) ? 'No' : 'NA'), ChequeStatus: p.Method === 'Bank transfer' ? 'NA' : 'Pending', Notes: p.Notes || '',
+    Mushak66Received: p.Mushak66Received || (num(p.VDSDeducted) ? 'No' : 'NA'), ChequeStatus: p.Method === 'Bank transfer' || p.Method === 'Cash' ? 'NA' : 'Pending', Notes: p.Notes || '',
   };
   db.insert('Payments', row);
   log_(db, 'Payment recorded', row.PayID, row.Direction + ' · ' + row.PartyID + ' · Tk ' + row.Amount);
@@ -742,7 +746,7 @@ function recordPayment(db, p, o) {
 // allocations = [{ type, no, amount }] or omitted for oldest-first automatic allocation
 function allocatePayment(db, payId, allocations) {
   var p = must(db, 'Payments', 'PayID', payId);
-  if (p.ChequeStatus === 'Dishonoured') throw new Error(payId + ' is dishonoured');
+  if (payVoid_(p.ChequeStatus)) throw new Error(payId + ' is ' + String(p.ChequeStatus).toLowerCase());
   var avail = payAvailable(db, p), list = [];
   if (allocations && allocations.length) {
     allocations.forEach(function (a) {
@@ -765,9 +769,14 @@ function allocatePayment(db, payId, allocations) {
   log_(db, 'Payment allocated', payId, list.map(function (a) { return a.no + ' ' + a.amt; }).join('; '));
   return list;
 }
+function billsToJob_(db, quoteNo, jobNo) { // AC1: supplier bills booked on a quote before its job existed now count on the job (job P/L)
+  if (!db.hasTab || !db.hasTab('Bills') || db.headers('Bills').indexOf('QuoteNo') < 0) return 0;
+  var n = 0; db.rows('Bills').forEach(function (b) { if (String(b.QuoteNo) === String(quoteNo) && blank(b.JobNo)) { db.update('Bills', b, { JobNo: jobNo }); n++; } }); return n;
+}
 function chequeCleared(db, payId) { db.update('Payments', must(db, 'Payments', 'PayID', payId), { ChequeStatus: 'Cleared' }); log_(db, 'Cheque cleared', payId, ''); }
 function chequeDishonoured(db, payId) {
   var p = must(db, 'Payments', 'PayID', payId), net = {};
+  if (payVoid_(p.ChequeStatus)) throw new Error(payId + ' is already ' + String(p.ChequeStatus).toLowerCase()); // AC1 step R: a cancelled payment is never turned into a dishonoured one (and the reverse)
   db.rows('Allocations').forEach(function (a) { if (a.PayID === payId) { var k = a.DocType + '|' + a.DocNo; net[k] = (net[k] || 0) + num(a.Amount); } });
   var rev = Object.keys(net).filter(function (k) { return net[k] > 0.005; });
   if (rev.length) {
@@ -846,7 +855,7 @@ function defaults_(db, t, r) {
     if (it) { set('Description', it.Name); set('Unit', it.Unit); set('Rate', q && q.QuoteType === 'Sale' ? num(it.SalePrice) || '' : num(it.HireRateMonth) || ''); }
   }
   if (t === 'Milestones') { var j = find(db.rows('Jobs'), 'QuoteNo', r.QuoteNo); if (j) set('JobNo', j.JobNo); }
-  if (t === 'Payments') { set('Direction', 'In'); set('PartyType', r.Direction === 'Out' ? 'Supplier' : 'Customer'); set('ChequeStatus', r.Method === 'Bank transfer' ? 'NA' : 'Pending'); }
+  if (t === 'Payments') { set('Direction', 'In'); set('PartyType', r.Direction === 'Out' ? 'Supplier' : 'Customer'); set('ChequeStatus', r.Method === 'Bank transfer' || r.Method === 'Cash' ? 'NA' : 'Pending'); }
   return p;
 }
 function assignIds(db) {
@@ -857,7 +866,7 @@ function assignIds(db) {
     db.rows(t).forEach(function (r) {
       if (!blank(r[idc])) return;
       if (!h.some(function (k) { return k !== idc && !calc[k] && !blank(r[k]); })) return;
-      if (t === 'Payments' && PAY_METHODS.indexOf(r.Method) < 0) throw new Error('Payments row ' + r._r + ': method must be ' + PAY_METHODS.join(' / ') + ' (no cash)');
+      if (t === 'Payments' && payMethodsFor_(r.Direction).indexOf(r.Method) < 0) throw new Error('Payments row ' + r._r + ': method must be ' + payMethodsFor_(r.Direction).join(' / ') + (r.Direction === 'Out' ? '' : ' (no cash)'));
       var ser = typeof cfg[1] === 'function' ? cfg[1](r) : cfg[1], p = {};
       p[idc] = nextId(db, ser, cfg[2] && !blank(r[cfg[2]]) ? r[cfg[2]] : today());
       var d = defaults_(db, t, r); for (var k in d) p[k] = d[k];

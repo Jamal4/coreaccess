@@ -132,7 +132,7 @@ function assignIdsSafe_(db, dl) {
       if (!blank(r[idc])) return;
       if (!h.some(function (k) { return k !== idc && !calc[k] && !blank(r[k]); })) return;
       if (timeUp_(dl)) { left++; return; }
-      if (t === 'Payments' && PAY_METHODS.indexOf(r.Method) < 0) throw new Error('Payments row ' + r._r + ': method must be ' + PAY_METHODS.join(' / ') + ' (no cash)');
+      if (t === 'Payments' && payMethodsFor_(r.Direction).indexOf(r.Method) < 0) throw new Error('Payments row ' + r._r + ': method must be ' + payMethodsFor_(r.Direction).join(' / ') + (r.Direction === 'Out' ? '' : ' (no cash)'));
       var ser = typeof cfg[1] === 'function' ? cfg[1](r) : cfg[1], p = {};
       p[idc] = nextId(db, ser, cfg[2] && !blank(r[cfg[2]]) ? r[cfg[2]] : today());
       var d = defaults_(db, t, r); for (var k in d) p[k] = d[k];
@@ -214,7 +214,7 @@ function rptRevenue_(a, b) {
 }
 function rptCosts_(a, b) { return '(SUMIFS([[Expenses.Amount]],' + between_('[[Expenses.ExpDate]]', a, b) + ')+SUMIFS([[Bills.Amount]],' + between_('[[Bills.BillDate]]', a, b) + ',[[Bills.Status]],"<>Cancelled"))'; }
 function rptCash_(dir, a, b) {
-  return '(SUMIFS([[Payments.Amount]],[[Payments.Direction]],"' + dir + '",' + between_('[[Payments.PayDate]]', a, b) + ',[[Payments.ChequeStatus]],"<>Dishonoured")' +
+  return '(SUMIFS([[Payments.Amount]],[[Payments.Direction]],"' + dir + '",' + between_('[[Payments.PayDate]]', a, b) + ',[[Payments.ChequeStatus]],"<>Dishonoured",[[Payments.ChequeStatus]],"<>Cancelled")' +
     (dir === 'Out' ? '+SUMIFS([[Expenses.Amount]],' + between_('[[Expenses.ExpDate]]', a, b) + ')' : '') + ')';
 }
 var ASOF_ = 'Dashboard!$B$3';
