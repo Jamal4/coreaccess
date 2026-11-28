@@ -2315,8 +2315,9 @@ function officeLocSave(token, x) {
 // Codes: NOTFOUND, STALE, BADINPUT|field, CHSTATE|status, CHDATE, NOTPOSTED|text, NOCANCEL|text, POSTUNSURE, SAVEUNSURE|no|ev, NOPDF, NOACCESS, SLOW, BUSY.
 var OCH_KINDS_ = ['Delivery', 'Sale', 'Return', 'Transfer', 'Hire-in', 'Off-hire'];
 var OCH_YW_ = ['Transfer', 'Hire-in', 'Off-hire'];
+var OCH_NEW_ = ['Delivery', 'Sale', 'Return', 'Transfer'], OCH_OUT_ = true; // r34 F5: Hire-in / Off-hire are no longer made (vendor items never enter our stock); old ones stay readable / cancellable. OCH_OUT_: an office Post takes what our stock has, the rest is from outside
 var OCH_NO_ = /^CAE\/DC\/20\d\d\/\d{3,6}$/, OCH_LINES_ = 200;
-var OCH_COLS_ = [['Challans', 'SupID'], ['Challans', 'SupplierRef'], ['Challans', 'MadeBy'], ['Challans', 'CancelReason'], ['StockMoves', 'Owner'], ['Challans', 'MadeByID'], ['Challans', 'QuoteNo'], ['Challans', 'MatSource']]; // MadeByID: the maker's StaffID (signs the PDF); r28: QuoteNo (F1, no job yet), MatSource (F2, 'Vendor' = vendor rental)
+var OCH_COLS_ = [['Challans', 'SupID'], ['Challans', 'SupplierRef'], ['Challans', 'MadeBy'], ['Challans', 'CancelReason'], ['StockMoves', 'Owner'], ['Challans', 'MadeByID'], ['Challans', 'QuoteNo'], ['Challans', 'MatSource'], ['ChallanLines', 'QtyOut']]; // r34 F5: QtyOut = qty from outside (not our stock); MadeByID: the maker's StaffID (signs the PDF); r28: QuoteNo (F1, no job yet), MatSource (F2, 'Vendor' = vendor rental)
 var OCH_EVF_ = ['Kind', 'ChallanDate', 'JobNo', 'FromLoc', 'ToLoc', 'Vehicle', 'Status', 'Notes', 'SupID', 'SupplierRef'];
 function oChDept_(k) { return OCH_YW_.indexOf(k) >= 0 ? 'YW' : 'PS'; }
 function oChCan_(a, k) { return oIsDir_(a) || (a[oChDept_(k)] || 0) >= 2; }
@@ -2349,7 +2350,7 @@ function oChCard_(c, lines, X) {
   return { no: String(c.ChallanNo), kind: k, st: String(c.Status || 'Draft'), d: oDay_(c.ChallanDate), job: job ? String(job.JobNo) : '', cust: job ? X.cust(job) : qt ? X.cust(qt) : '',
     from: String(c.FromLoc || ''), to: String(c.ToLoc || ''), sup: sup, supName: sup ? oUncell_((X.sups[sup] || {}).Name || sup) : '', sref: oUncell_(c.SupplierRef),
     veh: oUncell_(c.Vehicle), n: lines.length, qty: r2(q), kg: Math.round(kg), dn: X.dn[String(c.ChallanNo)] || '', by: oUncell_(c.MadeBy),
-    quote: !blank(c.QuoteNo) ? String(c.QuoteNo) : job && !blank(job.QuoteNo) ? String(job.QuoteNo) : '', src: String(c.MatSource || '') === 'Vendor' ? 'Vendor' : '' }; // r28 F1 / F2
+    quote: !blank(c.QuoteNo) ? String(c.QuoteNo) : job && !blank(job.QuoteNo) ? String(job.QuoteNo) : '', src: String(c.MatSource || '') === 'Vendor' ? 'Vendor' : '' }; // r28 F1 / F2; r34 F5: a vendor Return too
 }
 function oChCtx_(db) {
   var X = { items: oChItems_(db), kit: oStKit_(db), jobs: oStMap_(), sups: oStMap_(), dn: oStMap_(), cus: oStMap_(), sites: oStMap_(), quotes: oStMap_() };
@@ -2376,13 +2377,15 @@ function officeChallanList(token) {
   var jobs = [], hire = {}, hpool = {}, P = oChPool_(db), oc = chOwnCol_(db);
   Object.keys(X.jobs).forEach(function (n) { var j = X.jobs[n]; if (String(j.Status) === 'Closed') return;
     var si = X.sites[String(j.SiteID)] || {}, sl = blank(si.LocID) ? '' : String(si.LocID);
-    jobs.push({ no: n, cust: X.cust(j), site: sl, siteName: oUncell_(si.Project || si.Address || ''), type: String(j.JobType || ''), ref: oUncell_(j.ClientWONo), st: String(j.Status || '') });
+    jobs.push({ no: n, cust: X.cust(j), site: sl, siteName: oUncell_(si.Project || si.Address || ''), type: String(j.JobType || ''), ref: oUncell_(j.ClientWONo), st: String(j.Status || ''), quote: blank(j.QuoteNo) ? '' : String(j.QuoteNo) }); // r34 F5-a: + quote no.
     if (String(j.JobType) === 'Sale') return;
     var h = onHire(db, n), o = {}; Object.keys(h).forEach(function (k) { if (h[k] > 1e-9) o[k] = r2(h[k]); }); if (!Object.keys(o).length) return; hire[n] = o;
     if (sl && oc) { var jm = chOwnMap_(db, n), hp = {}; Object.keys(o).forEach(function (k) { var x = jm[k + '|' + sl]; if (x) { hp[k] = {}; Object.keys(x).forEach(function (w) { if (x[w] > 1e-9) hp[k][w] = r2(x[w]); }); } }); hpool[n] = hp; } });
-  var qj = oStMap_(); db.rows('Jobs').forEach(function (j) { if (!blank(j.QuoteNo)) qj[String(j.QuoteNo)] = 1; }); // r28 F1: quotes with no job yet (no PO needed)
-  var quotes = Object.keys(X.quotes).filter(function (n) { return !qj[n] && oChQOk_(X.quotes[n]); }).sort().map(function (n) { var q = X.quotes[n], si = X.sites[String(q.SiteID)] || {};
-    return { no: n, cust: X.cust(q), siteName: oUncell_(si.Project || si.Address || ''), type: String(q.QuoteType || ''), st: String(q.Status || '') }; });
+  var qj = oStMap_(); db.rows('Jobs').forEach(function (j) { if (!blank(j.QuoteNo) && !qj[String(j.QuoteNo)]) qj[String(j.QuoteNo)] = j; }); // r28 F1: no PO needed; r34 F5-a: every open quote, with its job if it has one
+  var quotes = Object.keys(X.quotes).filter(function (n) { return oChQOk_(X.quotes[n]) && !(qj[n] && String(qj[n].Status) === 'Closed'); }).sort().map(function (n) { var q = X.quotes[n], si = X.sites[String(q.SiteID)] || {};
+    return { no: n, cust: X.cust(q), siteName: oUncell_(si.Project || si.Address || ''), type: String(q.QuoteType || ''), st: String(q.Status || ''), job: qj[n] ? String(qj[n].JobNo) : '' }; });
+  var vout = {}, VA = chVendorAll_(db); Object.keys(VA).forEach(function (n) { if (!X.jobs[n] || String(X.jobs[n].Status) === 'Closed') return; // r34 F5-b: vendor items still out per open job (vendor returns)
+    Object.keys(VA[n]).forEach(function (s) { var m = VA[n][s], o = {}; Object.keys(m).forEach(function (k) { if (m[k] > 1e-9) o[k] = m[k]; }); if (Object.keys(o).length) (vout[n] = vout[n] || {})[s] = o; }); });
   var pool = {}, rent = oStMap_();
   Object.keys(P).forEach(function (k) { var p = k.split('|'), l = locs[p[1]], t = l ? String(l.Type) : ''; if (['Yard', 'Repair', 'Lost', 'Site', 'Scrap'].indexOf(t) < 0) return;
     Object.keys(P[k]).forEach(function (w) { var q = P[k][w]; if (Math.abs(q) < 1e-9) return;
@@ -2391,7 +2394,7 @@ function officeChallanList(token) {
   var items = Object.keys(X.items).filter(function (c) { var i = X.items[c]; return oStSt_(i) === 'Active' && (oStYes_(i.StockTracked) || oStYes_(i.IsSet)); })
     .map(function (c) { var i = X.items[c]; return { code: c, name: oUncell_(i.Name), size: oUncell_(i.Size), unit: oUncell_(i.Unit), kg: num(i.WeightKg) || 0, set: oStYes_(i.IsSet) }; });
   var kit = {}; Object.keys(X.kit).forEach(function (s) { if (!X.kit[s].bad) kit[s] = X.kit[s].map(function (p) { return { p: p.p, q: p.q }; }); });
-  return { can: { PS: oChCan_(a, 'Delivery'), YW: oChCan_(a, 'Transfer'), psH: oChHead_(a, 'Delivery'), ywH: oChHead_(a, 'Transfer') }, rows: rows, jobs: jobs, quotes: quotes, hire: hire, hpool: hpool, pool: pool,
+  return { can: { PS: oChCan_(a, 'Delivery'), YW: oChCan_(a, 'Transfer'), psH: oChHead_(a, 'Delivery'), ywH: oChHead_(a, 'Transfer') }, rows: rows, jobs: jobs, quotes: quotes, vout: vout, hire: hire, hpool: hpool, pool: pool,
     rent: Object.keys(rent).sort().map(function (k) { var r = rent[k]; ['yard', 'rep', 'site', 'lost'].forEach(function (g) { r[g] = r2(r[g]); }); return r; }).filter(function (r) { return r.yard || r.rep || r.site || r.lost; }),
     sups: Object.keys(X.sups).filter(function (s) { return String(X.sups[s].Status) !== 'Inactive' || Object.keys(rent).some(function (k) { var r = rent[k]; return r.sup === s && (r.yard > 1e-9 || r.rep > 1e-9 || r.lost > 1e-9); }); })
       .map(function (s) { var o = { id: s, name: oUncell_(X.sups[s].Name || s) }; if (String(X.sups[s].Status) === 'Inactive') o.off = true; return o; }), // CR M8 run 1: off = Off-hire only
@@ -2416,12 +2419,16 @@ function oChView_(env, db, c, a) {
   if (st !== 'Draft') { var al = {}, mine = db.rows('StockMoves').filter(function (v) { return String(v.RefNo) === no && String(v.RefType) === 'Challan'; });
     mine.forEach(function (v) { var w = chOwnOf_(v), i = String(v.ItemCode), x = al[i] = al[i] || {};
       if (k === 'Return') { var t = locType(db, v.ToLoc), j = t === 'Repair' ? 1 : t === 'Lost' ? 2 : 0, y = x[w] = x[w] || [0, 0, 0]; y[j] = r2(y[j] + num(v.Qty)); } else x[w] = r2((x[w] || 0) + num(v.Qty)); });
-    o.al = al; }
+    o.al = al;
+    if (String(c.MatSource || '') !== 'Vendor' && OCH_NEW_.indexOf(k) >= 0 && k !== 'Transfer') { var ex = {}, mv = {}, sm = setMap_(db); // r34 F5-c: per item, the qty not from our stock (outside)
+      lines.forEach(function (l) { var i = String(l.ItemCode); if (sm[i]) { try { kitParts_(db, i).forEach(function (pp) { ex[pp.item] = (ex[pp.item] || 0) + pp.qty * num(l.Qty); }); } catch (e) { /* a broken kit: nothing shown */ } } else if (num(l.QtyOut) > 0) o.out = o.out || {}, o.out[i] = r2((o.out[i] || 0) + num(l.QtyOut)); });
+      mine.forEach(function (v) { if (!blank(v.SetCode)) mv[String(v.ItemCode)] = (mv[String(v.ItemCode)] || 0) + num(v.Qty); });
+      Object.keys(ex).forEach(function (i) { var d = r2(ex[i] - (mv[i] || 0)); if (d > 1e-9) { o.out = o.out || {}; o.out[i] = r2((o.out[i] || 0) + d); } }); } }
   var p = env.get('OCHP:' + no);
   o.pdf = blank(c.PDF) ? '' : String(c.PDF); o.pdfOk = !!(o.pdf && oChPdfOk_(db, c, p)); o.doc = o.pdfOk && typeof p.d === 'string' ? p.d : ''; // CR M8 run 2: pdfOk as officeChallanPdf
   var can = st === 'Draft' && oChCan_(a, k); // CR M8 run 1: unfin = its moves went in, the post did not finish (Post finishes it); sheet = a Qty 0 set-part damage line
   o.unfin = st === 'Draft' && oChMoved_(db, no, 'Challan'); o.sheet = k === 'Return' && lines.some(function (l) { return !(num(l.Qty) > 0); });
-  o.canEdit = can && !o.unfin && !o.sheet; o.canPost = can; o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : can && !o.unfin;
+  var nk = OCH_NEW_.indexOf(k) >= 0; o.canEdit = can && nk && !o.unfin && !o.sheet; o.canPost = can && (nk || o.unfin); /* r34 F5-b: an old Hire-in / Off-hire draft: Discard only */ o.canCancel = st === 'Posted' ? oChHead_(a, k) && !o.dn : can && !o.unfin;
   return o;
 }
 function officeChallanGet(token, no) {
@@ -2434,7 +2441,7 @@ function oChHdr_(env, db, k, x) { // the header fields of a save, checked
   var locs = oStLocs_(db), lt = function (id) { var l = typeof id === 'string' && id ? locs[id] : null; return l && String(l.Status || 'Active') === 'Active' ? String(l.Type) : ''; };
   var pick = function (id, types, what) { if (types.indexOf(lt(id)) < 0) oFail_('BADINPUT|' + what); return id; };
   var o = { ChallanDate: date, JobNo: '', FromLoc: '', ToLoc: '', Vehicle: oCell_(oQeTxt_(x.veh, 30, 'vehicle no.')), Notes: oCell_(oQeTxt_(x.notes, 300, 'note')), SupID: '', SupplierRef: '', QuoteNo: '', MatSource: '' }, sl = '', supNeed = false;
-  var src = x.src == null || x.src === '' || x.src === 'Own' ? '' : x.src === 'Vendor' && k === 'Delivery' ? 'Vendor' : oFail_('BADINPUT|material source'); // r28 F2
+  var src = x.src == null || x.src === '' || x.src === 'Own' ? '' : x.src === 'Vendor' && (k === 'Delivery' || k === 'Return') ? 'Vendor' : oFail_('BADINPUT|material source'); // r28 F2; r34 F5-b: a vendor Return (no stock moves)
   if (OCH_YW_.indexOf(k) < 0) { // r28 F1: a job, or a quote with no job yet (no PO needed: Post makes its job)
     var job = typeof x.job === 'string' && x.job ? find(db.rows('Jobs'), 'JobNo', x.job) : null, qt = null;
     if (!job && k !== 'Return' && typeof x.quote === 'string' && x.quote) {
@@ -2445,13 +2452,18 @@ function oChHdr_(env, db, k, x) { // the header fields of a save, checked
     if (qt) o.QuoteNo = String(qt.QuoteNo); else o.JobNo = String(job.JobNo);
     if (k !== 'Sale') { var si = find(db.rows('Sites'), 'SiteID', qt ? qt.SiteID : job.SiteID); if (!si) oFail_('BADINPUT|' + (qt ? 'quote' : 'job')); sl = ensureSiteLoc(db, si); }
   }
-  if (src) { // r28 F2: vendor rental straight to site: not our stock (no StockMoves); the vendor is on the challan + PDF for the rent owed
+  if (src && k === 'Return') { // r34 F5-b: vendor items back from site to their vendor: no StockMoves, the vendor's own DO / ref optional
+    if (locType(db, LOC.SUPPLIER) !== 'Supplier') oFail_('BADINPUT|vendor');
+    var rv = typeof x.sup === 'string' && x.sup && db.hasTab('Suppliers') ? find(db.rows('Suppliers'), 'SupID', x.sup) : null; if (!rv || blank(rv.SupID)) oFail_('BADINPUT|vendor');
+    o.FromLoc = sl; o.ToLoc = LOC.SUPPLIER; o.MatSource = 'Vendor'; o.SupID = String(rv.SupID); o.SupplierRef = oCell_(oQeTxt_(x.sref, 40, 'vendor\'s DO no.'));
+  }
+  else if (src) { // r28 F2: vendor rental straight to site: not our stock (no StockMoves); the vendor is on the challan + PDF for the rent owed
     if (locType(db, LOC.SUPPLIER) !== 'Supplier') oFail_('BADINPUT|vendor');
     o.FromLoc = LOC.SUPPLIER; o.ToLoc = sl; o.MatSource = 'Vendor'; o.SupplierRef = oCell_(oQeTxt_(x.sref, 40, 'vendor\'s DO no.'));
     if (typeof x.sup === 'string' && x.sup) { var vs = db.hasTab('Suppliers') ? find(db.rows('Suppliers'), 'SupID', x.sup) : null; if (!vs || blank(vs.SupID) || String(vs.Status) === 'Inactive') oFail_('BADINPUT|vendor'); o.SupID = String(vs.SupID); }
     else o._vendor = oChVendorIn_(x.newSup);
   }
-  else if (k === 'Delivery') { if (x.from === LOC.SUPPLIER && locType(db, LOC.SUPPLIER) === 'Supplier') { o.FromLoc = LOC.SUPPLIER; supNeed = true; } else o.FromLoc = pick(x.from, ['Yard'], 'from'); o.ToLoc = sl; }
+  else if (k === 'Delivery') { if (OCH_NEW_.indexOf('Hire-in') >= 0 && x.from === LOC.SUPPLIER && locType(db, LOC.SUPPLIER) === 'Supplier') { o.FromLoc = LOC.SUPPLIER; supNeed = true; } else o.FromLoc = pick(x.from, ['Yard'], 'from'); o.ToLoc = sl; } // r34 F5-b: 'direct from a rental supplier' only in the old rent-in mode (OCH_NEW_ with Hire-in); now Material source: Vendor rental
   else if (k === 'Sale') { o.FromLoc = pick(x.from, ['Yard'], 'from'); o.ToLoc = LOC.SOLD; if (locType(db, LOC.SOLD) !== 'Sold') oFail_('BADINPUT|to'); }
   else if (k === 'Return') { o.FromLoc = sl; o.ToLoc = pick(x.to == null || x.to === '' ? LOC.YARD : x.to, ['Yard'], 'to'); }
   else if (k === 'Transfer') { o.FromLoc = pick(x.from, ['Yard', 'Repair'], 'from'); o.ToLoc = pick(x.to, ['Yard', 'Repair'], 'to'); if (o.FromLoc === o.ToLoc) oFail_('BADINPUT|to'); }
@@ -2506,6 +2518,7 @@ function officeChallanSave(token, x) {
   try {
     return oStW_(token, oStSee_, function (env, db, L) {
       var a = oAcc_(L), k = oChKind_(x.kind); if (!oChCan_(a, k)) oFail_('NOACCESS');
+      if (OCH_NEW_.indexOf(k) < 0) oFail_('BADINPUT|kind'); // r34 F5-b
       oChSetup_(env, db);
       var old = null;
       if (x.no != null && x.no !== '') {
@@ -2574,12 +2587,13 @@ function officeChallanPost(token, no, ev, veh) {
       oPeBump_(env2, [no]); // CR M8 run 2: counted before it writes (Posted prints differently); CR M8 run 2: its job may have closed meanwhile: it still finishes
       var f; try { f = chFinishPost_(db, no); } catch (e) { if (oChCode_(e)) throw e; oFail_('POSTUNSURE'); }
       oCtLog_(db, 'Challan post finished', no, 'moves were in' + (f.damage ? ' · ' + f.damage + ' damage/loss' : '')); return { no: no }; }
+    if (OCH_NEW_.indexOf(k) < 0) oFail_('NOTPOSTED|' + k + ' is no longer used: vendor items never enter our stock. Discard this draft.'); // r34 F5-b
     var IT = oChItems_(db), skip = oChLines_(db, no).filter(function (l) { var it = IT[String(l.ItemCode)]; return it && !(oStYes_(it.StockTracked) || oStYes_(it.IsSet)); }); // CR M8 run 1: a line nothing would move for
     if (!blank(c.JobNo)) { var j = find(db.rows('Jobs'), 'JobNo', c.JobNo); if (!j || String(j.Status) === 'Closed') oFail_('BADINPUT|job'); } // CR M8 run 2: before new moves only
     if (skip.length) oFail_('NOTPOSTED|' + skip.map(function (l) { return String(l.ItemCode) + ': not a stock item now (stock tracking is off), nothing would move for it'; }).join('\n').replace(/\|/g, '/').slice(0, 1500));
     oPeBump_(env2, [no]); // CR M8 run 2: counted before the post writes (vehicle no., Posted)
     if (v !== v0) db.update('Challans', c, { Vehicle: oCell_(v) });
-    try { postChallan(db, no); }
+    try { postChallan(db, no, { outside: OCH_OUT_ }); } // r34 F5-c: qty above our stock = from outside (no moves)
     catch (e) {
       if (oChCode_(e)) throw e;
       var d2 = env2.db() || db; if (oChMoved_(d2, no, 'Challan')) oFail_('POSTUNSURE');

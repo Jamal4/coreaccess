@@ -60,7 +60,7 @@ V(`oSaveLogin_(PE, { email: 'ps2@p.com', name: 'ps2 user', depts: { PS: 2 }, pas
   click(tile('dos')); await wait(120);
   ok('CHP2 list loads, New delivery + New sale buttons, empty list', !!$('[data-n="Delivery"]') && !!$('[data-n="Sale"]') && /No challans match/.test($('#chl').textContent), $('#chl') && $('#chl').textContent);
   click($('[data-n="Delivery"]')); await wait(40);
-  ok('CHP3 new delivery form: job list has the open rental job, From has the yard + direct-from-supplier', !!$('#cej option[value="CAE/J/2026/901"]') && !!$('#cef option[value="LOC-YARD"]') && !!$('#cef option[value="LOC-SUPPLIER"]'));
+  ok('CHP3 new delivery form: job list has the open rental job, From has the yard; no direct-from-supplier (r34 F5: Material source Vendor rental)', !!$('#cej option[value="CAE/J/2026/901"]') && !!$('#cef option[value="LOC-YARD"]') && !$('#cef option[value="LOC-SUPPLIER"]'));
   pick($('#cej'), 'CAE/J/2026/901'); type($('.ch-ol .li'), 'RL-STD-20'); type($('.ch-ol .lq'), '10'); await wait(10);
   ok('CHP4 line shows the yard balance (own 40, ok)', /need 10 · ok · own 40/.test($('.ch-av').textContent), $('.ch-av').textContent);
   click($('#ces')); await wait(150);
@@ -86,15 +86,12 @@ V(`oSaveLogin_(PE, { email: 'ps2@p.com', name: 'ps2 user', depts: { PS: 2 }, pas
   // ---- YW Staff: rent-in
   await login('yard@p.com');
   click(tile('stock')); await wait(120); click($('#str')); await wait(150);
-  ok('CHP13 Transfers & rent-in: register empty, New transfer / hire-in / off-hire', /Nothing rented in/.test($('#chrent').textContent) && !!$('[data-n="Hire-in"]') && !!$('[data-n="Off-hire"]') && !!$('[data-n="Transfer"]'));
-  click($('[data-n="Hire-in"]')); await wait(40);
-  pick($('#cesu'), 'SUP-0001'); type($('#cesr'), 'DO-1'); type($('.ch-ol .li'), 'RL-STD-20'); type($('.ch-ol .lq'), '25'); click($('#ces')); await wait(150);
-  click($('#cvo')); await wait(30); click($('#dyes')); await wait(200);
-  click($('#cvb')); await wait(150);
-  ok('CHP14 hire-in posted; the register shows 25 of SUP-0001 in the yard', /Steel Co/.test($('#chrent').textContent) && /25/.test($('#chrent').textContent), $('#chrent').textContent);
-  click($('[data-n="Off-hire"]')); await wait(40);
-  pick($('#cesu'), 'SUP-0001'); click($('#celd')); await wait(20);
-  ok('CHP15 off-hire: "load all of this supplier\'s items" fills 25', $('.ch-ol .li').value === 'RL-STD-20' && $('.ch-ol .lq').value === '25');
+  ok('CHP13 Transfers (r34 F5): New transfer only, no hire-in / off-hire, no rent-in register when nothing is rented in', $('#chrent').textContent === '' && !$('[data-n="Hire-in"]') && !$('[data-n="Off-hire"]') && !!$('[data-n="Transfer"]'), $('#chn').textContent);
+  V(`PD.insert('Challans', { ChallanNo: 'CAE/DC/2026/940', Kind: 'Hire-in', Status: 'Draft', ChallanDate: new Date(2026, 10, 19), JobNo: '', FromLoc: 'LOC-SUPPLIER', ToLoc: 'LOC-YARD', SupID: 'SUP-0001', SupplierRef: 'DO-1', MadeBy: 'old' });
+    PD.insert('ChallanLines', { LineID: 'CL-P940', ChallanNo: 'CAE/DC/2026/940', ItemCode: 'RL-STD-20', Qty: 25 }); postChallan(PD, 'CAE/DC/2026/940');`);
+  click($('#chb')); await wait(120); click($('#str')); await wait(150);
+  ok('CHP14 an old posted hire-in still shows: the register lists 25 of SUP-0001 in the yard', /Steel Co/.test($('#chrent').textContent) && /25/.test($('#chrent').textContent), $('#chrent').textContent);
+  ok('CHP15 the old hire-in is in the list (readable), still no New hire-in / off-hire', !!$('#chl [data-c="CAE/DC/2026/940"]') && !$('[data-n="Hire-in"]') && !$('[data-n="Off-hire"]'));
   await login('view@p.com'); w.eval("viewContract('CAE/J/2026/901')"); await wait(150);
   ok('CHP17 contract view (Sales View) lists the job\'s challans with status', /Challans \(\d+\)/.test($('#tv').textContent) && !!$('#tch [data-c="' + no1 + '"]') && /Posted/.test($('#tch [data-c="' + no1 + '"]').textContent), $('#tv') && $('#tv').textContent.slice(-400));
   click($('#tch [data-c="' + no1 + '"]')); await wait(200);
@@ -128,9 +125,7 @@ V(`oSaveLogin_(PE, { email: 'ps2@p.com', name: 'ps2 user', depts: { PS: 2 }, pas
   ok('CHP27 return with a Qty 0 set-part damage line: no Edit, a note to edit it in the sheet panel; Post / Discard stay', !$('#cve') && /sheet panel/.test($('#cv').textContent) && !!$('#cvo') && !!$('#cvc'), $('#cv') && $('#cv').textContent.slice(0, 400));
   V(`PD.update('Suppliers', must(PD, 'Suppliers', 'SupID', 'SUP-0001'), { Status: 'Inactive' });`);
   await login('yard@p.com'); click(tile('stock')); await wait(120); click($('#str')); await wait(150);
-  click($('[data-n="Hire-in"]')); await wait(40); const hiS = !!$('#cesu option[value="SUP-0001"]'); click($('#ceb')); await wait(60);
-  click($('[data-n="Off-hire"]')); await wait(40); const ofS = $('#cesu option[value="SUP-0001"]');
-  ok('CHP28 an inactive supplier still holding items: not offered for a hire-in, offered (marked inactive) for an off-hire', !hiS && !!ofS && /inactive/.test(ofS.textContent), [hiS, ofS && ofS.textContent]);
+  ok('CHP28 an inactive supplier still holding old rented items: still in the register; no hire-in / off-hire made', /Steel Co/.test($('#chrent').textContent) && !$('[data-n="Hire-in"]') && !$('[data-n="Off-hire"]'), $('#chrent').textContent);
   V(`PD.update('Suppliers', must(PD, 'Suppliers', 'SupID', 'SUP-0001'), { Status: 'Active' });`);
   ok('CHP16 no page script errors; only expected server refusals', !jsErr.length && (global.ERRS || []).every(e => /BADINPUT|NOTPOSTED/.test(e)), [jsErr, global.ERRS]);
   console.log('page-ch', pass + '/' + (pass + fail));

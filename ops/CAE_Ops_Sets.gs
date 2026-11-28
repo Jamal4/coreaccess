@@ -187,6 +187,10 @@ function setAvail_(db, code, loc, bal) {
 // column / blank = own. Totals (stockMap) are unchanged; a post takes own first then rented (Delivery, Transfer), own only (Sale), that
 // supplier only (Off-hire) and rented first (Return, from the job's own site balance); a cancel checks and reverses per owner.
 var CH_YK_ = ['Transfer', 'Hire-in', 'Off-hire']; // kinds without a job
+// r34 F5 (office post, o.outside): Delivery / Sale / Return post what our stock has (Return: what is ours on that job's site); the rest is from outside:
+// no StockMoves, kept on the line as ChallanLines.QtyOut (loose items) so hire and billing still count the full qty. A Return does so on every path
+// (sheet panel, field app): outside items never come into our yard.
+var CH_CAP_ = ['Delivery', 'Sale', 'Return'];
 function chOwnCol_(db) { return db.hasTab('StockMoves') && db.headers('StockMoves').indexOf('Owner') >= 0; }
 function chOwnOf_(v) { return blank(v.Owner) ? '' : String(v.Owner); }
 function chOwnMap_(db, jobNo) { // item|loc -> {owner: qty}; jobNo: only that job's moves
@@ -214,7 +218,7 @@ function chBal_(db, kind, sup) { // item|loc -> qty this kind may take (the chec
   return out;
 }
 // mv = [[item, qty, from, to, set]] -> the same with the owner as [5], split where one move takes from two owners
-function chSplit_(db, c, kind, sup, mv, jobNo, errs) {
+function chSplit_(db, c, kind, sup, mv, jobNo, errs, outs) { // mv[i][5] = the line index (-1: a set part); outs: line index -> qty from outside
   var supIn = function (loc) { return locType(db, loc) === 'Supplier'; }, om = chOwnMap_(db), jm = kind === 'Return' ? chOwnMap_(db, jobNo) : null, out = [];
   mv.forEach(function (m) {
     // CR M8 run 4: a Sale takes own stock only, also from a Supplier location (no own stock there -> not posted)
@@ -225,7 +229,7 @@ function chSplit_(db, c, kind, sup, mv, jobNo, errs) {
       out.push([m[0], t, m[2], m[3], m[4], o]); pool[o] = have - t; left -= t;
       if (jm && om[k]) om[k][o] = (om[k][o] || 0) - t;
     });
-    if (left > 1e-9) { if (kind === 'Return' || kind === 'Transfer' || kind === 'Delivery') out.push([m[0], left, m[2], m[3], m[4], '']); else errs.push(m[0] + ': only ' + (m[1] - left) + (kind === 'Sale' ? ' of our own stock' : ' of ' + sup + '\'s items') + ' at ' + m[2] + ', needs ' + m[1]); }
+    if (left > 1e-9) { if (outs && CH_CAP_.indexOf(kind) >= 0) { if (m[5] >= 0) outs[m[5]] = (outs[m[5]] || 0) + left; } else if (kind === 'Return' || kind === 'Transfer' || kind === 'Delivery') out.push([m[0], left, m[2], m[3], m[4], '']); else errs.push(m[0] + ': only ' + (m[1] - left) + (kind === 'Sale' ? ' of our own stock' : ' of ' + sup + '\'s items') + ' at ' + m[2] + ', needs ' + m[1]); }
   });
   return out;
 }
@@ -247,7 +251,7 @@ function postChallan(db, no, o) {
   if (kind === 'Hire-in' && locType(db, c.FromLoc) !== 'Supplier') throw new Error(no + ': Hire-in comes from the supplier location');
   if (kind === 'Off-hire' && (locType(db, c.ToLoc) !== 'Supplier' || locType(db, c.FromLoc) === 'Supplier')) throw new Error(no + ': Off-hire goes from our location to the supplier location');
   var items = db.rows('Items'), bal = chBal_(db, kind, sup), hire = job ? onHire(db, jn) : {}, errs = [], mv = [], dmg = [];
-  var fromSupplier = locType(db, c.FromLoc) === 'Supplier', tag = db.headers('StockMoves').indexOf('SetCode') >= 0;
+  var fromSupplier = locType(db, c.FromLoc) === 'Supplier', cap = (kind === 'Return' || (!!o.outside && CH_CAP_.indexOf(kind) >= 0)) && !fromSupplier, tag = db.headers('StockMoves').indexOf('SetCode') >= 0;
   var exp = {}, order = [], loose = [], rc = {}, anySet = false;
   lines.forEach(function (l) {
     var it = find(items, 'ItemCode', l.ItemCode), q = num(l.Qty), d = num(l.QtyDamaged), lo = num(l.QtyLost);
@@ -278,22 +282,21 @@ function postChallan(db, no, o) {
   order.forEach(function (code) {
     var list = exp[code], tot = sum(list, function (e) { return e.qty; }), k = code + '|' + c.FromLoc, have = bal[k] || 0;
     var sets = list.map(function (e) { return e.set; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).join(', ');
-    if (!fromSupplier && have < tot - 1e-9 && !o.allowNegative) { errs.push(code + ' (part of ' + sets + '): only ' + have + ' at ' + c.FromLoc + ', the sets need ' + tot); return; }
+    if (!fromSupplier && have < tot - 1e-9 && !o.allowNegative && !cap) { errs.push(code + ' (part of ' + sets + '): only ' + have + ' at ' + c.FromLoc + ', the sets need ' + tot); return; }
     bal[k] = have - tot;
     var d = ret && rc[code] ? rc[code].d : 0, lo = ret && rc[code] ? rc[code].lo : 0, d0 = d, lo0 = lo;
     list.forEach(function (e) {
       var a = Math.min(d, e.qty), b = Math.min(lo, e.qty - a), g = e.qty - a - b; d -= a; lo -= b;
-      if (g > 1e-9) mv.push([code, g, c.FromLoc, c.ToLoc, e.set]);
-      if (a > 1e-9) mv.push([code, a, c.FromLoc, LOC.REPAIR, e.set]);
-      if (b > 1e-9) mv.push([code, b, c.FromLoc, LOC.LOST, e.set]);
+      if (g > 1e-9) mv.push([code, g, c.FromLoc, c.ToLoc, e.set, -1]);
+      if (a > 1e-9) mv.push([code, a, c.FromLoc, LOC.REPAIR, e.set, -1]);
+      if (b > 1e-9) mv.push([code, b, c.FromLoc, LOC.LOST, e.set, -1]);
     });
-    if (d0 || lo0) dmg.push({ ChallanNo: no, JobNo: jn, ItemCode: code, QtyDamaged: d0 || '', QtyLost: lo0 || '', Status: 'Open' });
   });
   var sets = setMap_(db), inSets = function (code) {
     return Object.keys(hire).some(function (S) { if (!sets[S] || !(hire[S] > 1e-9)) return false; try { return kitParts_(db, S).some(function (p) { return p.item === code; }); } catch (e) { return false; } });
   };
   loose.forEach(function (l) {
-    var q = num(l.Qty);
+    var q = num(l.Qty), li = lines.indexOf(l);
     if (ret) {
       var d = num(l.QtyDamaged), lo = num(l.QtyLost), g = blank(l.QtyGood) ? q - d - lo : num(l.QtyGood);
       if (g < 0 || Math.abs(g + d + lo - q) > 1e-9) { errs.push(l.ItemCode + ': good + damaged + lost must equal qty ' + q); return; }
@@ -302,20 +305,21 @@ function postChallan(db, no, o) {
         return;
       }
       hire[l.ItemCode] -= q;
-      if (g) mv.push([l.ItemCode, g, c.FromLoc, c.ToLoc, '']);
-      if (d) mv.push([l.ItemCode, d, c.FromLoc, LOC.REPAIR, '']);
-      if (lo) mv.push([l.ItemCode, lo, c.FromLoc, LOC.LOST, '']);
-      if (d || lo) dmg.push({ ChallanNo: no, JobNo: jn, ItemCode: l.ItemCode, QtyDamaged: d || '', QtyLost: lo || '', Status: 'Open' });
+      if (g) mv.push([l.ItemCode, g, c.FromLoc, c.ToLoc, '', li]);
+      if (d) mv.push([l.ItemCode, d, c.FromLoc, LOC.REPAIR, '', li]);
+      if (lo) mv.push([l.ItemCode, lo, c.FromLoc, LOC.LOST, '', li]);
     } else {
       var k = l.ItemCode + '|' + c.FromLoc, have = bal[k] || 0;
-      if (!fromSupplier && have < q - 1e-9 && !o.allowNegative) { errs.push(l.ItemCode + ': only ' + have + (kind === 'Sale' && oc ? ' of our own stock' : kind === 'Off-hire' ? ' of ' + sup + '\'s items' : '') + ' at ' + c.FromLoc + ', challan needs ' + q); return; }
+      if (!fromSupplier && have < q - 1e-9 && !o.allowNegative && !cap) { errs.push(l.ItemCode + ': only ' + have + (kind === 'Sale' && oc ? ' of our own stock' : kind === 'Off-hire' ? ' of ' + sup + '\'s items' : '') + ' at ' + c.FromLoc + ', challan needs ' + q); return; }
       bal[k] = have - q;
-      mv.push([l.ItemCode, q, c.FromLoc, c.ToLoc, '']);
+      mv.push([l.ItemCode, q, c.FromLoc, c.ToLoc, '', li]);
     }
   });
-  if (oc && !errs.length) mv = chSplit_(db, c, kind, sup, mv, jn, errs);
+  var outs = {}; if ((oc || cap) && !errs.length) mv = chSplit_(db, c, kind, sup, mv, jn, errs, cap ? outs : null);
   if (errs.length) throw new Error('Not posted:\n' + errs.join('\n'));
   if (fromQ) { c = chQuoteJob_(db, c); job = must(db, 'Jobs', 'JobNo', c.JobNo); jn = String(job.JobNo); } // E3b-4: a refused post made a job + accepted the quote
+  chOutWrite_(db, lines, outs); // r34 F5: before the moves, so a retried post writes it again
+  if (ret) dmg = chDmg_(mv.map(function (m) { return { ItemCode: m[0], Qty: m[1], ToLoc: m[3] }; }), no, jn); // r34 F5: damage / loss of our own items only (what moved)
   var now = new Date(), ids = nextIds(db, 'MV', mv.length);
   db.insert('StockMoves', mv.map(function (m, i) {
     var r = { MoveID: ids[i], MoveDate: date, ItemCode: m[0], Qty: m[1], FromLoc: m[2], ToLoc: m[3], RefType: 'Challan', RefNo: no, JobNo: jn, PostedBy: user_(), PostedAt: now };
@@ -333,11 +337,36 @@ function chQuoteJob_(db, c) { // r28 F1: the quote's job (made now if none; a re
   if (['Lost', 'Expired', 'Cancelled'].indexOf(qs) >= 0) throw new Error(c.ChallanNo + ': quote ' + q + ' is ' + qs + ' now: no job is made from it');
   db.update('Challans', c, { JobNo: j ? String(j.JobNo) : quoteToJob(db, q) }); return must(db, 'Challans', 'ChallanNo', c.ChallanNo);
 }
-function chPostVendor_(db, c) { // r28 F2: Posted with no StockMoves: own and rented-in stock untouched; the job goes on hire as for any delivery
-  var no = c.ChallanNo; if (!db.rows('ChallanLines').some(function (l) { return l.ChallanNo === no; })) throw new Error(no + ' has no lines');
-  if (c.Kind !== 'Delivery' || blank(c.SupID)) throw new Error(no + ': a vendor rental challan is a Delivery with its vendor');
+function chOutWrite_(db, lines, outs) { // r34 F5: ChallanLines.QtyOut = the qty from outside (blank = none); only lines that change are written
+  var ch = lines.map(function (l, i) { var v = outs[i] > 1e-9 ? r2(outs[i]) : ''; return String(l.QtyOut == null ? '' : l.QtyOut) === String(v) ? null : [l, v]; }).filter(function (x) { return x; });
+  if (!ch.length) return;
+  if (db.headers('ChallanLines').indexOf('QtyOut') < 0) { if (!ch.some(function (x) { return x[1] !== ''; })) return; if (typeof db.ensureColumn !== 'function' || (db.ensureColumn('ChallanLines', 'QtyOut'), db.headers('ChallanLines').indexOf('QtyOut') < 0)) throw new Error('ChallanLines needs a QtyOut column'); }
+  ch.forEach(function (x) { db.update('ChallanLines', x[0], { QtyOut: x[1] }); });
+}
+function chDmg_(mv, no, jn) { // r34 F5: Damage rows from the moves to repair / lost (per item, in order)
+  var by = {}, out = [];
+  mv.forEach(function (v) { var d = v.ToLoc === LOC.REPAIR, lo = v.ToLoc === LOC.LOST; if (!d && !lo) return;
+    var x = by[v.ItemCode]; if (!x) { x = by[v.ItemCode] = { ChallanNo: no, JobNo: jn, ItemCode: v.ItemCode, QtyDamaged: 0, QtyLost: 0, Status: 'Open' }; out.push(x); }
+    if (d) x.QtyDamaged += num(v.Qty); else x.QtyLost += num(v.Qty); });
+  out.forEach(function (x) { x.QtyDamaged = r2(x.QtyDamaged) || ''; x.QtyLost = r2(x.QtyLost) || ''; });
+  return out;
+}
+function chVendorOut_(db, jn, sup, except) { // r34 F5: item -> qty of that vendor's items still out on the job (posted vendor deliveries - vendor returns)
+  return (chVendorAll_(db, except)[String(jn)] || {})[String(sup)] || {};
+}
+function chVendorAll_(db, except) { // r34 F5: job -> vendor -> item -> qty out, one pass (except: leave that challan out)
+  var cs = {}, m = {}; db.rows('Challans').forEach(function (c) { if (c.Status === 'Posted' && String(c.MatSource || '') === 'Vendor' && !blank(c.JobNo) && !blank(c.SupID) && String(c.ChallanNo) !== String(except || '') && (c.Kind === 'Delivery' || c.Kind === 'Return')) cs[c.ChallanNo] = [String(c.JobNo), String(c.SupID), c.Kind === 'Delivery' ? 1 : -1]; });
+  db.rows('ChallanLines').forEach(function (l) { var x = cs[l.ChallanNo]; if (!x) return; var j = m[x[0]] = m[x[0]] || {}, s = j[x[1]] = j[x[1]] || {}; s[l.ItemCode] = r2((s[l.ItemCode] || 0) + x[2] * num(l.Qty)); });
+  return m;
+}
+function chPostVendor_(db, c) { // r28 F2: Posted with no StockMoves: own and rented-in stock untouched; the job goes on hire as for any delivery. r34 F5: a vendor Return too (job status unchanged)
+  var no = c.ChallanNo, ls = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === no; }); if (!ls.length) throw new Error(no + ' has no lines');
+  var ret = c.Kind === 'Return'; if ((c.Kind !== 'Delivery' && !ret) || blank(c.SupID)) throw new Error(no + ': a vendor rental challan is a Delivery or Return with its vendor');
   var job = blank(c.JobNo) ? null : must(db, 'Jobs', 'JobNo', c.JobNo); if (job && String(job.Status) === 'Closed') throw new Error(no + ': job ' + job.JobNo + ' is closed');
-  chPostTail_(db, c, job, [], new Date()); log_(db, 'Challan posted', no, 'Delivery · vendor rental ' + c.SupID + ' · no stock moves'); return { moves: 0, damage: 0 };
+  if (ret) { if (!job) throw new Error(no + ': a return needs its job'); var vo = chVendorOut_(db, job.JobNo, c.SupID, no), errs = [];
+    ls.forEach(function (l) { var q = num(l.Qty); if ((vo[l.ItemCode] || 0) < q - 1e-9) errs.push(l.ItemCode + ': only ' + (vo[l.ItemCode] || 0) + ' of ' + c.SupID + '\'s items out on ' + job.JobNo + ', return has ' + q); vo[l.ItemCode] = (vo[l.ItemCode] || 0) - q; });
+    if (errs.length) throw new Error('Not posted:\n' + errs.join('\n')); }
+  chPostTail_(db, c, ret ? null : job, [], new Date()); log_(db, 'Challan posted', no, c.Kind + ' · vendor rental ' + c.SupID + ' · no stock moves'); return { moves: 0, damage: 0 };
 }
 function chPostTail_(db, c, job, dmg, now) {
   var kind = c.Kind, ret = kind === 'Return';
@@ -349,7 +378,7 @@ function chPostTail_(db, c, job, dmg, now) {
   if (job && kind === 'Delivery' && (job.JobType === 'Rental' || job.JobType === 'Project') && ['Awaiting order', 'Mobilising', ''].indexOf(job.Status) >= 0) db.update('Jobs', job, { Status: 'On hire' });
   if (job && ret && job.Status === 'On hire') {
     var left = onHire(db, job.JobNo), sm = setMap_(db), lt = function (x) { return locType(db, x) === 'Site'; }, any; // CR M8 run 4: this challan's set lines count too (jobEvents reads Posted challans; Posted is written last)
-    if (String(c.Status) !== 'Posted') db.rows('ChallanLines').forEach(function (l) { if (String(l.ChallanNo) !== String(c.ChallanNo) || !sm[l.ItemCode]) return; var q = num(l.Qty); if (lt(c.FromLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) - q; if (lt(c.ToLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) + q; });
+    if (String(c.Status) !== 'Posted') db.rows('ChallanLines').forEach(function (l) { if (String(l.ChallanNo) !== String(c.ChallanNo)) return; var q = sm[l.ItemCode] ? num(l.Qty) : num(l.QtyOut); if (!q) return; /* r34 F5: and its loose qty from outside */ if (lt(c.FromLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) - q; if (lt(c.ToLoc)) left[l.ItemCode] = (left[l.ItemCode] || 0) + q; });
     any = Object.keys(left).some(function (k) { return left[k] > 0; });
     if (!any && find(db.rows('OffHire').filter(function (x) { return x.JobNo === job.JobNo; }), 'Scope', 'Full')) db.update('Jobs', job, { Status: 'Off-hire' });
   }
@@ -359,19 +388,17 @@ function chPostTail_(db, c, job, dmg, now) {
 // as postChallan counts them (loose and Qty 0 set-part lines of stock items, per item) and written only if none of this challan's are in.
 function chFinishPost_(db, no) {
   var c = must(db, 'Challans', 'ChallanNo', no), job = blank(c.JobNo) ? null : find(db.rows('Jobs'), 'JobNo', c.JobNo), jn = job ? job.JobNo : '', dmg = [];
-  if (c.Kind === 'Return' && !db.rows('Damage').some(function (x) { return x.ChallanNo === no; })) {
-    var items = db.rows('Items'), by = {};
-    db.rows('ChallanLines').forEach(function (l) {
-      if (l.ChallanNo !== no) return;
-      var it = find(items, 'ItemCode', l.ItemCode), d = num(l.QtyDamaged), lo = num(l.QtyLost);
-      if (!it || isSet_(it) || it.StockTracked !== 'Yes' || !(d || lo)) return;
-      var x = by[l.ItemCode]; if (!x) { x = by[l.ItemCode] = { ChallanNo: no, JobNo: jn, ItemCode: l.ItemCode, QtyDamaged: 0, QtyLost: 0, Status: 'Open' }; dmg.push(x); }
-      x.QtyDamaged += d; x.QtyLost += lo;
-    });
-    dmg.forEach(function (x) { x.QtyDamaged = x.QtyDamaged || ''; x.QtyLost = x.QtyLost || ''; });
-  }
+  if (c.Kind === 'Return' && !db.rows('Damage').some(function (x) { return x.ChallanNo === no; })) // r34 F5: from its moves, as postChallan
+    dmg = chDmg_(db.rows('StockMoves').filter(function (v) { return v.RefNo === no && v.RefType === 'Challan'; }), no, jn);
   chPostTail_(db, c, job, dmg, new Date());
   return { damage: dmg.length };
+}
+function chCancelOut_(db, c, errs) { // r34 F5: a posted delivery's outside / vendor items that already came back can't be un-delivered
+  if (blank(c.JobNo) || locType(db, c.ToLoc) !== 'Site') return;
+  var ls = db.rows('ChallanLines').filter(function (l) { return l.ChallanNo === c.ChallanNo; });
+  if (String(c.MatSource || '') === 'Vendor') { var vo = chVendorOut_(db, c.JobNo, c.SupID); ls.forEach(function (l) { if ((vo[l.ItemCode] || 0) < num(l.Qty) - 1e-9) errs.push(l.ItemCode + ': only ' + (vo[l.ItemCode] || 0) + ' of the vendor\'s items still out (some came back)'); vo[l.ItemCode] = (vo[l.ItemCode] || 0) - num(l.Qty); }); return; }
+  if (!ls.some(function (l) { return num(l.QtyOut) > 0; })) return;
+  var h = onHire(db, c.JobNo); ls.forEach(function (l) { var q = num(l.QtyOut); if (!(q > 0)) return; if ((h[l.ItemCode] || 0) < q - 1e-9) errs.push(l.ItemCode + ': only ' + r2(h[l.ItemCode] || 0) + ' on hire, the ' + q + ' from outside already came back'); h[l.ItemCode] = (h[l.ItemCode] || 0) - q; });
 }
 function cancelChallan(db, no) {
   var c = must(db, 'Challans', 'ChallanNo', no);
@@ -386,6 +413,7 @@ function cancelChallan(db, no) {
       if (t !== 'Sold' && t !== 'Supplier' && (bal[k] || 0) < num(v.Qty) - 1e-9) errs.push(v.ItemCode + (oc && chOwnOf_(v) ? ' (' + chOwnOf_(v) + ')' : '') + ': only ' + (bal[k] || 0) + ' left at ' + v.ToLoc);
       bal[k] = (bal[k] || 0) - num(v.Qty);
     });
+    chCancelOut_(db, c, errs); // r34 F5
     if (errs.length) throw new Error('Cannot cancel:\n' + errs.join('\n'));
     var ids = nextIds(db, 'MV', mv.length), now = new Date(), tag = db.headers('StockMoves').indexOf('SetCode') >= 0;
     db.insert('StockMoves', mv.map(function (v, i) {
@@ -410,11 +438,11 @@ function jobEvents(db, jobNo) {
     if (sites[v.ToLoc]) e.push({ d: d, q: q });
     if (sites[v.FromLoc]) e.push({ d: d + 1, q: -q });
   });
-  var sets = setMap_(db); if (!Object.keys(sets).length) return ev;
+  var sets = setMap_(db), oq = db.hasTab('ChallanLines') && db.headers('ChallanLines').indexOf('QtyOut') >= 0; if (!Object.keys(sets).length && !oq) return ev;
   var chs = {}; db.rows('Challans').forEach(function (c) { if (c.JobNo === jobNo && c.Status === 'Posted' && String(c.MatSource || '') !== 'Vendor') chs[c.ChallanNo] = c; }); // r28 F2: vendor sets are not ours on hire
   db.rows('ChallanLines').forEach(function (l) {
-    var c = chs[l.ChallanNo]; if (!c || !sets[l.ItemCode]) return;
-    var d = dayNum(c.ChallanDate), q = num(l.Qty), add = function (x) { (ev[l.ItemCode] = ev[l.ItemCode] || []).push(x); };
+    var c = chs[l.ChallanNo]; if (!c) return; var st = !!sets[l.ItemCode]; if (!st && !(oq && num(l.QtyOut) > 0)) return; // r34 F5: + loose qty from outside
+    var d = dayNum(c.ChallanDate), q = st ? num(l.Qty) : num(l.QtyOut), add = function (x) { (ev[l.ItemCode] = ev[l.ItemCode] || []).push(x); };
     if (sites[c.ToLoc]) add({ d: d, q: q });
     if (sites[c.FromLoc]) add({ d: d + 1, q: -q });
   });
